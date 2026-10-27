@@ -35,14 +35,23 @@ _annotate() { [ -n "${GITHUB_ACTIONS:-}" ] && echo "::error title=distro-matrix 
 fail=0
 failed=()
 for img in "${IMAGES[@]}"; do
+    # Pull first: docker create would print pull progress next to the ID
+    if ! perr=$(docker pull -q "$img" 2>&1); then
+        echo "FAIL  $img (pull)"; _annotate "${img##*/}" "docker pull failed: $(tail -2 <<< "$perr" | tr '\n' ' ')"
+        fail=1; failed+=("${img##*/}"); continue
+    fi
     # docker cp, not a tar pipe: some minimal images (openSUSE) ship no tar
-    cid=$(docker create -i --entrypoint sh "$img" -c "
+    if ! cid=$(docker create -i --entrypoint sh "$img" -c "
             command -v bash >/dev/null 2>&1 || apk add -q bash >/dev/null 2>&1
             cd /anzen && bash ./anzen.sh --no-color $MODULES 2>&1
-            echo \"__EXIT=\$?\"" 2>&1) || {
-        echo "FAIL  $img (docker create: $cid)"; _annotate "${img##*/}" "docker create failed: $cid"
-        fail=1; failed+=("${img##*/}"); continue; }
-    docker cp -q "$ROOT/." "$cid:/anzen" 2>/dev/null || docker cp "$ROOT/." "$cid:/anzen" >/dev/null
+            echo \"__EXIT=\$?\"" 2>/tmp/anzen-matrix-create.err); then
+        echo "FAIL  $img (docker create)"; _annotate "${img##*/}" "docker create failed: $(tr '\n' ' ' < /tmp/anzen-matrix-create.err)"
+        fail=1; failed+=("${img##*/}"); continue
+    fi
+    if ! cperr=$(docker cp "$ROOT/." "$cid:/anzen" 2>&1 >/dev/null); then
+        echo "FAIL  $img (docker cp)"; _annotate "${img##*/}" "docker cp failed: $cperr"
+        docker rm -f "$cid" >/dev/null 2>&1; fail=1; failed+=("${img##*/}"); continue
+    fi
     out=$(timeout 600 docker start -a "$cid" 2>&1)
     docker rm -f "$cid" >/dev/null 2>&1
     rc=$(sed -n 's/^__EXIT=//p' <<< "$out")
