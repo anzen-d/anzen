@@ -31,15 +31,20 @@ ends up world-readable, a new CVE lands in an image you pulled months ago.
 Anzen checks all of that in one run and keeps a history, so the weekly report
 answers **"what got worse?"** instead of listing the same 300 lines again.
 
-- 🛡️ **22 Linux check modules:** SSH, sudo and users, kernel sysctls, file permissions, secrets, systemd sandboxing, TLS, firewall, Docker/Podman/LXD/k8s, image freshness, local and external pentest.
-- 🐞 **Known CVEs** in host packages and in **every running container image**, via [Trivy](https://trivy.dev).
-- 🪟 **Windows edition:** Defender, firewall, BitLocker, SMBv1, RDP/NLA, LSA protection and more, with the same report format.
-- 📈 **History and dashboard:** per-host score trends, new and fixed problems, all in one static HTML page.
-- 🔔 **Alerts only when something new breaks**, via ntfy or any command, plus a dead-man switch.
-- ✅ **Accepted risks with expiry dates**, so known exceptions stay quiet but never forever.
-- 🌐 **Fleet mode:** `--remote=host1,host2` audits hosts over SSH without installing anything there.
-- 📄 **HTML, TXT, JSON and SARIF reports**, plus a generated `remediate.sh` with the fix commands.
-- 🪶 **No dependencies:** plain Bash and standard tools; Trivy, curl and Docker only unlock extra checks.
+The name comes from Japanese: **安全 (anzen)** means *safety* or *security*.
+安 (*an*) stands for peace and ease, 全 (*zen*) for whole or complete, so together
+the characters suggest *complete peace of mind*. That is the goal of the
+tool: know the whole state of your machines and stop worrying about them.
+
+- **22 Linux check modules:** SSH, sudo and users, kernel sysctls, file permissions, secrets, systemd sandboxing, TLS, firewall, Docker/Podman/LXD/k8s, image freshness, local and external pentest.
+- **Known CVEs** in host packages and in **every running container image**, via [Trivy](https://trivy.dev).
+- **Windows edition:** Defender, firewall, BitLocker, SMBv1, RDP/NLA, LSA protection and more, with the same report format.
+- **History and dashboard:** per-host score trends, new and fixed problems, all in one static HTML page.
+- **Alerts only when something new breaks**, via ntfy or any command, plus a dead-man switch.
+- **Accepted risks with expiry dates**, so known exceptions stay quiet but never forever.
+- **Fleet mode:** `--remote=host1,host2` audits hosts over SSH without installing anything there.
+- **HTML, TXT, JSON and SARIF reports**, plus a generated `remediate.sh` with the fix commands.
+- **No dependencies:** plain Bash and standard tools; Trivy, curl and Docker only unlock extra checks.
 
 <p align="center">
   <img src="docs/img/dashboard.png" alt="anzen dashboard with Linux and Windows hosts" width="800">
