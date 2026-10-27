@@ -91,6 +91,7 @@ ALL_MODULES=(
     kernel            "Kernel parameters (sysctl)"
     auditd            "Audit daemon configuration"
     images            "Container image age, pinning, updates"
+    truststore        "Distrusted CA certificates (trust stores)"
     cve               "Known CVEs: host + container images (trivy)"
     docker_security   "Container / Docker security"
 )

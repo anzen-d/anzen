@@ -30,6 +30,7 @@ powershell -ExecutionPolicy Bypass -File .\windows\anzen.ps1 -Json
 | `powershell` | Script block logging, PowerShell 2.0 |
 | `secureboot` | Secure Boot |
 | `network` | Risky ports (SMB, RDP, WinRM, Telnet…) listening on all interfaces |
+| `truststore` | Distrusted CA certificates (same list as Linux) in machine and user stores, unless blocked by the Disallowed store |
 
 Options: `-Check`, `-Json`, `-Output`, `-History`, `-AcceptFile`, `-Quiet`,
 `-Strict`, `-List`. Exit codes match the Linux edition (1 on FAIL, or on WARN

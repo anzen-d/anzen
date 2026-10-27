@@ -7,7 +7,7 @@ _anzen_complete() {
 
     local modules="system users ssh network network2 packages files secrets
                    systemd_hardening tls compiler path_check modules
-                   services docker_security images logins kernel auditd cve
+                   services docker_security images logins kernel auditd cve truststore
                    pentest pentest_external"
 
     case "$prev" in

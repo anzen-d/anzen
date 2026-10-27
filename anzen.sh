@@ -6,7 +6,7 @@
 
 set -uo pipefail
 
-ANZEN_VERSION="0.9.1"
+ANZEN_VERSION="0.10.0"
 ANZEN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPORT_DIR="$ANZEN_DIR/reports"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -84,7 +84,7 @@ Filtering:
 Modules:
   system users ssh network network2 packages files secrets
   systemd_hardening tls compiler path_check modules
-  services docker_security images logins kernel auditd cve
+  services docker_security images logins kernel auditd cve truststore
   pentest              Active local self-pentest (ports, banners, HTTP)
   pentest_external     Active external endpoint pentest (requires --target)
 
@@ -132,7 +132,7 @@ export QUIET NO_COLOR PENTEST_TARGET PENTEST_WAN PENTEST_RESOLVE_IP
 
 ALL_MODULES=(system users ssh network network2 packages files secrets
              systemd_hardening tls compiler path_check modules
-             services docker_security images logins kernel auditd cve
+             services docker_security images logins kernel auditd cve truststore
              pentest pentest_external)
 
 

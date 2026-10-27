@@ -22,6 +22,9 @@ Small, self-contained, no deep knowledge of the codebase needed.
 - **Windows checks** — `windows/anzen.ps1` is newer and smaller: e.g. LAPS,
   Windows Hello / PIN policy, Attack Surface Reduction rules, SMB null sessions,
   scheduled tasks running as SYSTEM from writable paths.
+- **Distrusted certificates** — when a CA is compromised or distrusted, add its
+  fingerprints to `lib/data/distrusted-certs.tsv` (one line per certificate,
+  with a reference link).
 - **Docs** — clearer explanations of why a finding matters, translations of
   the README.
 

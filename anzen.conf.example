@@ -105,6 +105,13 @@
 # WARN for :latest / untagged images (not reproducible)
 # IMAGE_WARN_LATEST=true
 
+# ── Trust stores (truststore module) ──────────────────────────────────────────
+# Compromised/distrusted CA certificates are listed in lib/data/distrusted-certs.tsv.
+# Add your own entries (same tab-separated format) in a separate file:
+# DISTRUSTED_CERTS_FILE="/etc/anzen/distrusted-certs.tsv"
+# Also check the CA bundle inside every running container (docker cp, read-only)
+# TRUSTSTORE_SCAN_CONTAINERS=true
+
 # ── CVE scanning (cve module, needs trivy — https://trivy.dev) ────────────────
 # Scans host packages (OS + installed language packages) and every running
 # container image. One finding per vulnerable package: CRITICAL → FAIL, HIGH → WARN.

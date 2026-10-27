@@ -66,3 +66,17 @@ Describe 'Scores and JSON report' {
         (Get-Content $out) -match '^    \{"id": "smb-[0-9a-f]{8}", "level": "FAIL", "section": "SMB", "message": ' | Should -Not -BeNullOrEmpty
     }
 }
+
+Describe 'Trust store check helpers' {
+    It 'computes the same SHA-256 fingerprint as the Linux edition' {
+        $pem = Get-Content (Join-Path $PSScriptRoot '..' '..' 'tests' 'fixtures' 'emudhra-dv-g3b.pem') -Raw
+        $b64 = ($pem -replace '-----[^-]+-----', '') -replace '\s', ''
+        $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new([Convert]::FromBase64String($b64))
+        Get-CertSha256 $cert | Should -Be '42C4ACCD12C4F59597925E1A08A7A90102608543809308D50EC427E118BA1493'
+    }
+    It 'reads the shared distrusted list' {
+        $list = @(Get-DistrustedList (Join-Path $PSScriptRoot '..' '..' 'lib' 'data' 'distrusted-certs.tsv'))
+        $list.Count | Should -BeGreaterThan 15
+        ($list | Where-Object Sha256 -eq '42C4ACCD12C4F59597925E1A08A7A90102608543809308D50EC427E118BA1493').Severity | Should -Be 'FAIL'
+    }
+}

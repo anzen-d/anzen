@@ -29,6 +29,8 @@ cp anzen.conf.example anzen.conf
 | `IMAGE_MAX_AGE_DAYS` | `180` | `images`: WARN for running images older than this |
 | `IMAGE_CHECK_UPDATES` | `true` | `images`: compare with the registry digest (HEAD requests, no pulls) |
 | `IMAGE_WARN_LATEST` | `true` | `images`: WARN for `:latest` / untagged images |
+| `DISTRUSTED_CERTS_FILE` | — | `truststore`: extra distrusted certificates, same format as `lib/data/distrusted-certs.tsv` |
+| `TRUSTSTORE_SCAN_CONTAINERS` | `true` | `truststore`: also check the CA bundle in every running container |
 | `FAIL_AS_WARN` | — | Substrings; matching FAILs are downgraded to WARN |
 | `ACCEPT_FILE` | `anzen.accept` | Accepted-risk file, see [Accepted Risks](reports.md#accepted-risks) |
 | `HISTORY_DIR` | — | Save every run under `<dir>/<host>/` |

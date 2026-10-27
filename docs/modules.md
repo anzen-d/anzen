@@ -24,9 +24,60 @@
 | Audit Daemon | `auditd` | auditd running + rules loaded, NTP/time sync, TCP wrappers, rkhunter/chkrootkit |
 | Container Security | `docker_security` | Docker, Podman, nerdctl, LXD, LXC, Kubernetes — runtime-specific security checks |
 | Container Images | `images` | Running images: age, `:latest`/untagged, containers not recreated after a pull, newer digest upstream |
+| Trust stores | `truststore` | Distrusted / compromised CA certificates in system bundles, Java `cacerts`, Python `certifi`, local anchors and running containers |
 | Vulnerabilities | `cve` | Known CVEs in host packages and running container images (needs trivy) |
 | Local Pentest | `pentest` | Active self-pentest: port scan, service banner grabbing, local HTTP sensitive path enumeration, HTTP security headers |
 | External Pentest | `pentest_external` | Active pentest of a remote endpoint (requires `--target`): DNS recon, port scan with service fingerprinting, TLS/SSL analysis, HTTP security headers, content-aware sensitive path enumeration, CORS, HTTP methods, open redirect, clickjacking, information disclosure |
+
+
+## Trust stores
+
+The `truststore` module looks for CA certificates that must no longer be
+trusted, such as compromised keys or distrusted CAs, everywhere a host keeps CA
+certificates:
+
+- the system bundle (`/etc/ssl/certs/ca-certificates.crt`, `/etc/pki/…`)
+- locally added anchors (`/usr/local/share/ca-certificates`, `/etc/pki/ca-trust/source/anchors`)
+- Java `cacerts` (when `keytool` is installed) and Python `certifi`
+- the CA bundle **inside every running container**, because a patched host
+  does not fix an image built before the patch
+
+Certificates are matched by the SHA-256 fingerprint of the certificate itself,
+listed in [`lib/data/distrusted-certs.tsv`](../lib/data/distrusted-certs.tsv).
+The fingerprints are computed with `base64` and `sha256sum`, so OpenSSL is not
+needed. The Windows edition checks the machine and user certificate stores
+against the same list, and a certificate in the **Disallowed** store counts as
+blocked.
+
+**First entries: eMudhra, October 2026.** Eight eMudhra intermediate CAs (six
+for TLS, two for code signing) had private keys that could be recovered, and
+each was also cross-signed by Sectigo's *AAA Certificate Services* root.
+Browsers blocked them within hours, but anything relying on an older CA
+bundle (outdated `ca-certificates`, old container images, Java or Python
+bundles) could still trust certificates issued with those keys. Anzen reports:
+
+- **FAIL** for any of the 16 compromised intermediate certificates (8 keys,
+  each with an eMudhra-issued and a Sectigo cross-signed version) and for the
+  three emSign G3 roots
+- **WARN** for *AAA Certificate Services*, through which the cross-signed
+  intermediates chain. Updated bundles no longer include it. Update the
+  bundle rather than deleting the root by hand, because that can break other
+  legacy Sectigo chains
+
+The fix is to update `ca-certificates` on the host and rebuild or pull fresh
+images for the affected containers. References:
+[Mozilla incident](https://bugzilla.mozilla.org/show_bug.cgi?id=2083449),
+[Apple](https://support.apple.com/en-us/149555),
+[researcher's disclosure](https://emudhra.we-have-a-problem.com/).
+
+**Adding entries.** Future incidents are added to the bundled list as one line
+per certificate. For site-specific distrust, point `DISTRUSTED_CERTS_FILE` to
+your own file in the same format:
+
+```
+# SHA256  SEVERITY  INCIDENT  NAME  REFERENCE   (tab-separated)
+42C4ACCD…1493	FAIL	emudhra-2026	EM DV TLS CA - G3B (…)	https://…
+```
 
 ## Pentesting
 

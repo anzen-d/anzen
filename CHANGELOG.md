@@ -6,6 +6,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-28
+
+### Added
+- **`truststore` module (Linux and Windows): distrusted CA certificates.**
+  Checks system CA bundles, local anchors, Java `cacerts`, Python `certifi` and
+  the CA bundle of every running container against
+  `lib/data/distrusted-certs.tsv`, matching by SHA-256 certificate fingerprint
+  (no OpenSSL needed; identical bundles are fingerprinted once). The Windows
+  edition checks the machine/user stores and treats certificates in the
+  Disallowed store as blocked
+- First entries: the eMudhra incident of October 2026. FAIL for the 16
+  compromised intermediate certificates (8 keys, eMudhra- and Sectigo-issued)
+  and the three emSign G3 roots, WARN for Sectigo *AAA Certificate Services*,
+  through which the cross-signed intermediates chain. Fingerprints were computed
+  from the certificates in the researcher's disclosure, and the roots were
+  cross-checked against an independent source
+- `DISTRUSTED_CERTS_FILE` for site-specific entries, `TRUSTSTORE_SCAN_CONTAINERS`
+
 ## [0.9.1] - 2026-10-28
 
 ### Changed

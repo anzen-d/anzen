@@ -23,6 +23,7 @@ _anzen() {
         'kernel:Kernel hardening sysctl parameters'
         'auditd:Audit daemon, NTP and rootkit scanners'
         'images:Container image age, pinning and available updates'
+        'truststore:Distrusted CA certificates in system, Java, Python and container trust stores'
         'cve:Known CVEs in host packages and container images (trivy)'
         'pentest:Active local self-pentest (ports, banners, HTTP)'
         'pentest_external:Active external endpoint pentest (requires --target)'

@@ -36,7 +36,8 @@ The name comes from Japanese: **安全 (anzen)** means *safety* or *security*.
 the characters suggest *complete peace of mind*. That is the goal of the
 tool: know the whole state of your machines and stop worrying about them.
 
-- **22 Linux check modules:** SSH, sudo and users, kernel sysctls, file permissions, secrets, systemd sandboxing, TLS, firewall, Docker/Podman/LXD/k8s, image freshness, local and external pentest.
+- **23 Linux check modules:** SSH, sudo and users, kernel sysctls, file permissions, secrets, systemd sandboxing, TLS, firewall, Docker/Podman/LXD/k8s, image freshness, local and external pentest.
+- **Distrusted CA certificates** in system, Java, Python and container trust stores, from a curated list, starting with the [eMudhra intermediates compromised in October 2026](docs/modules.md#trust-stores).
 - **Known CVEs** in host packages and in **every running container image**, via [Trivy](https://trivy.dev).
 - **Windows edition:** Defender, firewall, BitLocker, SMBv1, RDP/NLA, LSA protection and more, with the same report format.
 - **History and dashboard:** per-host score trends, new and fixed problems, all in one static HTML page.
@@ -134,11 +135,11 @@ sudo ./anzen.sh --config=/etc/anzen/anzen.conf --parallel --schedule=weekly:04:3
 | System and accounts | `system`, `users`, `logins`, `packages`, `services`, `auditd` |
 | Access and network | `ssh`, `network`, `network2`, `tls` |
 | Kernel and filesystem | `kernel`, `modules`, `files`, `path_check`, `compiler`, `systemd_hardening` |
-| Secrets | `secrets` |
+| Secrets and certificates | `secrets`, `truststore` |
 | Containers | `docker_security`, `images` |
 | Vulnerabilities | `cve` (Trivy) |
 | Active testing | `pentest`, `pentest_external` |
-| Windows | `system`, `updates`, `defender`, `firewall`, `accounts`, `passwords`, `uac`, `bitlocker`, `smb`, `rdp`, `credentials`, `powershell`, `secureboot`, `network` |
+| Windows | `system`, `updates`, `defender`, `firewall`, `accounts`, `passwords`, `uac`, `bitlocker`, `smb`, `rdp`, `credentials`, `powershell`, `secureboot`, `network`, `truststore` |
 
 Every finding is **FAIL** (fix it), **WARN** (review it), **OK** or **INFO**,
 mostly with a copy-paste fix. Full list in [docs/modules.md](docs/modules.md).

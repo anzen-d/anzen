@@ -45,7 +45,7 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Continue'
 
-$AnzenVersion = '0.9.1'
+$AnzenVersion = '0.10.0'
 $ScriptDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
 $FailPenalty  = 10
 $WarnPenalty  = 3
@@ -368,6 +368,64 @@ function Invoke-NetworkCheck {
     }
 }
 
+# Distrusted CA certificates (same list as the Linux truststore module):
+# FAIL/WARN when one is trusted in a machine/user store and not blocked by the
+# Disallowed store, which Microsoft updates automatically
+function Get-DistrustedList([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return @() }
+    foreach ($line in Get-Content -LiteralPath $Path) {
+        if ($line -match '^\s*(#|$)') { continue }
+        $f = $line -split "`t"
+        if ($f.Count -ge 4) {
+            [pscustomobject]@{ Sha256 = $f[0].ToUpperInvariant(); Severity = $f[1]; Incident = $f[2]; Name = $f[3]; Ref = $(if ($f.Count -ge 5) { $f[4] } else { '' }) }
+        }
+    }
+}
+
+function Get-CertSha256($Cert) {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    return (-join ($sha.ComputeHash($Cert.RawData) | ForEach-Object { $_.ToString('X2') }))
+}
+
+function Invoke-TrustStoreCheck {
+    Section 'Trust Stores'
+    $listPath = Join-Path $ScriptDir '..\lib\data\distrusted-certs.tsv'
+    $list = @(Get-DistrustedList $listPath)
+    if (-not $list.Count) { Info "Distrusted certificate list not found ($listPath)"; return }
+    if (-not (Test-Path 'Cert:\LocalMachine')) { Info 'Certificate stores not available on this platform'; return }
+    Info "Distrusted certificate list: $($list.Count) entries"
+
+    $trusted = @{}; $thumb = @{}; $blocked = @{}; $checked = 0
+    foreach ($store in 'LocalMachine\Root', 'LocalMachine\AuthRoot', 'LocalMachine\CA', 'LocalMachine\TrustedPublisher',
+                       'CurrentUser\Root', 'CurrentUser\CA') {
+        foreach ($c in @(Get-ChildItem "Cert:\$store" -ErrorAction SilentlyContinue)) {
+            $checked++
+            $h = Get-CertSha256 $c
+            if (-not $trusted.ContainsKey($h)) { $trusted[$h] = New-Object System.Collections.Generic.List[string] }
+            $trusted[$h].Add($store)
+            $thumb[$h] = $c.Thumbprint
+        }
+    }
+    foreach ($store in 'LocalMachine\Disallowed', 'CurrentUser\Disallowed') {
+        foreach ($c in @(Get-ChildItem "Cert:\$store" -ErrorAction SilentlyContinue)) { $blocked[(Get-CertSha256 $c)] = $true }
+    }
+
+    $found = 0
+    foreach ($e in $list) {
+        if (-not $trusted.ContainsKey($e.Sha256)) { continue }
+        $where = ($trusted[$e.Sha256] | Select-Object -Unique) -join ', '
+        if ($blocked.ContainsKey($e.Sha256)) {
+            Ok "$($e.Name) [$($e.Incident)] is blocked by the Disallowed store ($where)"
+            continue
+        }
+        $found++
+        $msg = "Distrusted certificate trusted in ${where}: $($e.Name) [$($e.Incident)]"
+        $fix = "Install the latest Windows updates (Disallowed certificate list), or: Get-ChildItem Cert:\LocalMachine\Root,Cert:\LocalMachine\CA | Where-Object { `$_.Thumbprint -eq '$($thumb[$e.Sha256])' } | Move-Item -Destination Cert:\LocalMachine\Disallowed  # $($e.Ref)"
+        if ($e.Severity -eq 'WARN') { Warn $msg $fix } else { Fail $msg $fix }
+    }
+    if (-not $found) { Ok "No distrusted CA certificates trusted ($checked certificates checked)" }
+}
+
 $Modules = [ordered]@{
     system      = 'Invoke-SystemCheck'
     updates     = 'Invoke-UpdatesCheck'
@@ -383,6 +441,7 @@ $Modules = [ordered]@{
     powershell  = 'Invoke-PowerShellCheck'
     secureboot  = 'Invoke-SecureBootCheck'
     network     = 'Invoke-NetworkCheck'
+    truststore  = 'Invoke-TrustStoreCheck'
 }
 
 # ── Scores and report ────────────────────────────────────────────────────────
