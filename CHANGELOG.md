@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.1] - 2026-10-27
+
+### Fixed
+- **World-readable `/etc/shadow` was only a WARN**: file permission checks now FAIL when a file grants access to everyone or extra write access, WARN for extra group read/execute, and accept stricter-than-expected modes (RHEL's `/etc/shadow` is `000`)
+- Kernel checks read `/proc/sys` when the `sysctl` binary is missing (minimal images reported every parameter as "not available"); an unreadable `fs.suid_dumpable` is INFO, not a WARN with an empty value
+- Summary table column widened so long section names stay aligned
+- `install.sh` is executable in the repository, so `sudo ./install.sh` works as documented
+- Dockerfile no longer suggests auditing the host by mounting `/` — anzen audits the system it runs on; the image is a runner for `--remote`
+
+### Changed
+- README rewritten for first-time users: logo, demo animation, quick start for Linux/Windows/remote, common workflows; the full reference moved to `docs/` (installation, usage, modules, reports, configuration, fleet, windows)
+- GitHub CI: `actions/checkout@v5`; the Windows job accepts exit 1 (findings) from the real run; distro-matrix failures appear as annotations
+
 ## [0.8.0] - 2026-10-27
 
 ### Added

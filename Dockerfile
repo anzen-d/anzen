@@ -31,16 +31,11 @@ RUN chmod +x /anzen/anzen.sh /anzen/install.sh && \
 
 VOLUME ["/anzen/reports"]
 
-# Run with --privileged and mount the host root to audit a real host:
-#   docker run --rm --privileged \
-#     -v /:/host:ro \
-#     -v $(pwd)/reports:/anzen/reports \
-#     anzen --html
-#
-# Or audit a remote host:
-#   docker run --rm -v ~/.ssh:/root/.ssh:ro \
-#     -v $(pwd)/reports:/anzen/reports \
-#     anzen --remote=user@host --html
+# anzen audits the system it runs on, so inside a container it audits the
+# container. Use the image as a portable runner for remote/fleet audits:
+#   docker build -t anzen .
+#   docker run --rm -v ~/.ssh:/root/.ssh:ro -v "$PWD/reports":/anzen/reports \
+#     anzen --remote=root@host1,root@host2 --html
 
 ENTRYPOINT ["bash", "/anzen/anzen.sh"]
 CMD ["--help"]

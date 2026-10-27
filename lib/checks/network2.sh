@@ -20,7 +20,7 @@ run_network2_check() {
     # IPv6 privacy extensions
     if [ -d /proc/sys/net/ipv6 ]; then
         local ipv6_priv
-        ipv6_priv=$(sysctl -n net.ipv6.conf.all.use_tempaddr 2>/dev/null)
+        ipv6_priv=$(_sysctl net.ipv6.conf.all.use_tempaddr 2>/dev/null)
         if [ "${ipv6_priv:-0}" -lt 2 ]; then
             warn "IPv6 privacy extensions not enabled (use_tempaddr=$ipv6_priv)"
             remedy "sysctl -w net.ipv6.conf.all.use_tempaddr=2 && echo 'net.ipv6.conf.all.use_tempaddr=2' >> /etc/sysctl.d/99-anzen-hardening.conf"
@@ -45,7 +45,7 @@ run_network2_check() {
 
     # IP forwarding
     local ip_fwd
-    ip_fwd=$(sysctl -n net.ipv4.ip_forward 2>/dev/null)
+    ip_fwd=$(_sysctl net.ipv4.ip_forward 2>/dev/null)
     if [ "${ip_fwd:-0}" -eq 1 ]; then
         warn "IPv4 forwarding enabled (net.ipv4.ip_forward=1)"
         remedy "sysctl -w net.ipv4.ip_forward=0 && echo 'net.ipv4.ip_forward=0' >> /etc/sysctl.d/99-anzen-hardening.conf"
@@ -55,7 +55,7 @@ run_network2_check() {
 
     # Source routing
     local src_rt
-    src_rt=$(sysctl -n net.ipv4.conf.all.accept_source_route 2>/dev/null)
+    src_rt=$(_sysctl net.ipv4.conf.all.accept_source_route 2>/dev/null)
     if [ "${src_rt:-1}" -ne 0 ]; then
         fail "IPv4 source routing accepted"
         remedy "sysctl -w net.ipv4.conf.all.accept_source_route=0 && echo 'net.ipv4.conf.all.accept_source_route=0' >> /etc/sysctl.d/99-anzen-hardening.conf"
@@ -65,7 +65,7 @@ run_network2_check() {
 
     # ICMP redirect acceptance
     local icmp_redir
-    icmp_redir=$(sysctl -n net.ipv4.conf.all.accept_redirects 2>/dev/null)
+    icmp_redir=$(_sysctl net.ipv4.conf.all.accept_redirects 2>/dev/null)
     if [ "${icmp_redir:-1}" -ne 0 ]; then
         warn "ICMP redirects accepted"
         remedy "sysctl -w net.ipv4.conf.all.accept_redirects=0 && echo 'net.ipv4.conf.all.accept_redirects=0' >> /etc/sysctl.d/99-anzen-hardening.conf"
@@ -75,7 +75,7 @@ run_network2_check() {
 
     # Reverse path filtering
     local rp_filter
-    rp_filter=$(sysctl -n net.ipv4.conf.all.rp_filter 2>/dev/null)
+    rp_filter=$(_sysctl net.ipv4.conf.all.rp_filter 2>/dev/null)
     if [ "${rp_filter:-0}" -eq 0 ]; then
         warn "Reverse path filtering disabled"
         remedy "sysctl -w net.ipv4.conf.all.rp_filter=1 && echo 'net.ipv4.conf.all.rp_filter=1' >> /etc/sysctl.d/99-anzen-hardening.conf"
@@ -85,7 +85,7 @@ run_network2_check() {
 
     # SYN cookies
     local syn_cookies
-    syn_cookies=$(sysctl -n net.ipv4.tcp_syncookies 2>/dev/null)
+    syn_cookies=$(_sysctl net.ipv4.tcp_syncookies 2>/dev/null)
     if [ "${syn_cookies:-0}" -ne 1 ]; then
         fail "SYN cookies not enabled"
         remedy "sysctl -w net.ipv4.tcp_syncookies=1 && echo 'net.ipv4.tcp_syncookies=1' >> /etc/sysctl.d/99-anzen-hardening.conf"

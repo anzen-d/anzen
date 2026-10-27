@@ -9,7 +9,7 @@ run_kernel_check() {
     _sysctl_check() {
         local key=$1 expected=$2 label=${3:-$1} severity=${4:-warn}
         local val
-        val=$(sysctl -n "$key" 2>/dev/null)
+        val=$(_sysctl "$key" 2>/dev/null)
         if [ -z "$val" ]; then
             info "$label: not available on this kernel"
             return
@@ -38,18 +38,18 @@ run_kernel_check() {
     _sysctl_check fs.protected_hardlinks 1 "Protected hardlinks" warn
 
     local fwd
-    fwd=$(sysctl -n net.ipv4.ip_forward 2>/dev/null)
+    fwd=$(_sysctl net.ipv4.ip_forward 2>/dev/null)
     if [ "$fwd" = "1" ]; then
         warn "IP forwarding enabled — verify intent (expected on routers/container hosts)"
     else
         ok "IP forwarding disabled"
     fi
 
-    fwd=$(sysctl -n net.ipv6.conf.all.forwarding 2>/dev/null)
+    fwd=$(_sysctl net.ipv6.conf.all.forwarding 2>/dev/null)
     [ "$fwd" = "1" ] && warn "IPv6 forwarding enabled — verify intent" || ok "IPv6 forwarding disabled"
 
     local sr
-    sr=$(sysctl -n net.ipv4.conf.all.send_redirects 2>/dev/null)
+    sr=$(_sysctl net.ipv4.conf.all.send_redirects 2>/dev/null)
     if [ "$sr" = "1" ]; then
         warn "Sending ICMP redirects enabled"
         remedy "sysctl -w net.ipv4.conf.all.send_redirects=0 && echo 'net.ipv4.conf.all.send_redirects=0' >> $_SYSCTL_CONF"
@@ -58,9 +58,11 @@ run_kernel_check() {
     fi
 
     local sd
-    sd=$(sysctl -n fs.suid_dumpable 2>/dev/null)
+    sd=$(_sysctl fs.suid_dumpable 2>/dev/null)
     if [ "$sd" = "0" ]; then
         ok "SUID core dumps disabled"
+    elif [ -z "$sd" ]; then
+        info "fs.suid_dumpable: not available on this kernel"
     else
         warn "fs.suid_dumpable=$sd (recommended: 0)"
         remedy "sysctl -w fs.suid_dumpable=0 && echo 'fs.suid_dumpable=0' >> $_SYSCTL_CONF"

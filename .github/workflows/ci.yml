@@ -9,7 +9,7 @@ jobs:
     name: Lint + tests (Linux)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: shellcheck
         run: |
           docker run --rm -v "$PWD":/code -w /code koalaman/shellcheck-alpine:v0.10.0 \
@@ -23,14 +23,14 @@ jobs:
     name: Distro matrix
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: tests/distro-matrix.sh
 
   windows:
     name: Windows edition
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: PSScriptAnalyzer
         shell: pwsh
         run: |
@@ -49,5 +49,9 @@ jobs:
         shell: powershell
         run: |
           .\windows\anzen.ps1 -Output "$env:RUNNER_TEMP\anzen.json"
+          # 0 = clean, 1 = FAIL findings (expected on a stock runner); anything else is a crash
           if ($LASTEXITCODE -gt 1) { exit $LASTEXITCODE }
-          Get-Content "$env:RUNNER_TEMP\anzen.json" -Raw | ConvertFrom-Json | Select-Object -ExpandProperty summary
+          $report = Get-Content "$env:RUNNER_TEMP\anzen.json" -Raw | ConvertFrom-Json
+          $report.summary | Format-List
+          if (-not $report.findings.Count) { Write-Error 'empty report'; exit 1 }
+          exit 0

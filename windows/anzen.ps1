@@ -43,7 +43,7 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Continue'
 
-$AnzenVersion = '0.8.0'
+$AnzenVersion = '0.8.1'
 $ScriptDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
 $FailPenalty  = 10
 $WarnPenalty  = 3
@@ -489,7 +489,7 @@ Write-Host ('━' * 42)
 Write-Host '  SUMMARY'
 Write-Host ('━' * 42)
 foreach ($s in $sections) {
-    if ($s.fail -or $s.warn) { Write-Host ('  {0,-28} {1,3}%   FAIL {2,-3} WARN {3}' -f $s.name, $s.score, $s.fail, $s.warn) }
+    if ($s.fail -or $s.warn) { Write-Host ('  {0,-36} {1,3}%   FAIL {2,-3} WARN {3}' -f $s.name, $s.score, $s.fail, $s.warn) }
 }
 Write-Host ('━' * 42)
 Write-Host "  FAIL: $nFail   WARN: $nWarn   OK: $nOk   Score: $overall%"

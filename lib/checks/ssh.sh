@@ -31,7 +31,7 @@ run_ssh_check() {
 
     # Port
     SSH_PORT=$(_ssh_val "Port"); SSH_PORT=${SSH_PORT:-22}
-    UNPRIV_START=$(sysctl -n net.ipv4.ip_unprivileged_port_start 2>/dev/null || echo 1024)
+    UNPRIV_START=$(_sysctl net.ipv4.ip_unprivileged_port_start 2>/dev/null || echo 1024)
     if [ "$SSH_PORT" = "22" ]; then
         warn "SSH on default port 22"
         remedy "sed -i 's/^#*Port.*/Port 2222/' /etc/ssh/sshd_config && $(_sshd_reload)"

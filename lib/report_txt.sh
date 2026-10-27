@@ -31,7 +31,7 @@ generate_txt_report() {
         echo "  Section scores:"
         local s f w _o sc
         while IFS=$'\t' read -r s f w _o sc; do
-            printf "    %-28s %3s%%  FAIL=%-3s WARN=%s\n" "$s" "$sc" "$f" "$w"
+            printf "    %-36s %3s%%  FAIL=%-3s WARN=%s\n" "$s" "$sc" "$f" "$w"
         done < <(_section_scores)
         echo ""
 

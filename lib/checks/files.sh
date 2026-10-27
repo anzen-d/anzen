@@ -15,10 +15,17 @@ run_files_check() {
         local actual perm
         actual=$(stat -c "%a %U:%G" "$file" 2>/dev/null)
         perm=$(echo "$actual" | awk '{print $1}')
-        if [ "$perm" = "$expected" ]; then
+        # Bits granted beyond the expected maximum; stricter is fine (RHEL
+        # ships /etc/shadow as 000)
+        local extra=$(( 8#$perm & ~8#$expected & 8#7777 ))
+        if [ "$extra" -eq 0 ]; then
             ok "$file — $actual"
+        elif [ $(( extra & 8#0007 )) -ne 0 ] || [ $(( extra & 8#0222 )) -ne 0 ]; then
+            # Readable/writable by everyone, or writable beyond intent
+            fail "$file — $actual (expected $expected or stricter)"
+            remedy "chmod $expected $file"
         else
-            warn "$file — $actual (expected $expected)"
+            warn "$file — $actual (expected $expected or stricter)"
             remedy "chmod $expected $file"
         fi
     }

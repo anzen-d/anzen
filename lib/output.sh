@@ -15,6 +15,16 @@ fi
 
 CURRENT_SECTION="General"
 
+# _sysctl KEY — value of a kernel parameter; reads /proc/sys directly when the
+# sysctl binary (procps) is missing, as in minimal images
+_sysctl() {
+    if command -v sysctl &>/dev/null; then
+        sysctl -n "$1" 2>/dev/null
+    else
+        cat "/proc/sys/${1//.//}" 2>/dev/null
+    fi
+}
+
 # _hostname — minimal images (Fedora, Arch containers) have no hostname binary
 _hostname() { hostname 2>/dev/null || uname -n; }
 # FINDINGS_FILE must be set by anzen.sh before sourcing checks
@@ -187,7 +197,7 @@ print_summary() {
     local sec f w _o sc
     while IFS=$'\t' read -r sec f w _o sc; do
         [ "$f" -eq 0 ] && [ "$w" -eq 0 ] && continue
-        printf "  %-28s %3s%%   FAIL %-3s WARN %s\n" "$sec" "$sc" "$f" "$w"
+        printf "  %-36s %3s%%   FAIL %-3s WARN %s\n" "$sec" "$sc" "$f" "$w"
     done < <(_section_scores)
     local reps; reps=$(_repeated_findings 3)
     if [ -n "$reps" ]; then

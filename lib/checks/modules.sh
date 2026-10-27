@@ -6,7 +6,7 @@ run_modules_check() {
 
     # Check if kernel module loading is locked down
     local modules_disabled
-    modules_disabled=$(sysctl -n kernel.modules_disabled 2>/dev/null)
+    modules_disabled=$(_sysctl kernel.modules_disabled 2>/dev/null)
     if [ "${modules_disabled:-0}" -eq 1 ]; then
         ok "Kernel module loading disabled (modules_disabled=1)"
     else

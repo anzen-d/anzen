@@ -45,6 +45,10 @@ for img in "${IMAGES[@]}"; do
     if [ -n "$errs" ] || [[ ! "$rc" =~ ^[01]$ ]]; then
         printf 'FAIL  %-48s exit=%s  %s\n' "$img" "${rc:-?}" "$os"
         sed 's/^/      /' <<< "$errs" | head -25
+        # GitHub shows ::error lines as annotations, readable without log access
+        if [ -n "${GITHUB_ACTIONS:-}" ]; then
+            echo "::error title=distro-matrix ${img##*/}::exit=${rc:-?} $(head -5 <<< "$errs" | tr '\n' ';' | cut -c1-500) $(tail -3 <<< "$out" | tr '\n' ';' | cut -c1-300)"
+        fi
         fail=1
     else
         printf 'ok    %-48s exit=%s  %s\n' "$img" "$rc" "$os"

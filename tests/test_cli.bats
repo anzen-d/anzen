@@ -75,3 +75,15 @@ teardown() {
     run "$ANZEN_DIR/anzen.sh" --dashboard="$OUT_DIR/d.html"
     [ "$status" -eq 1 ]
 }
+
+@test "files: world-readable shadow is FAIL, stricter-than-expected is OK" {
+    run bash -c '
+        source "'"$ANZEN_DIR"'/lib/output.sh"; FINDINGS_FILE=$(mktemp); QUIET=true
+        source "'"$ANZEN_DIR"'/lib/checks/files.sh"
+        d=$(mktemp -d); touch $d/s1 $d/s2 $d/s3
+        chmod 644 $d/s1; chmod 000 $d/s2; chmod 650 $d/s3
+        eval "$(sed -n "/_check_perm() {/,/^    }/p" "'"$ANZEN_DIR"'/lib/checks/files.sh")"
+        _check_perm $d/s1 640; _check_perm $d/s2 640; _check_perm $d/s3 640
+        cut -f1 "$FINDINGS_FILE" | tr "\n" " "'
+    [[ "$output" == *"FAIL OK WARN"* ]]
+}
