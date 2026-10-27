@@ -35,10 +35,20 @@ _annotate() { [ -n "${GITHUB_ACTIONS:-}" ] && echo "::error title=distro-matrix 
 fail=0
 failed=()
 for img in "${IMAGES[@]}"; do
-    # Pull first: docker create would print pull progress next to the ID
+    # Pull first: docker create would print pull progress next to the ID.
+    # Official images exist on Docker Hub and AWS's mirror; registries throttle
+    # shared CI IPs differently, so fall back to the other one
     if ! perr=$(docker pull -q "$img" 2>&1); then
-        echo "FAIL  $img (pull)"; _annotate "${img##*/}" "docker pull failed: $(tail -2 <<< "$perr" | tr '\n' ' ')"
-        fail=1; failed+=("${img##*/}"); continue
+        case $img in
+            public.ecr.aws/docker/library/*) alt="docker.io/library/${img#public.ecr.aws/docker/library/}" ;;
+            *) alt="" ;;
+        esac
+        if [ -n "$alt" ] && docker pull -q "$alt" >/dev/null 2>&1; then
+            img=$alt
+        else
+            echo "FAIL  $img (pull)"; _annotate "${img##*/}" "docker pull failed: $(tail -2 <<< "$perr" | tr '\n' ' ')"
+            fail=1; failed+=("${img##*/}"); continue
+        fi
     fi
     # docker cp, not a tar pipe: some minimal images (openSUSE) ship no tar
     if ! cid=$(docker create -i --entrypoint sh "$img" -c "
