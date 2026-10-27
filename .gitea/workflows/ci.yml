@@ -22,19 +22,19 @@ jobs:
       - name: Lint (shellcheck)
         run: |
           tar -C src -c . | docker run --rm -i --entrypoint sh koalaman/shellcheck-alpine:v0.10.0 -c '
-            mkdir /code && cd /code && tar x &&
+            mkdir -p /w && cd /w && tar x &&
             shellcheck -S warning anzen.sh anzen-tui.sh install.sh lib/*.sh lib/checks/*.sh lib/checks/runtimes/*.sh'
 
       - name: Test (bats)
         run: |
           tar -C src -c . | docker run --rm -i --entrypoint sh bats/bats:1.11.1 -c '
-            apk add -q python3 bash coreutils curl findutils grep >/dev/null &&
-            mkdir /code && cd /code && tar x && bats tests/'
+            apk add -q python3 bash coreutils curl findutils grep tar >/dev/null &&
+            mkdir -p /w && cd /w && tar x && bats tests/'
 
       - name: Windows edition (PSScriptAnalyzer + Pester)
         run: |
           tar -C src -c . | docker run --rm -i --entrypoint sh mcr.microsoft.com/powershell:7.4-ubuntu-22.04 -c '
-            mkdir /code && cd /code && tar x && pwsh -NoLogo -Command "
+            mkdir -p /w && cd /w && tar x && pwsh -NoLogo -Command "
               \$ErrorActionPreference = \"Stop\"
               Install-Module PSScriptAnalyzer -RequiredVersion 1.23.0 -Force -Scope CurrentUser
               Install-Module Pester -MinimumVersion 5.5 -Force -Scope CurrentUser -SkipPublisherCheck
