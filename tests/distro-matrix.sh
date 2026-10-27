@@ -29,13 +29,19 @@ MODULES=$(sed -n '/^ALL_MODULES=(/,/)/p' "$ROOT/anzen.sh" | tr -d '()' | sed 's/
 # Shell errors, never legitimate output
 ERRORS='command not found|unbound variable|syntax error|integer expression expected|bad substitution|unexpected EOF|No such file or directory.*\.sh|division by 0|invalid arithmetic|ambiguous redirect'
 
+# GitHub shows ::error lines as annotations, readable without log access
+_annotate() { [ -n "${GITHUB_ACTIONS:-}" ] && echo "::error title=distro-matrix $1::$2"; return 0; }
+
 fail=0
+failed=()
 for img in "${IMAGES[@]}"; do
     # docker cp, not a tar pipe: some minimal images (openSUSE) ship no tar
     cid=$(docker create -i --entrypoint sh "$img" -c "
             command -v bash >/dev/null 2>&1 || apk add -q bash >/dev/null 2>&1
             cd /anzen && bash ./anzen.sh --no-color $MODULES 2>&1
-            echo \"__EXIT=\$?\"") || { echo "FAIL  $img (docker create)"; fail=1; continue; }
+            echo \"__EXIT=\$?\"" 2>&1) || {
+        echo "FAIL  $img (docker create: $cid)"; _annotate "${img##*/}" "docker create failed: $cid"
+        fail=1; failed+=("${img##*/}"); continue; }
     docker cp -q "$ROOT/." "$cid:/anzen" 2>/dev/null || docker cp "$ROOT/." "$cid:/anzen" >/dev/null
     out=$(timeout 600 docker start -a "$cid" 2>&1)
     docker rm -f "$cid" >/dev/null 2>&1
@@ -45,13 +51,11 @@ for img in "${IMAGES[@]}"; do
     if [ -n "$errs" ] || [[ ! "$rc" =~ ^[01]$ ]]; then
         printf 'FAIL  %-48s exit=%s  %s\n' "$img" "${rc:-?}" "$os"
         sed 's/^/      /' <<< "$errs" | head -25
-        # GitHub shows ::error lines as annotations, readable without log access
-        if [ -n "${GITHUB_ACTIONS:-}" ]; then
-            echo "::error title=distro-matrix ${img##*/}::exit=${rc:-?} $(head -5 <<< "$errs" | tr '\n' ';' | cut -c1-500) $(tail -3 <<< "$out" | tr '\n' ';' | cut -c1-300)"
-        fi
-        fail=1
+        _annotate "${img##*/}" "exit=${rc:-?} $(head -5 <<< "$errs" | tr '\n' ';' | cut -c1-500) | tail: $(tail -4 <<< "$out" | tr '\n' ';' | cut -c1-400)"
+        fail=1; failed+=("${img##*/}")
     else
         printf 'ok    %-48s exit=%s  %s\n' "$img" "$rc" "$os"
     fi
 done
+[ "$fail" -ne 0 ] && _annotate summary "failed: ${failed[*]}"
 exit "$fail"
