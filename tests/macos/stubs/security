@@ -1,4 +1,12 @@
 #!/bin/sh
-# security find-certificate -a -p KEYCHAIN — the System Roots keychain contains a
-# distrusted eMudhra intermediate on this test Mac
-case "$*" in *SystemRootCertificates*) cat "$STUB_FIXTURES/isrg-root-x1.pem" "$STUB_FIXTURES/emudhra-dv-g3b.pem" ;; esac
+# security — stub for an affected test Mac
+case "$1" in
+  find-certificate)
+    # The System Roots keychain still contains the distrusted emSign ECC root and
+    # AAA Certificate Services (as on real Macs, where Apple blocks via config data)
+    case "$*" in *SystemRoots*|*SystemRootCertificates*)
+        cat "$STUB_FIXTURES/isrg-root-x1.pem" "$STUB_FIXTURES/emsign-ecc-root-g3.pem" "$STUB_FIXTURES/aaa-certificate-services.pem" ;; esac ;;
+  verify-cert)
+    # STUB_TRUSTED=1: macOS still trusts it (not blocked); default: blocked
+    [ "${STUB_TRUSTED:-0}" = 1 ] ;;
+esac

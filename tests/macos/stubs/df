@@ -1,0 +1,7 @@
+#!/bin/sh
+cat <<'OUT'
+Filesystem     1024-blocks      Used Available Capacity  Mounted on
+/dev/disk3s1s1   971350180  11134680 482500000     3%    /
+/dev/disk3s5     971350180 466000000  19000000    97%    /System/Volumes/Data
+/dev/disk3s4     971350180   1048600 482500000     1%    /System/Volumes/VM
+OUT

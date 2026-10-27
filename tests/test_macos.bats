@@ -59,17 +59,50 @@ mac() { run bash "$ANZEN_DIR/macos/anzen-macos.sh" "$@"; }
     [[ "$output" != *"Printer Sharing"* ]]   # 631 only on 127.0.0.1
 }
 
-@test "macos: distrusted eMudhra intermediate in the System Roots keychain is a FAIL" {
-    mkdir -p "$BATS_TEST_TMPDIR/sys"
-    # the script checks the real System Roots path; fake its existence via a wrapper
-    sed "s#/System/Library/Keychains/SystemRootCertificates.keychain#$BATS_TEST_TMPDIR/sys/SystemRootCertificates.keychain#" \
-        "$ANZEN_DIR/macos/anzen-macos.sh" > "$BATS_TEST_TMPDIR/sys/anzen-macos.sh"
-    touch "$BATS_TEST_TMPDIR/sys/SystemRootCertificates.keychain"
-    mkdir -p "$BATS_TEST_TMPDIR/sys/macos"; mv "$BATS_TEST_TMPDIR/sys/anzen-macos.sh" "$BATS_TEST_TMPDIR/sys/macos/"
-    ln -s "$ANZEN_DIR/lib" "$BATS_TEST_TMPDIR/sys/lib"
-    run bash "$BATS_TEST_TMPDIR/sys/macos/anzen-macos.sh" --check=truststore
+@test "macos: uptime is read from the sec field of kern.boottime" {
+    mac --check=system
+    [[ "$output" == *"Uptime: 50 days"* ]]
+    [[ "$output" == *"[WARN] System not restarted for 50 days"* ]]
+}
+
+@test "macos: the sealed system volume is skipped, the Data volume is checked" {
+    mac --check=system
+    [[ "$output" == *"[FAIL] Disk /System/Volumes/Data: 97% used"* ]]
+    [[ "$output" != *"Disk /: "* ]]
+    [[ "$output" != *"System/Volumes/VM"* ]]
+}
+
+# Fake keychain file and an up-to-date cert.pem (only ISRG) unless a test overrides it
+ts_env() {
+    touch "$BATS_TEST_TMPDIR/SystemRoots.keychain"
+    export ANZEN_SYSTEM_ROOTS_KEYCHAIN="$BATS_TEST_TMPDIR/SystemRoots.keychain"
+    cp "$STUB_FIXTURES/isrg-root-x1.pem" "$BATS_TEST_TMPDIR/cert.pem"
+    export ANZEN_CERT_PEM="$BATS_TEST_TMPDIR/cert.pem"
+}
+
+@test "macos: distrusted root in the keychain but blocked by Apple is OK, not FAIL" {
+    ts_env
+    mac --check=truststore
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"[ OK ] emSign ECC Root CA - G3 (distrusted root) is in SystemRoots.keychain but blocked by macOS trust evaluation"* ]]
+    [[ "$output" == *"[INFO] AAA Certificate Services"*"legitimate root; Apple blocks the affected intermediates"* ]]
+    [[ "$output" != *"[FAIL]"* ]]
+}
+
+@test "macos: distrusted root still trusted by macOS is a FAIL" {
+    ts_env
+    STUB_TRUSTED=1 mac --check=truststore
     [ "$status" -eq 1 ]
-    [[ "$output" == *"[FAIL] Distrusted certificate in keychain SystemRootCertificates.keychain: EM DV TLS CA - G3B"* ]]
+    [[ "$output" == *"[FAIL] Distrusted certificate still trusted by macOS: emSign ECC Root CA - G3"* ]]
+}
+
+@test "macos: /etc/ssl/cert.pem with the distrusted roots is FAIL/WARN (curl, git, openssl)" {
+    ts_env
+    cat "$STUB_FIXTURES/emsign-ecc-root-g3.pem" "$STUB_FIXTURES/aaa-certificate-services.pem" >> "$ANZEN_CERT_PEM"
+    mac --check=truststore
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"[FAIL] Distrusted certificate in $ANZEN_CERT_PEM (used by curl, git, openssl): emSign ECC Root CA - G3"* ]]
+    [[ "$output" == *"[WARN] Distrusted certificate in $ANZEN_CERT_PEM (used by curl, git, openssl): AAA Certificate Services"* ]]
 }
 
 @test "macos: JSON report has the shared layout and IDs match the Linux edition" {

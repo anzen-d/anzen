@@ -6,6 +6,28 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-10-28
+
+Fixes from the first run on a real Mac (macOS 26.6).
+
+### Fixed
+- **macOS trust stores: false FAIL for certificates Apple already blocks.** Apple
+  distrusts CAs through automatic certificate configuration data updates while
+  the certificate stays in `SystemRootCertificates.keychain`. Keychain matches
+  are now checked with macOS's own trust evaluation (`security verify-cert`):
+  blocked is OK, still trusted is FAIL. AAA Certificate Services in a keychain
+  is INFO (Apple blocks the cross-signed intermediates instead)
+- **macOS uptime showed ~20,000 days**: `kern.boottime` was parsed from the
+  `usec` field instead of `sec`
+- macOS disk check no longer reports the sealed, read-only system volume `/`
+  next to the Data volume that actually fills up
+
+### Added
+- **macOS: `/etc/ssl/cert.pem` and Homebrew CA bundles** are checked. `curl`,
+  `git` and `openssl` use them without Apple's block, which made this the real
+  remaining exposure on up-to-date Macs. A listed root there is a FAIL, with
+  Apple's interim remedy
+
 ## [0.11.0] - 2026-10-28
 
 ### Added

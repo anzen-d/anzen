@@ -65,7 +65,11 @@ bundles) could still trust certificates issued with those keys. Anzen reports:
   legacy Sectigo chains
 
 The fix is to update `ca-certificates` on the host and rebuild or pull fresh
-images for the affected containers. References:
+images for the affected containers. On **macOS**, Apple blocks the certificates
+through automatic configuration updates and the keychain check reflects that.
+The exception is `/etc/ssl/cert.pem`, which `curl`, `git` and `openssl` use
+without Apple's block. Apple's interim advice is to remove the listed roots
+from that file; a macOS update may restore it. References:
 [Mozilla incident](https://bugzilla.mozilla.org/show_bug.cgi?id=2083449),
 [Apple](https://support.apple.com/en-us/149555),
 [researcher's disclosure](https://emudhra.we-have-a-problem.com/).

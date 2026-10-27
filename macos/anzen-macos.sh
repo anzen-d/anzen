@@ -17,12 +17,15 @@
 
 set -u
 
-ANZEN_VERSION="0.11.0"
+ANZEN_VERSION="0.11.1"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 FAIL_PENALTY=10
 WARN_PENALTY=3
 SOCKETFILTERFW="${ANZEN_SOCKETFILTERFW:-/usr/libexec/ApplicationFirewall/socketfilterfw}"
+# Overridable for tests
+SYSTEM_ROOTS_KEYCHAIN="${ANZEN_SYSTEM_ROOTS_KEYCHAIN:-/System/Library/Keychains/SystemRootCertificates.keychain}"
+CERT_PEM="${ANZEN_CERT_PEM:-/etc/ssl/cert.pem}"
 
 MODULES="system updates filevault sip gatekeeper firewall sharing accounts ssh truststore"
 
@@ -162,7 +165,8 @@ check_system() {
     section "System Information"
     info "macOS $(sw_vers -productVersion 2>/dev/null) (build $(sw_vers -buildVersion 2>/dev/null)) on $(uname -m)"
     local boot now days
-    boot=$(sysctl -n kern.boottime 2>/dev/null | sed -E 's/.*sec = ([0-9]+).*/\1/')
+    # "{ sec = 1730000000, usec = 123 } …" — anchor on "{ sec", ".*sec" would hit usec
+    boot=$(sysctl -n kern.boottime 2>/dev/null | sed -nE 's/^[{] *sec = ([0-9]+).*/\1/p')
     now=$(date +%s)
     if [ -n "$boot" ] && [ "$boot" -gt 0 ] 2>/dev/null; then
         days=$(( (now - boot) / 86400 ))
@@ -170,7 +174,10 @@ check_system() {
         [ "$days" -gt 45 ] && warn "System not restarted for $days days — installed updates may be waiting for a restart" "sudo shutdown -r now"
     fi
     local line pct mount
-    df -P -l 2>/dev/null | awk 'NR > 1 && $6 !~ "^/(System/Volumes/(VM|Preboot|Update|xarts|iSCPreboot|Hardware)|dev)"' \
+    # Since macOS 11, / is the sealed read-only system volume; user data lives on
+    # /System/Volumes/Data, which is the one that fills up
+    local skip_root=0; df -P -l 2>/dev/null | awk '$6 == "/System/Volumes/Data"' | grep -q . && skip_root=1
+    df -P -l 2>/dev/null | awk -v sr="$skip_root" 'NR > 1 && !(sr && $6 == "/") && $6 !~ "^/(System/Volumes/(VM|Preboot|Update|xarts|iSCPreboot|Hardware)|dev)"' \
         | while read -r line; do
               pct=$(echo "$line" | awk '{ sub(/%/, "", $5); print $5 }')
               mount=$(echo "$line" | awk '{ print $6 }')
@@ -320,32 +327,68 @@ check_ssh() {
 
 # Distrusted CA certificates: same list and fingerprint scheme as the Linux
 # truststore module (SHA-256 of the DER certificate)
-_pem_fingerprints() {
+_sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi; }
+
+# _pem_certs — PEM on stdin → "FINGERPRINT<TAB>BASE64" per certificate
+_pem_certs() {
     awk '/-----BEGIN CERTIFICATE-----/ { b64 = ""; on = 1; next }
          /-----END CERTIFICATE-----/   { if (on) print b64; on = 0; next }
          on { gsub(/[ \r\t]/, ""); b64 = b64 $0 }' \
     | while IFS= read -r b64; do
-          printf '%s' "$b64" | base64 --decode 2>/dev/null \
-              | { if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi; } \
-              | awk '{ print toupper($1) }'
+          printf '%s\t%s\n' "$(printf '%s' "$b64" | base64 --decode 2>/dev/null | _sha256 | awk '{ print toupper($1) }')" "$b64"
       done
 }
 
+# _ts_hits — "FINGERPRINT<TAB>BASE64" on stdin → matching list entries, each as
+# "SEV<TAB>INCIDENT<TAB>NAME<TAB>REF<TAB>BASE64"; counts certificates checked
 TS_CHECKED=0; TS_FOUND=0
-_ts_scan() {  # LABEL REMEDY, fingerprints on stdin
-    local fps hits
-    fps=$(cat)
-    [ -n "$fps" ] || return 0
-    TS_CHECKED=$(( TS_CHECKED + $(printf '%s\n' "$fps" | grep -c .) ))
-    hits=$(grep -vE '^[[:space:]]*(#|$)' "$ROOT_DIR/lib/data/distrusted-certs.tsv" \
-           | awk -F'\t' 'NR == FNR { bad[$1] = $0; next } $1 in bad { print bad[$1] }' - <(printf '%s\n' "$fps") | sort -u)
+_ts_hits() {
+    local certs
+    certs=$(cat)
+    [ -n "$certs" ] || return 0
+    TS_CHECKED=$(( TS_CHECKED + $(printf '%s\n' "$certs" | grep -c .) ))
+    grep -vE '^[[:space:]]*(#|$)' "$ROOT_DIR/lib/data/distrusted-certs.tsv" \
+        | awk -F'\t' 'NR == FNR { bad[$1] = $2 "\t" $3 "\t" $4 "\t" $5; next } $1 in bad { print bad[$1] "\t" $2 }' \
+              - <(printf '%s\n' "$certs") | sort -u
+}
+
+# _ts_report LABEL REMEDY — plain file bundles: every listed certificate counts
+_ts_report() {
+    local hits sev inc name ref _b64
+    hits=$(_ts_hits)
     [ -n "$hits" ] || return 0
-    local _fp sev inc name ref
-    while IFS='	' read -r _fp sev inc name ref; do
+    while IFS='	' read -r sev inc name ref _b64; do
         if [ "$sev" = WARN ]; then warn "Distrusted certificate in $1: $name [$inc]" "$2  # $ref"
         else fail "Distrusted certificate in $1: $name [$inc]" "$2  # $ref"; fi
     done <<< "$hits"
     TS_FOUND=1
+}
+
+# _ts_keychain KEYCHAIN — Apple blocks distrusted CAs with automatic certificate
+# configuration data updates while the certificate stays in the keychain, so
+# presence is not enough: ask the system trust evaluation (security verify-cert)
+_ts_keychain() {
+    local kc=$1 hits sev inc name ref b64 tmp
+    hits=$(security find-certificate -a -p "$kc" 2>/dev/null | _pem_certs | _ts_hits)
+    [ -n "$hits" ] || return 0
+    tmp=$(mktemp "${TMPDIR:-/tmp}/anzen-cert.XXXXXX")
+    while IFS='	' read -r sev inc name ref b64; do
+        if [ "$sev" = WARN ]; then
+            # Trusted by design (AAA Certificate Services): Apple blocks the
+            # cross-signed intermediates instead
+            info "$name is in $(basename "$kc") — legitimate root; Apple blocks the affected intermediates [$inc]"
+            continue
+        fi
+        { echo '-----BEGIN CERTIFICATE-----'; printf '%s\n' "$b64" | fold -w 64; echo '-----END CERTIFICATE-----'; } > "$tmp"
+        # -l: the certificate under test is a CA; -L: local data only, no network
+        if security verify-cert -c "$tmp" -p basic -l -L -q >/dev/null 2>&1; then
+            fail "Distrusted certificate still trusted by macOS: $name [$inc]" "install pending macOS updates and make sure \"Install Security Responses and system files\" is on  # $ref"
+            TS_FOUND=1
+        else
+            ok "$name is in $(basename "$kc") but blocked by macOS trust evaluation [$inc]"
+        fi
+    done <<< "$hits"
+    rm -f "$tmp"
 }
 
 check_truststore() {
@@ -353,22 +396,33 @@ check_truststore() {
     if [ ! -f "$ROOT_DIR/lib/data/distrusted-certs.tsv" ]; then info "Distrusted certificate list not found"; return 0; fi
     info "Distrusted certificate list: $(grep -vcE '^[[:space:]]*(#|$)' "$ROOT_DIR/lib/data/distrusted-certs.tsv") entries"
     TS_CHECKED=0; TS_FOUND=0
-    local kc
-    for kc in /System/Library/Keychains/SystemRootCertificates.keychain /Library/Keychains/System.keychain \
+    local kc f
+    for kc in "$SYSTEM_ROOTS_KEYCHAIN" /Library/Keychains/System.keychain \
               "$HOME/Library/Keychains/login.keychain-db"; do
-        [ -f "$kc" ] || continue
-        _ts_scan "keychain $(basename "$kc")" "install the latest macOS updates; for user-added certificates: sudo security delete-certificate -Z <SHA-1> \"$kc\"" \
-            < <(security find-certificate -a -p "$kc" 2>/dev/null | _pem_fingerprints)
+        [ -f "$kc" ] && _ts_keychain "$kc"
     done
-    local f
+
+    # Command-line tools (curl, git, openssl, Homebrew's OpenSSL) read PEM
+    # bundles directly and do not apply Apple's blocks
+    for f in "$CERT_PEM" /opt/homebrew/etc/ca-certificates/cert.pem /usr/local/etc/ca-certificates/cert.pem \
+             /opt/homebrew/etc/openssl@3/cert.pem /usr/local/etc/openssl@3/cert.pem; do
+        [ -f "$f" ] || continue
+        case $f in
+            "$CERT_PEM") _ts_report "$f (used by curl, git, openssl)" \
+                "sudo cp /etc/ssl/cert.pem /etc/ssl/cert.pem.bak, then remove the listed root from /etc/ssl/cert.pem (Apple's interim guidance; a macOS update may restore it)" \
+                < <(_pem_certs < "$f") ;;
+            *) _ts_report "$f (Homebrew)" "brew upgrade ca-certificates openssl@3" < <(_pem_certs < "$f") ;;
+        esac
+    done
+
     if command -v python3 >/dev/null 2>&1 && f=$(python3 -c 'import certifi; print(certifi.where())' 2>/dev/null) && [ -f "$f" ]; then
-        _ts_scan "Python certifi ($f)" "pip3 install -U certifi" < <(_pem_fingerprints < "$f")
+        _ts_report "Python certifi ($f)" "pip3 install -U certifi" < <(_pem_certs < "$f")
     fi
     if /usr/libexec/java_home >/dev/null 2>&1 && command -v keytool >/dev/null 2>&1; then
-        _ts_scan "Java cacerts" "update the JDK" < <(keytool -list -rfc -cacerts -storepass changeit 2>/dev/null | _pem_fingerprints)
+        _ts_report "Java cacerts" "update the JDK" < <(keytool -list -rfc -cacerts -storepass changeit 2>/dev/null | _pem_certs)
     fi
     if [ "$TS_CHECKED" -eq 0 ]; then info "No certificate stores found to check"
-    elif [ "$TS_FOUND" -eq 0 ]; then ok "No distrusted CA certificates found ($TS_CHECKED certificates checked)"; fi
+    elif [ "$TS_FOUND" -eq 0 ]; then ok "No distrusted CA certificates trusted ($TS_CHECKED certificates checked)"; fi
 }
 
 # ── Run ──────────────────────────────────────────────────────────────────────
