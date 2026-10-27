@@ -9,7 +9,7 @@ jobs:
     name: Lint + tests (Linux)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: shellcheck
         run: |
           docker run --rm -v "$PWD":/code -w /code koalaman/shellcheck-alpine:v0.10.0 \
@@ -23,14 +23,14 @@ jobs:
     name: Distro matrix
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: tests/distro-matrix.sh
 
   windows:
     name: Windows edition
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: PSScriptAnalyzer
         shell: pwsh
         run: |
