@@ -341,23 +341,24 @@ _pem_certs() {
       done
 }
 
-# _ts_hits — "FINGERPRINT<TAB>BASE64" on stdin → matching list entries, each as
-# "SEV<TAB>INCIDENT<TAB>NAME<TAB>REF<TAB>BASE64"; counts certificates checked
+# _ts_hits CERTS — "FINGERPRINT<TAB>BASE64" lines → matching list entries, each
+# as "SEV<TAB>INCIDENT<TAB>NAME<TAB>REF<TAB>BASE64". Runs in a command
+# substitution, so callers count certificates themselves (_ts_count)
 TS_CHECKED=0; TS_FOUND=0
+_ts_count() { [ -n "$1" ] && TS_CHECKED=$(( TS_CHECKED + $(printf '%s\n' "$1" | grep -c .) )); return 0; }
 _ts_hits() {
-    local certs
-    certs=$(cat)
-    [ -n "$certs" ] || return 0
-    TS_CHECKED=$(( TS_CHECKED + $(printf '%s\n' "$certs" | grep -c .) ))
+    [ -n "$1" ] || return 0
     grep -vE '^[[:space:]]*(#|$)' "$ROOT_DIR/lib/data/distrusted-certs.tsv" \
         | awk -F'\t' 'NR == FNR { bad[$1] = $2 "\t" $3 "\t" $4 "\t" $5; next } $1 in bad { print bad[$1] "\t" $2 }' \
-              - <(printf '%s\n' "$certs") | sort -u
+              - <(printf '%s\n' "$1") | sort -u
 }
 
 # _ts_report LABEL REMEDY — plain file bundles: every listed certificate counts
 _ts_report() {
-    local hits sev inc name ref _b64
-    hits=$(_ts_hits)
+    local certs hits sev inc name ref _b64
+    certs=$(cat)
+    _ts_count "$certs"
+    hits=$(_ts_hits "$certs")
     [ -n "$hits" ] || return 0
     while IFS='	' read -r sev inc name ref _b64; do
         if [ "$sev" = WARN ]; then warn "Distrusted certificate in $1: $name [$inc]" "$2  # $ref"
@@ -370,8 +371,10 @@ _ts_report() {
 # configuration data updates while the certificate stays in the keychain, so
 # presence is not enough: ask the system trust evaluation (security verify-cert)
 _ts_keychain() {
-    local kc=$1 hits sev inc name ref b64 tmp
-    hits=$(security find-certificate -a -p "$kc" 2>/dev/null | _pem_certs | _ts_hits)
+    local kc=$1 certs hits sev inc name ref b64 tmp
+    certs=$(security find-certificate -a -p "$kc" 2>/dev/null | _pem_certs)
+    _ts_count "$certs"
+    hits=$(_ts_hits "$certs")
     [ -n "$hits" ] || return 0
     tmp=$(mktemp "${TMPDIR:-/tmp}/anzen-cert.XXXXXX")
     while IFS='	' read -r sev inc name ref b64; do

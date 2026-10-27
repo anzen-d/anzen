@@ -126,3 +126,10 @@ ts_env() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"accepted until 2999-01-01: lab machine"* ]]
 }
+
+@test "macos: trust-store summary counts certificates read from bundles" {
+    ts_env
+    mac --check=truststore
+    [[ "$output" == *"[ OK ] No distrusted CA certificates trusted ("*" certificates checked)"* ]]
+    [[ "$output" != *"No certificate stores found to check"* ]]
+}

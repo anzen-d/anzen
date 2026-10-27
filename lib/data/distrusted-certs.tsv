@@ -39,4 +39,4 @@ F2EDAAFF3D9B701FB4D14C9F285F8C0BAD90FC3BCC1FA07D47F4718EDABA34A5	FAIL	emudhra-20
 # Sectigo root that cross-signed the 8 intermediates. Legitimate on its own,
 # but a client trusting it accepts the cross-signed compromised intermediates
 # unless it checks revocation; updated bundles dropped it. WARN, not FAIL.
-D7A7A0FB5D7E2731D771E9484EBCDEF71D5F0C3E0A2948782BC83EE0EA699EF4	WARN	emudhra-2026	AAA Certificate Services (Sectigo root that cross-signed the compromised intermediates; updated ca-certificates bundles no longer include it — do not delete it by hand, update the bundle)	https://bugzilla.mozilla.org/show_bug.cgi?id=2083449
+D7A7A0FB5D7E2731D771E9484EBCDEF71D5F0C3E0A2948782BC83EE0EA699EF4	WARN	emudhra-2026	AAA Certificate Services (Sectigo root that cross-signed the compromised intermediates)	https://bugzilla.mozilla.org/show_bug.cgi?id=2083449
