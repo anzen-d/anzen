@@ -1,0 +1,32 @@
+{
+  "hostname": "desktop-win11",
+  "os": "Microsoft Windows 11 Pro",
+  "kernel": "",
+  "arch": "",
+  "public_ip": "",
+  "audited_by": "root",
+  "version": "0.8.0",
+  "date": "2026-10-24T05:00:00Z",
+  "summary": {"fail": 2, "warn": 3, "ok": 5, "info": 0, "score": 76},
+  "sections": [
+    {"name": "Microsoft Defender", "fail": 0, "warn": 1, "ok": 1, "score": 97},
+    {"name": "Windows Firewall", "fail": 1, "warn": 0, "ok": 1, "score": 90},
+    {"name": "SMB", "fail": 1, "warn": 0, "ok": 1, "score": 90},
+    {"name": "Remote Desktop", "fail": 0, "warn": 0, "ok": 1, "score": 100},
+    {"name": "Credential Protection", "fail": 0, "warn": 1, "ok": 0, "score": 97},
+    {"name": "PowerShell", "fail": 0, "warn": 1, "ok": 0, "score": 97},
+    {"name": "Windows Update", "fail": 0, "warn": 0, "ok": 1, "score": 100}
+  ],
+  "findings": [
+    {"id": "microsoft-defender-e9d00fa6", "level": "OK", "section": "Microsoft Defender", "message": "Real-time protection enabled", "remedy": ""},
+    {"id": "microsoft-defender-acb1eed0", "level": "WARN", "section": "Microsoft Defender", "message": "Antivirus signatures 9 days old", "remedy": "Update-MpSignature"},
+    {"id": "windows-firewall-093cf4e4", "level": "OK", "section": "Windows Firewall", "message": "Firewall profile Domain enabled, inbound blocked by default", "remedy": ""},
+    {"id": "windows-firewall-24a9e020", "level": "FAIL", "section": "Windows Firewall", "message": "Firewall profile Public allows inbound by default", "remedy": "Set-NetFirewallProfile -Profile Public -DefaultInboundAction Block"},
+    {"id": "smb-568ad101", "level": "FAIL", "section": "SMB", "message": "SMBv1 server enabled", "remedy": "Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force"},
+    {"id": "smb-77bf9ccd", "level": "OK", "section": "SMB", "message": "SMB signing required", "remedy": ""},
+    {"id": "remote-desktop-7524bc66", "level": "OK", "section": "Remote Desktop", "message": "Remote Desktop requires Network Level Authentication", "remedy": ""},
+    {"id": "credential-protection-d1d4007b", "level": "WARN", "section": "Credential Protection", "message": "LSA protection (RunAsPPL) off", "remedy": ""},
+    {"id": "powershell-a7f0f515", "level": "WARN", "section": "PowerShell", "message": "PowerShell script block logging disabled", "remedy": ""},
+    {"id": "windows-update-cafccb41", "level": "OK", "section": "Windows Update", "message": "Last update installed 6 days ago (KB5044384)", "remedy": ""}
+  ]
+}

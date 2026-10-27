@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anzen — web-01 — 2026-10-27</title>
+<style>
+:root {
+    --bg: #0f172a; --surface: #1e293b; --surface2: #263548;
+    --border: #334155; --text: #e2e8f0; --text-muted: #64748b;
+    --fail-bg: #1c0a0a; --fail-border: #7f1d1d; --fail-text: #ef4444; --fail-label: #f87171;
+    --warn-bg: #1c1400; --warn-border: #78350f; --warn-text: #f59e0b; --warn-label: #fbbf24;
+    --ok-bg:   #021c0e; --ok-border:   #14532d; --ok-text:   #10b981; --ok-label:   #34d399;
+    --info-bg: #0c1221; --info-border: #1e3a5f; --info-text: #3b82f6; --info-label: #93c5fd;
+    --score-color: #059669;
+}
+body.light {
+    --bg: #f1f5f9; --surface: #ffffff; --surface2: #f8fafc;
+    --border: #e2e8f0; --text: #0f172a; --text-muted: #64748b;
+    --fail-bg: #fef2f2; --fail-border: #fca5a5; --fail-text: #dc2626; --fail-label: #dc2626;
+    --warn-bg: #fffbeb; --warn-border: #fcd34d; --warn-text: #d97706; --warn-label: #d97706;
+    --ok-bg:   #f0fdf4; --ok-border:   #86efac; --ok-text:   #16a34a; --ok-label:   #16a34a;
+    --info-bg: #eff6ff; --info-border: #93c5fd; --info-text: #2563eb; --info-label: #2563eb;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+       background: var(--bg); color: var(--text); min-height: 100vh; transition: background .2s, color .2s; }
+
+/* Header */
+.header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.5rem 2rem; }
+.header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem; }
+.logo { font-size: 1.75rem; font-weight: 800; letter-spacing: -1px; color: #38bdf8; }
+.logo span { color: var(--text); }
+.tagline { color: var(--text-muted); font-size: 0.8rem; margin-top: 3px; }
+.header-actions { display: flex; gap: 0.5rem; }
+.btn { padding: 0.4rem 0.9rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600;
+       cursor: pointer; border: 1px solid var(--border); background: var(--surface2);
+       color: var(--text); transition: all .15s; }
+.btn:hover { border-color: #38bdf8; color: #38bdf8; }
+.header-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; }
+.meta-item { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 1rem; }
+.meta-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 2px; }
+.meta-value { font-size: 0.85rem; color: var(--text); font-family: monospace; }
+
+/* Summary cards */
+.summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; padding: 1.25rem 2rem;
+           background: var(--bg); border-bottom: 1px solid var(--border); }
+.card { border-radius: 10px; padding: 1rem 1.25rem; text-align: center; border: 1px solid; }
+.card-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: .08em; font-weight: 600; margin-bottom: .4rem; }
+.card-count { font-size: 2.5rem; font-weight: 800; line-height: 1; }
+.card.fail  { background: var(--fail-bg);  border-color: var(--fail-border); }
+.card.fail  .card-label { color: var(--fail-label); }  .card.fail  .card-count { color: var(--fail-text); }
+.card.warn  { background: var(--warn-bg);  border-color: var(--warn-border); }
+.card.warn  .card-label { color: var(--warn-label); }  .card.warn  .card-count { color: var(--warn-text); }
+.card.ok    { background: var(--ok-bg);    border-color: var(--ok-border); }
+.card.ok    .card-label { color: var(--ok-label); }    .card.ok    .card-count { color: var(--ok-text); }
+.card.score { background: var(--surface);  border-color: var(--border); }
+.card.score .card-label { color: var(--text-muted); }  .card.score .card-count { color: var(--score-color); }
+
+/* Filters */
+.filters { display: flex; gap: 0.5rem; padding: 1rem 2rem 0; flex-wrap: wrap; }
+.filter-btn { padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600;
+              cursor: pointer; border: 1px solid var(--border); background: var(--surface2);
+              color: var(--text-muted); transition: all .15s; }
+.filter-btn:hover, .filter-btn.active { border-color: transparent; color: #fff; }
+.filter-btn[data-filter="ALL"].active  { background: #475569; }
+.filter-btn[data-filter="FAIL"].active { background: var(--fail-text); }
+.filter-btn[data-filter="WARN"].active { background: var(--warn-text); }
+.filter-btn[data-filter="OK"].active   { background: var(--ok-text); }
+.filter-btn[data-filter="INFO"].active { background: var(--info-text); }
+
+/* Sections */
+.content { padding: 1rem 2rem 2rem; }
+details { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+          margin-bottom: 0.75rem; overflow: hidden; transition: border-color .2s; }
+details[open] { border-color: #38bdf840; }
+summary { padding: 0.9rem 1.25rem; cursor: pointer; display: flex; justify-content: space-between;
+          align-items: center; user-select: none; list-style: none; }
+summary::-webkit-details-marker { display: none; }
+summary:hover { background: var(--surface2); }
+.section-title { font-weight: 600; font-size: 0.9rem; color: var(--text); }
+.section-badges { display: flex; gap: 0.35rem; align-items: center; }
+.mini-badge { font-size: 0.65rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
+.mini-badge.fail { background: var(--fail-border); color: var(--fail-label); }
+.mini-badge.warn { background: var(--warn-border); color: var(--warn-label); }
+.mini-badge.ok   { background: var(--ok-border);   color: var(--ok-label); }
+.chevron { color: var(--text-muted); font-size: 0.7rem; transition: transform .2s; margin-left: .5rem; }
+details[open] .chevron { transform: rotate(180deg); }
+
+/* Findings */
+.findings { border-top: 1px solid var(--border); }
+.finding { padding: 0.6rem 1.25rem; border-bottom: 1px solid var(--surface2);
+           display: flex; gap: 0.75rem; align-items: flex-start; font-size: 0.85rem; }
+.finding:last-child { border-bottom: none; }
+.finding:hover { background: var(--surface2); }
+.finding-body { flex: 1; min-width: 0; }
+.badge { padding: 2px 8px; border-radius: 4px; font-size: 0.68rem; font-weight: 700;
+         white-space: nowrap; letter-spacing: .03em; margin-top: 1px; flex-shrink: 0; }
+.badge.FAIL { background: var(--fail-border); color: var(--fail-label); }
+.badge.WARN { background: var(--warn-border); color: var(--warn-label); }
+.badge.OK   { background: var(--ok-border);   color: var(--ok-label); }
+.badge.INFO { background: var(--info-border); color: var(--info-label); }
+.finding-msg { font-family: "SF Mono","Fira Code",monospace; color: var(--text); word-break: break-word; }
+.finding-id { font-family: "SF Mono","Fira Code",monospace; font-size: 0.68rem; color: var(--text-muted); }
+.remedy { margin-top: 0.35rem; display: flex; align-items: flex-start; gap: 0.4rem; }
+.remedy-label { font-size: 0.65rem; color: var(--text-muted); white-space: nowrap; padding-top: 2px; }
+.remedy-cmd { font-family: "SF Mono","Fira Code",monospace; font-size: 0.78rem;
+              color: #38bdf8; background: var(--bg); border: 1px solid var(--border);
+              border-radius: 4px; padding: 2px 6px; word-break: break-all; cursor: pointer; }
+.remedy-cmd:hover { border-color: #38bdf8; }
+.remedy-copied { font-size: 0.65rem; color: var(--ok-text); margin-left: 4px; opacity: 0; transition: opacity .3s; }
+
+.footer { text-align: center; padding: 1.5rem; color: var(--text-muted); font-size: 0.75rem;
+          border-top: 1px solid var(--border); }
+.footer a { color: #38bdf8; text-decoration: none; }
+
+@media print {
+    body { background: white; color: #000; }
+    .header-actions, .filters, .btn { display: none; }
+    details { border: 1px solid #ccc; break-inside: avoid; }
+    details:not([open]) { display: none; }
+    .finding { break-inside: avoid; }
+    .remedy-cmd { color: #0369a1; background: #f0f9ff; border-color: #bae6fd; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div>
+      <div class="logo">安<span>zen</span></div>
+      <div class="tagline">Linux Security Audit</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn" onclick="toggleTheme()">☀ / ☾</button>
+      <button class="btn" onclick="window.print()">⎙ Print</button>
+    </div>
+  </div>
+  <div class="header-meta">
+    <div class="meta-item"><div class="meta-label">Hostname</div><div class="meta-value">web-01</div></div>
+    <div class="meta-item"><div class="meta-label">OS</div><div class="meta-value">Debian GNU/Linux 12 (bookworm)</div></div>
+    <div class="meta-item"><div class="meta-label">Kernel</div><div class="meta-value">6.8.0-142-generic</div></div>
+    <div class="meta-item"><div class="meta-label">Public IP</div><div class="meta-value">unavailable</div></div>
+    <div class="meta-item"><div class="meta-label">Audited By</div><div class="meta-value">root</div></div>
+    <div class="meta-item"><div class="meta-label">Date</div><div class="meta-value">2026-10-27 20:43 UTC</div></div>
+  </div>
+</div>
+
+<div class="summary">
+  <div class="card fail">  <div class="card-label">Failed</div>   <div class="card-count">5</div></div>
+  <div class="card warn">  <div class="card-label">Warnings</div> <div class="card-count">14</div></div>
+  <div class="card ok">    <div class="card-label">Passed</div>   <div class="card-count">33</div></div>
+  <div class="card score"> <div class="card-label">Score</div>    <div class="card-count">93%</div></div>
+</div>
+
+<div class="filters">
+  <button class="filter-btn active" data-filter="ALL"  onclick="filterFindings('ALL')">All</button>
+  <button class="filter-btn"        data-filter="FAIL" onclick="filterFindings('FAIL')">FAIL (5)</button>
+  <button class="filter-btn"        data-filter="WARN" onclick="filterFindings('WARN')">WARN (14)</button>
+  <button class="filter-btn"        data-filter="OK"   onclick="filterFindings('OK')">OK (33)</button>
+  <button class="filter-btn"        data-filter="INFO" onclick="filterFindings('INFO')">INFO (12)</button>
+</div>
+
+<div class="content" id="main-content">
+  <details>
+    <summary>
+      <span class="section-title">System Information</span>
+      <span style="display:flex;align-items:center"><span class="section-badges"><span class="mini-badge warn">1 WARN</span><span class="mini-badge ok">4 OK</span><span class="mini-badge">97%</span></span><span class="chevron">▼</span></span>
+    </summary>
+    <div class="findings">
+      <div class="finding" data-level="INFO"><span class="badge INFO">INFO</span><div class="finding-body"><div class="finding-msg">Hostname:   web-01</div><div class="finding-id">system-information-67346432</div></div></div>
+      <div class="finding" data-level="INFO"><span class="badge INFO">INFO</span><div class="finding-body"><div class="finding-msg">OS:         Debian GNU/Linux 12 (bookworm)</div><div class="finding-id">system-information-307e964c</div></div></div>
+      <div class="finding" data-level="INFO"><span class="badge INFO">INFO</span><div class="finding-body"><div class="finding-msg">Family:     debian / pkg: apt / init: unknown</div><div class="finding-id">system-information-cd34cb59</div></div></div>
+      <div class="finding" data-level="INFO"><span class="badge INFO">INFO</span><div class="finding-body"><div class="finding-msg">Kernel:     6.8.0-142-generic</div><div class="finding-id">system-information-08795c9c</div></div></div>
+      <div class="finding" data-level="INFO"><span class="badge INFO">INFO</span><div class="finding-body"><div class="finding-msg">Arch:       x86_64</div><div class="finding-id">system-information-c940bed5</div></div></div>
+      <div class="finding" data-level="INFO"><span class="badge INFO">INFO</span><div class="finding-body"><div class="finding-msg">Public IP:  unavailable</div><div class="finding-id">system-information-f8aa1e79</div></div></div>
+      <div class="finding" data-level="INFO"><span class="badge INFO">INFO</span><div class="finding-body"><div class="finding-msg">Uptime:     30 days, 0 hours</div><div class="finding-id">system-information-f712a1e6</div></div></div>
+      <div class="finding" data-level="INFO"><span class="badge INFO">INFO</span><div class="finding-body"><div class="finding-msg">Date:       Tue Oct 27 20:43:19 UTC 2026</div><div class="finding-id">system-information-4412dfa5</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">No reboot required</div><div class="finding-id">system-information-7eff2b8d</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">Running kernel is current</div><div class="finding-id">system-information-3dd741fd</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">/tmp has sticky bit (1777)</div><div class="finding-id">system-information-ca7cf1bd</div></div></div>
+      <div class="finding" data-level="INFO"><span class="badge INFO">INFO</span><div class="finding-body"><div class="finding-msg">CPU usage: 73%</div><div class="finding-id">system-information-ac241d2f</div></div></div>
+      <div class="finding" data-level="INFO"><span class="badge INFO">INFO</span><div class="finding-body"><div class="finding-msg">Load avg:  10.84, 8.88, 10.67</div><div class="finding-id">system-information-3db0bb4e</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">Disk /dev/shm: 0% used (0 / 64M)</div><div class="finding-id">system-information-8972dcb1</div></div></div>
+      <div class="finding" data-level="WARN"><span class="badge WARN">WARN</span><div class="finding-body"><div class="finding-msg">Disk /etc/hosts: 89% used (208G / 246G)</div><div class="finding-id">system-information-904e69cc</div></div></div>
+    </div>
+  </details>
+  <details>
+    <summary>
+      <span class="section-title">Users &amp; Sudo</span>
+      <span style="display:flex;align-items:center"><span class="section-badges"><span class="mini-badge warn">3 WARN</span><span class="mini-badge ok">4 OK</span><span class="mini-badge">91%</span></span><span class="chevron">▼</span></span>
+    </summary>
+    <div class="findings">
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">No NOPASSWD sudo rules</div><div class="finding-id">users-sudo-ff72fb04</div></div></div>
+      <div class="finding" data-level="WARN"><span class="badge WARN">WARN</span><div class="finding-body"><div class="finding-msg">Sudo logging not configured</div><div class="finding-id">users-sudo-bdb0c604</div><div class="remedy"><span class="remedy-label">Fix:</span><code class="remedy-cmd" onclick="copyRemedyInline(this)" title="Click to copy">echo 'Defaults logfile=/var/log/sudo.log' | sudo EDITOR='tee -a' visudo</code><span class="remedy-copied">✓ copied</span></div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">Only root has UID 0</div><div class="finding-id">users-sudo-708c9b40</div></div></div>
+      <div class="finding" data-level="INFO"><span class="badge INFO">INFO</span><div class="finding-body"><div class="finding-msg">Human accounts with login shells: </div><div class="finding-id">users-sudo-2c86b813</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">No human accounts with empty passwords</div><div class="finding-id">users-sudo-fff01657</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">No world-writable home directories</div><div class="finding-id">users-sudo-d5a055f4</div></div></div>
+      <div class="finding" data-level="WARN"><span class="badge WARN">WARN</span><div class="finding-body"><div class="finding-msg">PASS_MAX_DAYS=99999 (recommended ≤ 90)</div><div class="finding-id">users-sudo-6c25cb1f</div><div class="remedy"><span class="remedy-label">Fix:</span><code class="remedy-cmd" onclick="copyRemedyInline(this)" title="Click to copy">sed -i 's/^PASS_MAX_DAYS.*/PASS_MAX_DAYS 90/' /etc/login.defs</code><span class="remedy-copied">✓ copied</span></div></div></div>
+      <div class="finding" data-level="WARN"><span class="badge WARN">WARN</span><div class="finding-body"><div class="finding-msg">pwquality not configured (/etc/security/pwquality.conf missing)</div><div class="finding-id">users-sudo-a5fd66b5</div><div class="remedy"><span class="remedy-label">Fix:</span><code class="remedy-cmd" onclick="copyRemedyInline(this)" title="Click to copy">apt-get install -y libpam-pwquality &amp;&amp; echo 'minlen = 12' &gt; /etc/security/pwquality.conf</code><span class="remedy-copied">✓ copied</span></div></div></div>
+    </div>
+  </details>
+  <details>
+    <summary>
+      <span class="section-title">PAM Account Lockout</span>
+      <span style="display:flex;align-items:center"><span class="section-badges"><span class="mini-badge warn">1 WARN</span><span class="mini-badge">97%</span></span><span class="chevron">▼</span></span>
+    </summary>
+    <div class="findings">
+      <div class="finding" data-level="WARN"><span class="badge WARN">WARN</span><div class="finding-body"><div class="finding-msg">No PAM account lockout — brute force will not lock accounts</div><div class="finding-id">pam-account-lockout-4b2bd80f</div><div class="remedy"><span class="remedy-label">Fix:</span><code class="remedy-cmd" onclick="copyRemedyInline(this)" title="Click to copy"># On Ubuntu 22.04+: pam-auth-update --enable faillock</code><span class="remedy-copied">✓ copied</span></div></div></div>
+    </div>
+  </details>
+  <details open>
+    <summary>
+      <span class="section-title">File Permissions</span>
+      <span style="display:flex;align-items:center"><span class="section-badges"><span class="mini-badge fail">1 FAIL</span><span class="mini-badge ok">3 OK</span><span class="mini-badge">90%</span></span><span class="chevron">▼</span></span>
+    </summary>
+    <div class="findings">
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">/etc/passwd — 644 root:root</div><div class="finding-id">file-permissions-1986d5b0</div></div></div>
+      <div class="finding" data-level="FAIL"><span class="badge FAIL">FAIL</span><div class="finding-body"><div class="finding-msg">/etc/shadow — 644 root:shadow (expected 640 or stricter)</div><div class="finding-id">file-permissions-ffc9b7ba</div><div class="remedy"><span class="remedy-label">Fix:</span><code class="remedy-cmd" onclick="copyRemedyInline(this)" title="Click to copy">chmod 640 /etc/shadow</code><span class="remedy-copied">✓ copied</span></div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">/etc/group — 644 root:root</div><div class="finding-id">file-permissions-87dc6165</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">/etc/gshadow — 640 root:shadow</div><div class="finding-id">file-permissions-aabcaf6b</div></div></div>
+    </div>
+  </details>
+  <details open>
+    <summary>
+      <span class="section-title">World-Writable Files</span>
+      <span style="display:flex;align-items:center"><span class="section-badges"><span class="mini-badge fail">2 FAIL</span><span class="mini-badge">80%</span></span><span class="chevron">▼</span></span>
+    </summary>
+    <div class="findings">
+      <div class="finding" data-level="FAIL"><span class="badge FAIL">FAIL</span><div class="finding-body"><div class="finding-msg">World-writable file: /etc/cron.d/backup</div><div class="finding-id">world-writable-files-d7c1361a</div><div class="remedy"><span class="remedy-label">Fix:</span><code class="remedy-cmd" onclick="copyRemedyInline(this)" title="Click to copy">chmod o-w '/etc/cron.d/backup'</code><span class="remedy-copied">✓ copied</span></div></div></div>
+      <div class="finding" data-level="FAIL"><span class="badge FAIL">FAIL</span><div class="finding-body"><div class="finding-msg">World-writable cron entry: /etc/cron.d/backup</div><div class="finding-id">world-writable-files-b6233d77</div><div class="remedy"><span class="remedy-label">Fix:</span><code class="remedy-cmd" onclick="copyRemedyInline(this)" title="Click to copy">chmod o-w /etc/cron.d/backup</code><span class="remedy-copied">✓ copied</span></div></div></div>
+    </div>
+  </details>
+  <details>
+    <summary>
+      <span class="section-title">SUID / SGID Binaries</span>
+      <span style="display:flex;align-items:center"><span class="section-badges"><span class="mini-badge ok">1 OK</span><span class="mini-badge">100%</span></span><span class="chevron">▼</span></span>
+    </summary>
+    <div class="findings">
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">No unexpected SUID/SGID binaries found</div><div class="finding-id">suid-sgid-binaries-e4954a68</div></div></div>
+    </div>
+  </details>
+  <details open>
+    <summary>
+      <span class="section-title">Secrets &amp; Credentials</span>
+      <span style="display:flex;align-items:center"><span class="section-badges"><span class="mini-badge fail">2 FAIL</span><span class="mini-badge ok">2 OK</span><span class="mini-badge">80%</span></span><span class="chevron">▼</span></span>
+    </summary>
+    <div class="findings">
+      <div class="finding" data-level="FAIL"><span class="badge FAIL">FAIL</span><div class="finding-body"><div class="finding-msg">Private key with loose permissions: /root/.ssh/id_ed25519 (644)</div><div class="finding-id">secrets-credentials-21fcb5dd</div><div class="remedy"><span class="remedy-label">Fix:</span><code class="remedy-cmd" onclick="copyRemedyInline(this)" title="Click to copy">chmod 600 '/root/.ssh/id_ed25519'</code><span class="remedy-copied">✓ copied</span></div></div></div>
+      <div class="finding" data-level="FAIL"><span class="badge FAIL">FAIL</span><div class="finding-body"><div class="finding-msg">World-readable private key: /root/.ssh/id_ed25519</div><div class="finding-id">secrets-credentials-47aa57af</div><div class="remedy"><span class="remedy-label">Fix:</span><code class="remedy-cmd" onclick="copyRemedyInline(this)" title="Click to copy">chmod 600 '/root/.ssh/id_ed25519'</code><span class="remedy-copied">✓ copied</span></div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">No .env files found in common locations</div><div class="finding-id">secrets-credentials-245abe4a</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">No obvious hardcoded secrets in config files</div><div class="finding-id">secrets-credentials-f3cb80a7</div></div></div>
+    </div>
+  </details>
+  <details>
+    <summary>
+      <span class="section-title">PATH Security</span>
+      <span style="display:flex;align-items:center"><span class="section-badges"><span class="mini-badge ok">6 OK</span><span class="mini-badge">100%</span></span><span class="chevron">▼</span></span>
+    </summary>
+    <div class="findings">
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">No world-writable or unsafe directories in PATH</div><div class="finding-id">path-security-4f11058f</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">No PATH manipulation in /etc/profile.d or /etc/environment</div><div class="finding-id">path-security-909f49fa</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">LD_PRELOAD not set</div><div class="finding-id">path-security-7539f7ac</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">LD_LIBRARY_PATH not set</div><div class="finding-id">path-security-20111632</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">/etc/ld.so.preload not in use</div><div class="finding-id">path-security-b2894d08</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">All binaries in PATH are root-owned</div><div class="finding-id">path-security-b8ed1863</div></div></div>
+    </div>
+  </details>
+  <details>
+    <summary>
+      <span class="section-title">Cron Jobs</span>
+      <span style="display:flex;align-items:center"><span class="section-badges"><span class="mini-badge warn">1 WARN</span><span class="mini-badge ok">1 OK</span><span class="mini-badge">97%</span></span><span class="chevron">▼</span></span>
+    </summary>
+    <div class="findings">
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">Root crontab is empty</div><div class="finding-id">cron-jobs-29b33c8b</div></div></div>
+      <div class="finding" data-level="WARN"><span class="badge WARN">WARN</span><div class="finding-body"><div class="finding-msg">Cron file writable by group/other: /etc/cron.d/backup (666)</div><div class="finding-id">cron-jobs-ecfe2b27</div><div class="remedy"><span class="remedy-label">Fix:</span><code class="remedy-cmd" onclick="copyRemedyInline(this)" title="Click to copy">chmod 644 /etc/cron.d/backup</code><span class="remedy-copied">✓ copied</span></div></div></div>
+    </div>
+  </details>
+  <details>
+    <summary>
+      <span class="section-title">Recent Logins</span>
+      <span style="display:flex;align-items:center"><span class="section-badges"><span class="mini-badge ok">1 OK</span><span class="mini-badge">100%</span></span><span class="chevron">▼</span></span>
+    </summary>
+    <div class="findings">
+      <div class="finding" data-level="INFO"><span class="badge INFO">INFO</span><div class="finding-body"><div class="finding-msg">Last 10 successful logins:</div><div class="finding-id">recent-logins-bbd5e81c</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">No failed login attempts found</div><div class="finding-id">recent-logins-51e30005</div></div></div>
+    </div>
+  </details>
+  <details>
+    <summary>
+      <span class="section-title">Account Expiry</span>
+      <span style="display:flex;align-items:center"><span class="section-badges"><span class="mini-badge ok">1 OK</span><span class="mini-badge">100%</span></span><span class="chevron">▼</span></span>
+    </summary>
+    <div class="findings">
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">All human accounts have password expiry configured</div><div class="finding-id">account-expiry-04e92b59</div></div></div>
+    </div>
+  </details>
+  <details>
+    <summary>
+      <span class="section-title">Kernel Hardening (sysctl)</span>
+      <span style="display:flex;align-items:center"><span class="section-badges"><span class="mini-badge warn">7 WARN</span><span class="mini-badge ok">10 OK</span><span class="mini-badge">79%</span></span><span class="chevron">▼</span></span>
+    </summary>
+    <div class="findings">
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">ASLR: 2</div><div class="finding-id">kernel-hardening-sysctl-cf571a29</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">dmesg_restrict: 1</div><div class="finding-id">kernel-hardening-sysctl-4ddf683e</div></div></div>
+      <div class="finding" data-level="WARN"><span class="badge WARN">WARN</span><div class="finding-body"><div class="finding-msg">kptr_restrict: 1 (expected 2)</div><div class="finding-id">kernel-hardening-sysctl-9a4540e9</div><div class="remedy"><span class="remedy-label">Fix:</span><code class="remedy-cmd" onclick="copyRemedyInline(this)" title="Click to copy">sysctl -w kernel.kptr_restrict=2 &amp;&amp; echo 'kernel.kptr_restrict=2' &gt;&gt; /etc/sysctl.d/99-anzen-hardening.conf</code><span class="remedy-copied">✓ copied</span></div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">TCP SYN cookies: 1</div><div class="finding-id">kernel-hardening-sysctl-60a727a2</div></div></div>
+      <div class="finding" data-level="WARN"><span class="badge WARN">WARN</span><div class="finding-body"><div class="finding-msg">Log martian packets: 0 (expected 1)</div><div class="finding-id">kernel-hardening-sysctl-bfae0d58</div><div class="remedy"><span class="remedy-label">Fix:</span><code class="remedy-cmd" onclick="copyRemedyInline(this)" title="Click to copy">sysctl -w net.ipv4.conf.all.log_martians=1 &amp;&amp; echo 'net.ipv4.conf.all.log_martians=1' &gt;&gt; /etc/sysctl.d/99-anzen-hardening.conf</code><span class="remedy-copied">✓ copied</span></div></div></div>
+      <div class="finding" data-level="WARN"><span class="badge WARN">WARN</span><div class="finding-body"><div class="finding-msg">Reverse path filtering: 2 (expected 1)</div><div class="finding-id">kernel-hardening-sysctl-6645dc93</div><div class="remedy"><span class="remedy-label">Fix:</span><code class="remedy-cmd" onclick="copyRemedyInline(this)" title="Click to copy">sysctl -w net.ipv4.conf.all.rp_filter=1 &amp;&amp; echo 'net.ipv4.conf.all.rp_filter=1' &gt;&gt; /etc/sysctl.d/99-anzen-hardening.conf</code><span class="remedy-copied">✓ copied</span></div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">ICMP redirects (IPv4): 0</div><div class="finding-id">kernel-hardening-sysctl-e85d377d</div></div></div>
+      <div class="finding" data-level="WARN"><span class="badge WARN">WARN</span><div class="finding-body"><div class="finding-msg">ICMP redirects (IPv6): 1 (expected 0)</div><div class="finding-id">kernel-hardening-sysctl-4d897fde</div><div class="remedy"><span class="remedy-label">Fix:</span><code class="remedy-cmd" onclick="copyRemedyInline(this)" title="Click to copy">sysctl -w net.ipv6.conf.all.accept_redirects=0 &amp;&amp; echo 'net.ipv6.conf.all.accept_redirects=0' &gt;&gt; /etc/sysctl.d/99-anzen-hardening.conf</code><span class="remedy-copied">✓ copied</span></div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">Source routing (IPv4): 0</div><div class="finding-id">kernel-hardening-sysctl-0145a5dc</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">Source routing (IPv6): 0</div><div class="finding-id">kernel-hardening-sysctl-d56dc245</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">Ignore ICMP broadcasts: 1</div><div class="finding-id">kernel-hardening-sysctl-018a090c</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">Protected symlinks: 1</div><div class="finding-id">kernel-hardening-sysctl-c2ec8dad</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">Protected hardlinks: 1</div><div class="finding-id">kernel-hardening-sysctl-b9ffedc3</div></div></div>
+      <div class="finding" data-level="WARN"><span class="badge WARN">WARN</span><div class="finding-body"><div class="finding-msg">IP forwarding enabled — verify intent (expected on routers/container hosts)</div><div class="finding-id">kernel-hardening-sysctl-68c36b14</div></div></div>
+      <div class="finding" data-level="OK"><span class="badge OK">OK</span><div class="finding-body"><div class="finding-msg">IPv6 forwarding disabled</div><div class="finding-id">kernel-hardening-sysctl-f71545ae</div></div></div>
+      <div class="finding" data-level="WARN"><span class="badge WARN">WARN</span><div class="finding-body"><div class="finding-msg">Sending ICMP redirects enabled</div><div class="finding-id">kernel-hardening-sysctl-69d89250</div><div class="remedy"><span class="remedy-label">Fix:</span><code class="remedy-cmd" onclick="copyRemedyInline(this)" title="Click to copy">sysctl -w net.ipv4.conf.all.send_redirects=0 &amp;&amp; echo 'net.ipv4.conf.all.send_redirects=0' &gt;&gt; /etc/sysctl.d/99-anzen-hardening.conf</code><span class="remedy-copied">✓ copied</span></div></div></div>
+      <div class="finding" data-level="WARN"><span class="badge WARN">WARN</span><div class="finding-body"><div class="finding-msg">fs.suid_dumpable=2 (recommended: 0)</div><div class="finding-id">kernel-hardening-sysctl-ac281107</div><div class="remedy"><span class="remedy-label">Fix:</span><code class="remedy-cmd" onclick="copyRemedyInline(this)" title="Click to copy">sysctl -w fs.suid_dumpable=0 &amp;&amp; echo 'fs.suid_dumpable=0' &gt;&gt; /etc/sysctl.d/99-anzen-hardening.conf</code><span class="remedy-copied">✓ copied</span></div></div></div>
+    </div>
+  </details>
+  <details>
+    <summary>
+      <span class="section-title">MAC Framework (AppArmor / SELinux)</span>
+      <span style="display:flex;align-items:center"><span class="section-badges"><span class="mini-badge warn">1 WARN</span><span class="mini-badge">97%</span></span><span class="chevron">▼</span></span>
+    </summary>
+    <div class="findings">
+      <div class="finding" data-level="WARN"><span class="badge WARN">WARN</span><div class="finding-body"><div class="finding-msg">No MAC framework active (AppArmor or SELinux)</div><div class="finding-id">mac-framework-apparmor-selinux-b60a666a</div></div></div>
+    </div>
+  </details>
+</div>
+
+<div class="footer">
+  Generated by <strong>Anzen 0.9.0</strong> &mdash; 2026-10-27 20:43:29
+</div>
+
+<script>
+// Theme toggle
+function toggleTheme() {
+    document.body.classList.toggle('light');
+    localStorage.setItem('anzen-theme', document.body.classList.contains('light') ? 'light' : 'dark');
+}
+if (localStorage.getItem('anzen-theme') === 'light') document.body.classList.add('light');
+
+// Filter findings
+function filterFindings(level) {
+    document.querySelectorAll('.finding').forEach(el => {
+        el.style.display = (level === 'ALL' || el.dataset.level === level) ? '' : 'none';
+    });
+    // Hide sections where all findings are hidden
+    document.querySelectorAll('details').forEach(details => {
+        const visible = [...details.querySelectorAll('.finding')].some(el => el.style.display !== 'none');
+        details.style.display = visible ? '' : 'none';
+    });
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('[data-filter="' + level + '"]').classList.add('active');
+}
+
+// Copy remedy command inline
+function copyRemedyInline(el) {
+    navigator.clipboard.writeText(el.textContent).then(() => {
+        const copied = el.nextElementSibling;
+        if (copied) { copied.style.opacity = 1; setTimeout(() => copied.style.opacity = 0, 1500); }
+    }).catch(() => {
+        const range = document.createRange();
+        range.selectNode(el);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+    });
+}
+</script>
+</body>
+</html>

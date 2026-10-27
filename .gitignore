@@ -1,7 +1,7 @@
+# Generated reports and local state
 reports/
-*.html
-*.txt
 *.log
-/tmp/
+
+# Site-specific config (see *.example)
 anzen.conf
 anzen.accept

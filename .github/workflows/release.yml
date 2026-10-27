@@ -1,0 +1,43 @@
+# Push a tag like v0.9.0 → GitHub Release with a source tarball, its SHA-256
+# checksum and the matching CHANGELOG section as release notes.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check tag matches ANZEN_VERSION
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          grep -q "^ANZEN_VERSION=\"$version\"$" anzen.sh || {
+            echo "::error::tag $GITHUB_REF_NAME does not match ANZEN_VERSION in anzen.sh"; exit 1; }
+          grep -q "\$AnzenVersion = '$version'" windows/anzen.ps1 || {
+            echo "::error::tag $GITHUB_REF_NAME does not match \$AnzenVersion in windows/anzen.ps1"; exit 1; }
+
+      - name: Build tarball and checksum
+        run: |
+          name="anzen-${GITHUB_REF_NAME#v}"
+          git archive --format=tar.gz --prefix="$name/" -o "$name.tar.gz" "$GITHUB_REF_NAME"
+          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+
+      - name: Release notes from CHANGELOG
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="## [$version]" 'index($0, v) == 1 { on = 1; next } (/^## \[/ || /^<details>/) && on { exit } on' CHANGELOG.md > notes.md
+          [ -s notes.md ] || { echo "::error::no CHANGELOG section for $version"; exit 1; }
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" anzen-*.tar.gz anzen-*.tar.gz.sha256 \
+            --title "Anzen ${GITHUB_REF_NAME}" --notes-file notes.md

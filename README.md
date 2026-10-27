@@ -48,6 +48,8 @@ tool: know the whole state of your machines and stop worrying about them.
 
 <p align="center">
   <img src="docs/img/dashboard.png" alt="anzen dashboard with Linux and Windows hosts" width="800">
+  <br>
+  <a href="https://anzen-d.github.io/anzen/"><b>Live demo dashboard</b></a> · <a href="https://anzen-d.github.io/anzen/report.html"><b>Sample HTML report</b></a>
 </p>
 
 ## Quick start
@@ -170,7 +172,8 @@ mostly with a copy-paste fix. Full list in [docs/modules.md](docs/modules.md).
 Bug reports, false-positive reports and new checks are very welcome. See
 [CONTRIBUTING.md](CONTRIBUTING.md) to get started (`make ci` runs the
 tests). Please report security issues privately, as described in
-[SECURITY.md](SECURITY.md).
+[SECURITY.md](SECURITY.md). Everyone taking part is expected to follow the
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 

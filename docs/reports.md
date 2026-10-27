@@ -35,6 +35,10 @@ durations, counts) normalised. IDs are what `--diff` and the
 ### HTML
 Self-contained dark-theme report with collapsible sections, colour-coded findings, and a score card. No external dependencies — single file.
 
+![Sample HTML report](img/report.png)
+
+[Open the sample report](https://anzen-d.github.io/anzen/report.html) (a demo host with three planted mistakes).
+
 ### Plain Text
 Structured audit trail with section headers and tab-delimited findings. Suitable for archiving, email, or diffing.
 

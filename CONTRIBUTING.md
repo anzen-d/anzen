@@ -1,7 +1,8 @@
 # Contributing to Anzen
 
 Thanks for helping! Bug reports, new checks, false-positive fixes and distro
-or Windows coverage are all welcome.
+or Windows coverage are all welcome. By taking part you agree to follow the
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Ground rules
 

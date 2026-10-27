@@ -4,7 +4,7 @@
 
 set -uo pipefail
 
-ANZEN_VERSION="0.8.1"
+ANZEN_VERSION="0.9.0"
 ANZEN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPORT_DIR="$ANZEN_DIR/reports"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)

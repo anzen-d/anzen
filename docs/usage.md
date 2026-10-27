@@ -124,7 +124,7 @@ sudo ./anzen.sh --diff      # exits 2 if anything regressed
 ### Main Menu
 
 ```
-  安全  Anzen 0.7.2 — Linux Security Audit
+  安全  Anzen 0.9.0 — Linux Security Audit
 
   Modules: 18/18   Formats: (none)
   Options: (none)
