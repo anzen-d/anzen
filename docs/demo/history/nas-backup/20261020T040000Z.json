@@ -7,7 +7,7 @@
   "audited_by": "root",
   "version": "0.8.0",
   "date": "2026-10-20T04:00:10Z",
-  "summary": {"fail": 2, "warn": 9, "ok": 26, "info": 29, "score": 85},
+  "summary": {"fail": 2, "warn": 9, "ok": 26, "info": 30, "score": 85},
   "sections": [
     {"name": "System Information", "fail": 0, "warn": 1, "ok": 4, "score": 97},
     {"name": "Users & Sudo", "fail": 0, "warn": 3, "ok": 4, "score": 91},
@@ -92,6 +92,7 @@
     {"id": "audit-daemon-0102c270", "level": "WARN", "section": "Audit Daemon", "message": "auditd not installed", "remedy": "apt-get install -y auditd audispd-plugins && systemctl enable --now auditd"},
     {"id": "time-synchronization-e07703a0", "level": "FAIL", "section": "Time Synchronization", "message": "No NTP service — clock drift corrupts log timestamps", "remedy": "apt-get install -y chrony && systemctl enable --now chronyd"},
     {"id": "tcp-wrappers-5dca48bc", "level": "INFO", "section": "TCP Wrappers", "message": "/etc/hosts.deny not present (acceptable if firewall is active)", "remedy": ""},
-    {"id": "rootkit-scanners-0383e79c", "level": "WARN", "section": "Rootkit Scanners", "message": "No rootkit scanner installed", "remedy": "apt-get install -y rkhunter && rkhunter --update && rkhunter --check --skip-keypress"}
+    {"id": "rootkit-scanners-0383e79c", "level": "WARN", "section": "Rootkit Scanners", "message": "No rootkit scanner installed", "remedy": "apt-get install -y rkhunter && rkhunter --update && rkhunter --check --skip-keypress"},
+    {"id": "container-security-c916a98b", "level": "INFO", "section": "Container Security", "message": "[docker] backup-agent mounts sensitive path: /var/run/docker.sock  [CIS 5.5] [accepted until 2026-11-10: backup agent snapshots container volumes]", "remedy": ""}
   ]
 }

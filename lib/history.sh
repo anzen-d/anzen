@@ -169,6 +169,8 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
 @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
 .list { margin: 0; padding-left: 1.1rem; }
 .list li { margin: .2rem 0; word-break: break-word; }
+.hosttag { display: inline-block; font-size: .75rem; font-weight: 600; padding: 0 .4rem; margin-right: .3rem;
+           border: 1px solid var(--border); border-radius: 4px; color: var(--muted); }
 .empty { color: var(--muted); }
 .filters { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: .75rem; }
 .filters input, .filters select, button.theme { background: var(--surface); color: var(--text);
@@ -186,6 +188,7 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
 </header>
 <main>
   <section><h2>Hosts</h2><div class="hosts" id="hosts"></div></section>
+  <div id="attention"></div>
   <div id="detail"></div>
 </main>
 <script>
@@ -202,7 +205,8 @@ const byHost = {};
 for (const r of RUNS) (byHost[r.hostname] ||= []).push(r);
 for (const h in byHost) byHost[h].sort((a, b) => a.date.localeCompare(b.date));
 const hosts = Object.keys(byHost).sort();
-let current = hosts[0];
+// Open on the host that needs attention most: lowest latest score
+let current = [...hosts].sort((a, b) => byHost[a].at(-1).summary.score - byHost[b].at(-1).summary.score)[0];
 
 function trend(runs, w, h = 160) {
   if (runs.length < 2) return '<p class="empty">Trend appears after the second run.</p>';
@@ -235,28 +239,47 @@ function renderHosts() {
   document.querySelectorAll(".host").forEach(b => b.onclick = () => { current = b.dataset.host; render(); });
 }
 
-function renderDetail() {
-  if (!current) { $("#detail").innerHTML = ""; return; }
-  const runs = byHost[current], last = runs.at(-1), prev = runs.at(-2);
-  const issues = (last.findings || []).filter(f => f.level === "FAIL" || f.level === "WARN");
-  const prevFail = new Set((prev?.findings || []).filter(f => f.level === "FAIL").map(f => f.id));
-  const curFail = new Set(issues.filter(f => f.level === "FAIL").map(f => f.id));
-  const newF = prev ? issues.filter(f => f.level === "FAIL" && !prevFail.has(f.id)) : [];
-  const fixed = prev ? (prev.findings || []).filter(f => f.level === "FAIL" && !curFail.has(f.id)) : [];
+// Per host: FAILs new/fixed vs the previous run, accepted risks expiring soon
+function changes(h) {
+  const runs = byHost[h], last = runs.at(-1), prev = runs.at(-2);
+  const fails = r => (r?.findings || []).filter(f => f.level === "FAIL");
+  const prevIds = new Set(fails(prev).map(f => f.id)), curIds = new Set(fails(last).map(f => f.id));
   const expiring = (last.findings || []).flatMap(f => {
     const m = /\[accepted until (\d{4}-\d{2}-\d{2}): ([^\]]*)\]/.exec(f.message);
     return m && -days(m[1]) < EXPIRY_DAYS ? [{...f, until: m[1], reason: m[2]}] : [];
   });
-  const prevSec = Object.fromEntries((prev?.sections || []).map(s => [s.name, s.score]));
-  const li = (arr, f) => arr.length ? `<ul class="list">${arr.map(f).join("")}</ul>` : '<p class="empty">None.</p>';
+  return {
+    hasPrev: !!prev,
+    newF: prev ? fails(last).filter(f => !prevIds.has(f.id)) : [],
+    fixed: prev ? fails(prev).filter(f => !curIds.has(f.id)) : [],
+    expiring,
+  };
+}
 
+const li = (arr, f) => arr.length ? `<ul class="list">${arr.map(f).join("")}</ul>` : '<p class="empty">None.</p>';
+const hostTag = h => `<span class="hosttag">${esc(h)}</span>`;
+const stripAccept = m => m.replace(/\s*\[accepted until.*\]$/, "");
+
+// Fleet-wide: what changed since each host's previous run, and what expires soon
+function renderAttention() {
+  const all = hosts.map(h => [h, changes(h)]);
+  const flat = key => all.flatMap(([h, c]) => c[key].map(f => ({...f, host: h})));
+  const newF = flat("newF"), fixed = flat("fixed"), expiring = flat("expiring").sort((a, b) => a.until.localeCompare(b.until));
+  $("#attention").innerHTML = `
+    <div class="grid2">
+      <section><h2>New FAILs since previous run</h2><div class="panel">${li(newF, f => `<li>${hostTag(f.host)} ${esc(f.message)} <span class="id">${esc(f.id)}</span></li>`)}</div></section>
+      <section><h2>Fixed since previous run</h2><div class="panel">${li(fixed, f => `<li>${hostTag(f.host)} ${esc(f.message)}</li>`)}</div></section>
+    </div>
+    <section><h2>Accepted risks expiring within ${EXPIRY_DAYS} days</h2><div class="panel">${li(expiring, f => `<li>${hostTag(f.host)} <b>${esc(f.until)}</b> — ${esc(stripAccept(f.message))} <span class="id">${esc(f.reason)}</span></li>`)}</div></section>`;
+}
+
+function renderDetail() {
+  if (!current) { $("#detail").innerHTML = ""; return; }
+  const runs = byHost[current], last = runs.at(-1), prev = runs.at(-2);
+  const issues = (last.findings || []).filter(f => f.level === "FAIL" || f.level === "WARN");
+  const prevSec = Object.fromEntries((prev?.sections || []).map(s => [s.name, s.score]));
   $("#detail").innerHTML = `
     <h2>${esc(current)} — score trend</h2><div class="panel" id="trend"></div>
-    <div class="grid2">
-      <section><h2>New FAILs since previous run</h2><div class="panel">${prev ? li(newF, f => `<li>${esc(f.message)} <span class="id">${esc(f.id)}</span></li>`) : '<p class="empty">First run.</p>'}</div></section>
-      <section><h2>Fixed since previous run</h2><div class="panel">${prev ? li(fixed, f => `<li>${esc(f.message)}</li>`) : '<p class="empty">First run.</p>'}</div></section>
-    </div>
-    <section><h2>Accepted risks expiring within ${EXPIRY_DAYS} days</h2><div class="panel">${li(expiring, f => `<li><b>${esc(f.until)}</b> — ${esc(f.message.replace(/\s*\[accepted until.*\]$/, ""))} <span class="id">${esc(f.id)}</span></li>`)}</div></section>
     <section><h2>Sections</h2><div class="panel"><table>
       <thead><tr><th>Section</th><th class="num">Score</th><th class="barcol"></th><th class="num">Δ</th><th class="num">FAIL</th><th class="num">WARN</th></tr></thead>
       <tbody>${[...last.sections].sort((a, b) => a.score - b.score).map(s => {
@@ -295,7 +318,7 @@ function drawTrend() {
 }
 addEventListener("resize", drawTrend);
 
-function render() { renderHosts(); renderDetail(); }
+function render() { renderHosts(); renderAttention(); renderDetail(); }
 
 const root = document.documentElement;
 try { const t = localStorage.getItem("anzen-theme"); if (t) root.dataset.theme = t; } catch (e) {}

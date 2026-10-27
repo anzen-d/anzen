@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Dashboard: "New FAILs", "Fixed" and "Accepted risks expiring" now cover the whole fleet, each entry tagged with its host; the view opens on the lowest-scoring host
+- Live demo data tells a story (a new FAIL, a fix, an expiring accepted risk) and accepted-risk dates move with the demo dates
+
 ## [0.9.0] - 2026-10-27
 
 First public release.

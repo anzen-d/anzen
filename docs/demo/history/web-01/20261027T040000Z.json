@@ -7,7 +7,7 @@
   "audited_by": "root",
   "version": "0.8.0",
   "date": "2026-10-27T04:00:30Z",
-  "summary": {"fail": 2, "warn": 11, "ok": 23, "info": 29, "score": 97},
+  "summary": {"fail": 3, "warn": 11, "ok": 23, "info": 29, "score": 88},
   "sections": [
     {"name": "System Information", "fail": 0, "warn": 1, "ok": 3, "score": 97},
     {"name": "Users & Sudo", "fail": 0, "warn": 3, "ok": 4, "score": 91},
@@ -91,6 +91,7 @@
     {"id": "audit-daemon-0102c270", "level": "WARN", "section": "Audit Daemon", "message": "auditd not installed", "remedy": "apt-get install -y auditd audispd-plugins && systemctl enable --now auditd"},
     {"id": "time-synchronization-e07703a0", "level": "FAIL", "section": "Time Synchronization", "message": "No NTP service — clock drift corrupts log timestamps", "remedy": "apt-get install -y chrony && systemctl enable --now chronyd"},
     {"id": "tcp-wrappers-5dca48bc", "level": "INFO", "section": "TCP Wrappers", "message": "/etc/hosts.deny not present (acceptable if firewall is active)", "remedy": ""},
-    {"id": "rootkit-scanners-0383e79c", "level": "WARN", "section": "Rootkit Scanners", "message": "No rootkit scanner installed", "remedy": "apt-get install -y rkhunter && rkhunter --update && rkhunter --check --skip-keypress"}
+    {"id": "rootkit-scanners-0383e79c", "level": "WARN", "section": "Rootkit Scanners", "message": "No rootkit scanner installed", "remedy": "apt-get install -y rkhunter && rkhunter --update && rkhunter --check --skip-keypress"},
+    {"id": "world-writable-files-b6233d77", "level": "FAIL", "section": "World-Writable Files", "message": "World-writable cron entry: /etc/cron.d/backup", "remedy": "chmod o-w /etc/cron.d/backup"}
   ]
 }
