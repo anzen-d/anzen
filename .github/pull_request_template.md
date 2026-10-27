@@ -7,6 +7,7 @@
 - Tested on: <!-- distros / Windows versions -->
 
 ## Checklist
+- [ ] Commits are signed off (`git commit -s`, see CONTRIBUTING.md)
 - [ ] No hostnames, IPs, tokens or site-specific paths
 - [ ] `CHANGELOG.md` entry
 - [ ] README updated if flags, modules or config keys changed

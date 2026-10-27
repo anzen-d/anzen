@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/anzen-d/anzen/actions/workflows/ci.yml"><img src="https://github.com/anzen-d/anzen/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="AGPL-3.0 license"></a>
   <img src="https://img.shields.io/badge/bash-4.2%2B-4EAA25?logo=gnubash&logoColor=white" alt="Bash 4.2+">
   <img src="https://img.shields.io/badge/PowerShell-5.1%2B-5391FE?logo=powershell&logoColor=white" alt="PowerShell 5.1+">
   <img src="https://img.shields.io/badge/tested%20on-Debian%20%7C%20Ubuntu%20%7C%20Fedora%20%7C%20Rocky%20%7C%20Alpine%20%7C%20Arch%20%7C%20openSUSE-informational" alt="Tested distros">
@@ -169,12 +169,21 @@ mostly with a copy-paste fix. Full list in [docs/modules.md](docs/modules.md).
 
 ## Contributing
 
-Bug reports, false-positive reports and new checks are very welcome. See
-[CONTRIBUTING.md](CONTRIBUTING.md) to get started (`make ci` runs the
-tests). Please report security issues privately, as described in
+Anzen is built in the open and contributions are very welcome: bug and
+false-positive reports, new checks, distro and Windows coverage, docs. The
+[roadmap](ROADMAP.md) lists good first contributions and bigger features;
+[CONTRIBUTING.md](CONTRIBUTING.md) explains how to get started (`make ci` runs
+the tests). Please report security issues privately, as described in
 [SECURITY.md](SECURITY.md). Everyone taking part is expected to follow the
 [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
-[MIT](LICENSE)
+Anzen is free software: you can use, study, share and modify it under the
+[GNU Affero General Public License v3.0 or later](LICENSE). Running it on
+your own machines, at home or at work, carries no obligations. If you
+distribute a modified version or offer it as a network service, you must
+make your changes available under the same license, so improvements stay open
+for everyone.
+
+The name and logo are not covered by the license. See [TRADEMARKS.md](TRADEMARKS.md).

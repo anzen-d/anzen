@@ -6,6 +6,8 @@ or Windows coverage are all welcome. By taking part you agree to follow the
 
 ## Ground rules
 
+- **Ask early.** For anything bigger than a small fix, open an issue first so
+  we can agree on the approach before you invest time.
 - **Generic only.** Anzen must work on any host. No hostnames, IPs, domains,
   tokens or site-specific paths in the code, docs or tests. Site-specific
   checks belong in a `CUSTOM_CHECKS_DIR` module outside the repo.
@@ -59,8 +61,36 @@ Tests: `Invoke-Pester windows/tests`; lint: `Invoke-ScriptAnalyzer windows/anzen
 Severity guide: **FAIL** = exploitable or clearly wrong, **WARN** = weaker than
 recommended or needs review, **INFO** = context only, **OK** = verified good.
 
+## Licensing of contributions
+
+Anzen is licensed under the [AGPL-3.0-or-later](LICENSE). Contributions are
+accepted under the same license — you keep the copyright to your work, and
+there is no CLA.
+
+Instead, every commit carries a **Developer Certificate of Origin** sign-off
+(<https://developercertificate.org>): a statement that you wrote the change or
+otherwise have the right to submit it under the project's license. Add it with
+`git commit -s`, which appends:
+
+```
+Signed-off-by: Your Name <you@example.com>
+```
+
+A pseudonym is fine, as long as it identifies you consistently. CI checks that
+every commit in a pull request is signed off. Forgot? `git commit --amend -s`
+(or `git rebase --signoff main`) and force-push.
+
+New source files start with:
+
+```bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
+```
+
 ## Pull requests
 
+- Not sure where to start? See the [roadmap](ROADMAP.md), or comment on an
+  issue labelled `good first issue`.
 - One topic per PR; include a `CHANGELOG.md` entry under an "Unreleased" heading.
 - Describe how you tested (distros, Windows version).
 - CI must be green.

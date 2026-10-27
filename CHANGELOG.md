@@ -6,9 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-28
+
 ### Changed
+- **License: MIT → GNU AGPL-3.0-or-later.** Using Anzen stays free with no
+  obligations; distributing a modified version or offering it as a network
+  service requires sharing the changes under the same license. Version 0.9.0
+  remains available under MIT
+- Contributions use the Developer Certificate of Origin (`git commit -s`)
+  instead of a CLA; CI checks the sign-off on pull requests
+- SPDX license headers in all source files
+- The name and logo are covered by a trademark note ([TRADEMARKS.md](TRADEMARKS.md))
 - Dashboard: "New FAILs", "Fixed" and "Accepted risks expiring" now cover the whole fleet, each entry tagged with its host; the view opens on the lowest-scoring host
 - Live demo data tells a story (a new FAIL, a fix, an expiring accepted risk) and accepted-risk dates move with the demo dates
+
+### Added
+- [ROADMAP.md](ROADMAP.md) with good first contributions and bigger features
+
 
 ## [0.9.0] - 2026-10-27
 

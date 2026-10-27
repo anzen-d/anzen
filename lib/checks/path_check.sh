@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # checks/path_check.sh — PATH security checks
 
 run_path_check_check() {

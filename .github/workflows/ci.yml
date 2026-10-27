@@ -5,6 +5,31 @@ on:
   pull_request:
 
 jobs:
+  dco:
+    name: DCO sign-off
+    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Every commit has Signed-off-by
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          missing=0
+          for c in $(git rev-list --no-merges "$BASE..$HEAD"); do
+            if ! git log -1 --format=%B "$c" | grep -q '^Signed-off-by: '; then
+              echo "::error::commit $(git log -1 --format='%h %s' "$c") has no Signed-off-by line"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::Sign off your commits: git rebase --signoff $BASE && git push --force (see CONTRIBUTING.md)"
+            exit 1
+          fi
+
   linux:
     name: Lint + tests (Linux)
     runs-on: ubuntu-latest

@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # lib/output.sh — Terminal output and findings collection
 
 # Honour NO_COLOR (https://no-color.org) and --no-color flag

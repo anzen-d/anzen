@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # lib/http_probe.sh — HTTP probing shared by the pentest modules: status/body
 # fetches, a catch-all baseline (SPAs answer 200 for every path) and a secret
 # scanner that decides whether a 200 response really exposes something.

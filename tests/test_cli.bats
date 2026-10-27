@@ -1,4 +1,6 @@
 #!/usr/bin/env bats
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # tests/test_cli.bats — Tests for anzen.sh argument handling and module wiring
 
 setup() {

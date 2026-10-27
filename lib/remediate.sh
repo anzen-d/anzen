@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # lib/remediate.sh — Generate executable remediation script from findings
 
 generate_remediate_script() {

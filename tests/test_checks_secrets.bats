@@ -1,4 +1,6 @@
 #!/usr/bin/env bats
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # tests/test_checks_secrets.bats — Tests for lib/checks/secrets.sh logic
 # Creates fake files to trigger each detection path
 

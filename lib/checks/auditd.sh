@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # checks/auditd.sh — Audit daemon, NTP time sync, TCP wrappers, rootkit scanners
 
 run_auditd_check() {

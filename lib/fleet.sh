@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # lib/fleet.sh — Audit remote hosts over SSH (--remote=host1,host2,...)
 #
 # Per host: copy anzen to a remote mktemp dir with a generated anzen.conf that

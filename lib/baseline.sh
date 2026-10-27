@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # lib/baseline.sh — Baseline management and regression detection
 
 BASELINE_FILE="${REPORT_DIR:-${ANZEN_DIR}/reports}/.baseline.json"

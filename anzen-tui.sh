@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # anzen-tui.sh — Interactive TUI for Anzen (安全)
 # Requires: whiptail (apt install whiptail) or dialog (apt install dialog)
 # Requires: bash 4.0+

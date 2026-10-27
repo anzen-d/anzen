@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # checks/cve.sh — Known vulnerabilities (CVEs) in host packages and container images
 # Uses trivy (https://trivy.dev); its vulnerability database updates itself.
 # One finding per vulnerable package: CRITICAL → FAIL, HIGH → WARN.

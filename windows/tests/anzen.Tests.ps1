@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # windows/tests/anzen.Tests.ps1 — Pester 5 tests for the platform-independent
 # parts of anzen.ps1 (IDs, accept file, scores, JSON layout). Windows-only checks
 # need a real Windows host; these run anywhere pwsh runs, including Linux CI.

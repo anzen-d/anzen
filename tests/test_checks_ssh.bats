@@ -1,4 +1,6 @@
 #!/usr/bin/env bats
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # tests/test_checks_ssh.bats — Tests for lib/checks/ssh.sh
 # Uses a fake sshd_config to test specific logic paths
 

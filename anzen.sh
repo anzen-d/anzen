@@ -1,10 +1,12 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # Anzen (安全) — Linux Security Audit Tool
 # Usage: ./anzen.sh [OPTIONS]
 
 set -uo pipefail
 
-ANZEN_VERSION="0.9.0"
+ANZEN_VERSION="0.9.1"
 ANZEN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPORT_DIR="$ANZEN_DIR/reports"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)

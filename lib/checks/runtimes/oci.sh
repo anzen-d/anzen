@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # runtimes/oci.sh — Checks for OCI-compatible runtimes: Docker, Podman, nerdctl
 
 _oci_daemon_checks() {

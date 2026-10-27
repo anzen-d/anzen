@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # checks/docker_security.sh — Container runtime security dispatcher
 # Sources runtime-specific checks from lib/checks/runtimes/
 

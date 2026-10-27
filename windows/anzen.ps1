@@ -28,6 +28,8 @@
 .PARAMETER List
     List modules and exit.
 #>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 [CmdletBinding()]
 param(
     [string[]]$Check = @(),
@@ -43,7 +45,7 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Continue'
 
-$AnzenVersion = '0.9.0'
+$AnzenVersion = '0.9.1'
 $ScriptDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
 $FailPenalty  = 10
 $WarnPenalty  = 3

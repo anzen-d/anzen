@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # lib/report_txt.sh — Generate plain text audit report (audit trail)
 
 generate_txt_report() {

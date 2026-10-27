@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # checks/kernel.sh — Kernel hardening (sysctl) and MAC framework
 
 _SYSCTL_CONF="/etc/sysctl.d/99-anzen-hardening.conf"

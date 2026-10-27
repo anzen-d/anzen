@@ -1,4 +1,6 @@
 #!/usr/bin/env bats
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # tests/test_reports.bats — Tests for HTML, JSON and TXT report generators
 
 setup() {

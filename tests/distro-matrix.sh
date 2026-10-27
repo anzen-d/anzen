@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # tests/distro-matrix.sh — run anzen inside minimal containers of each supported
 # distro family and fail on shell-level errors (missing commands, bad
 # arithmetic, unbound variables, syntax errors). Findings themselves do not

@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # checks/images.sh — Container image freshness
 # Per running image: age, unpinned tags, containers left on an older image
 # after a pull, and (optionally) a newer digest published upstream (registry

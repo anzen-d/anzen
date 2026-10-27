@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # docs/demo/build.sh OUT_DIR — build the live demo site: the dashboard from the
 # demo history (dates shifted so the newest run is today) and the sample report.
 set -euo pipefail

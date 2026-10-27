@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # checks/ssh.sh — SSH daemon hardening
 
 # Use sshd -T (compiled effective config) — handles commented/defaulted settings correctly.

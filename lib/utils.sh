@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # lib/utils.sh — Shared utility functions (sourced early by anzen.sh)
 
 # Succeed only if FILE is owned by the current user (or root) and not world-writable

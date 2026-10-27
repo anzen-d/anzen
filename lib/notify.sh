@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # lib/notify.sh — Post-audit notification hook
 
 # Called with: _notify <fail_count> <score> [new_fail_messages] [host]

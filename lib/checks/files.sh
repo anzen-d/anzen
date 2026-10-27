@@ -1,4 +1,6 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
 # checks/files.sh — File system security checks
 
 _KNOWN_SUID="ping$|ping6$|sudo$|sudoedit$|mount$|umount$|su$|passwd$|chsh$|chfn$|newgrp$|gpasswd$|pkexec$|Xorg$|ksu$|ssh-keysign$|crontab$|at$|wall$|write$|netstat$|traceroute$|traceroute6$|unix_chkpwd$|pam_timestamp_check$|pt_chown$|screen$|lockfile$"
