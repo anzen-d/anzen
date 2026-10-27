@@ -15,9 +15,10 @@ All notable changes to this project are documented here. The format follows
   the explanation lives in `docs/modules.md`
 
 ### Notes
-- Confirmed on a real Mac (macOS 26.6.2): `security verify-cert -p basic -l`
-  and Apple's own TLS stack (`nscurl`) agree, so the keychain check reflects
-  whether Apple's block has reached the machine
+- On a real Mac (macOS 26.6.2), `security verify-cert -p basic -l` still
+  reports the emSign root as trusted. Whether that matches Apple's TLS-level
+  block is not yet confirmed: an earlier note here claimed `nscurl` agreed, but
+  `nscurl` exits 0 even when a connection fails, so that test was invalid
 
 ## [0.11.2] - 2026-10-28
 
