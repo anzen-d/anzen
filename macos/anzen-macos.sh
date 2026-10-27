@@ -17,7 +17,7 @@
 
 set -u
 
-ANZEN_VERSION="0.11.1"
+ANZEN_VERSION="0.11.2"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 FAIL_PENALTY=10
@@ -26,6 +26,8 @@ SOCKETFILTERFW="${ANZEN_SOCKETFILTERFW:-/usr/libexec/ApplicationFirewall/socketf
 # Overridable for tests
 SYSTEM_ROOTS_KEYCHAIN="${ANZEN_SYSTEM_ROOTS_KEYCHAIN:-/System/Library/Keychains/SystemRootCertificates.keychain}"
 CERT_PEM="${ANZEN_CERT_PEM:-/etc/ssl/cert.pem}"
+HOMEBREW_BUNDLES="${ANZEN_HOMEBREW_BUNDLES-/opt/homebrew/etc/ca-certificates/cert.pem /usr/local/etc/ca-certificates/cert.pem /opt/homebrew/etc/openssl@3/cert.pem /usr/local/etc/openssl@3/cert.pem}"
+CHECK_RUNTIMES="${ANZEN_CHECK_RUNTIMES:-1}"   # Python certifi, Java cacerts
 
 MODULES="system updates filevault sip gatekeeper firewall sharing accounts ssh truststore"
 
@@ -404,8 +406,8 @@ check_truststore() {
 
     # Command-line tools (curl, git, openssl, Homebrew's OpenSSL) read PEM
     # bundles directly and do not apply Apple's blocks
-    for f in "$CERT_PEM" /opt/homebrew/etc/ca-certificates/cert.pem /usr/local/etc/ca-certificates/cert.pem \
-             /opt/homebrew/etc/openssl@3/cert.pem /usr/local/etc/openssl@3/cert.pem; do
+    # shellcheck disable=SC2086  # space-separated path list
+    for f in "$CERT_PEM" $HOMEBREW_BUNDLES; do
         [ -f "$f" ] || continue
         case $f in
             "$CERT_PEM") _ts_report "$f (used by curl, git, openssl)" \
@@ -415,12 +417,17 @@ check_truststore() {
         esac
     done
 
+    [ "$CHECK_RUNTIMES" = 1 ] || { _ts_summary; return 0; }
     if command -v python3 >/dev/null 2>&1 && f=$(python3 -c 'import certifi; print(certifi.where())' 2>/dev/null) && [ -f "$f" ]; then
         _ts_report "Python certifi ($f)" "pip3 install -U certifi" < <(_pem_certs < "$f")
     fi
     if /usr/libexec/java_home >/dev/null 2>&1 && command -v keytool >/dev/null 2>&1; then
         _ts_report "Java cacerts" "update the JDK" < <(keytool -list -rfc -cacerts -storepass changeit 2>/dev/null | _pem_certs)
     fi
+    _ts_summary
+}
+
+_ts_summary() {
     if [ "$TS_CHECKED" -eq 0 ]; then info "No certificate stores found to check"
     elif [ "$TS_FOUND" -eq 0 ]; then ok "No distrusted CA certificates trusted ($TS_CHECKED certificates checked)"; fi
 }

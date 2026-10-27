@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-10-28
+
+### Fixed
+- macOS tests were not hermetic on a real Mac: the trust-store check also read
+  the machine's Homebrew bundles, Python certifi and Java. Tests now switch these
+  off (`ANZEN_HOMEBREW_BUNDLES`, `ANZEN_CHECK_RUNTIMES`); the full run on a Mac
+  in CI still checks them
+
 ## [0.11.1] - 2026-10-28
 
 Fixes from the first run on a real Mac (macOS 26.6).

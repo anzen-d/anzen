@@ -78,6 +78,9 @@ ts_env() {
     export ANZEN_SYSTEM_ROOTS_KEYCHAIN="$BATS_TEST_TMPDIR/SystemRoots.keychain"
     cp "$STUB_FIXTURES/isrg-root-x1.pem" "$BATS_TEST_TMPDIR/cert.pem"
     export ANZEN_CERT_PEM="$BATS_TEST_TMPDIR/cert.pem"
+    # Hermetic on a real Mac too: no Homebrew bundles, certifi or Java
+    export ANZEN_HOMEBREW_BUNDLES="" ANZEN_CHECK_RUNTIMES=0
+    # and no real System keychain: point HOME at the temp dir (done in setup)
 }
 
 @test "macos: distrusted root in the keychain but blocked by Apple is OK, not FAIL" {
