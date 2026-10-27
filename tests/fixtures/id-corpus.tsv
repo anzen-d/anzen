@@ -1,0 +1,141 @@
+Account Expiry	Accounts with password that never expires: ubuntu	account-expiry-a0c0585b
+Account Expiry	All human accounts have password expiry configured	account-expiry-04e92b59
+Audit Daemon	auditd not installed	audit-daemon-0102c270
+Container Images	Image nginx:1.27 is 559 days old (limit 180) [web]	container-images-3e1bf0f3
+Container Security	[docker] backup-agent mounts sensitive path: /var/run/docker.sock  [CIS 5.5]	container-security-c916a98b
+Counts	12 packages and 3 updates, 2 failed attempts, 4 services	counts-d8f70182
+Credential Protection	LSA protection (RunAsPPL) off	credential-protection-d1d4007b
+Cron Jobs	Root crontab is empty	cron-jobs-29b33c8b
+File Permissions	/etc/group — 644 root:root	file-permissions-87dc6165
+File Permissions	/etc/gshadow — 0 root:root (expected 640)	file-permissions-733a4bf2
+File Permissions	/etc/gshadow — 640 root:shadow	file-permissions-aabcaf6b
+File Permissions	/etc/passwd — 644 root:root	file-permissions-1986d5b0
+File Permissions	/etc/shadow — 0 root:root (expected 640)	file-permissions-84cc014e
+File Permissions	/etc/shadow — 640 root:shadow	file-permissions-41fab682
+FileVault	FileVault is off — the disk is readable by anyone with physical access	filevault-6309a91d
+Firewall	No active firewall detected (checked: ufw, firewalld, nftables, iptables)	firewall-d7c70e13
+Kernel Hardening (sysctl)	ASLR: 2	kernel-hardening-sysctl-cf571a29
+Kernel Hardening (sysctl)	ASLR: not available on this kernel	kernel-hardening-sysctl-6839e91b
+Kernel Hardening (sysctl)	ICMP redirects (IPv4): 0	kernel-hardening-sysctl-e85d377d
+Kernel Hardening (sysctl)	ICMP redirects (IPv4): not available on this kernel	kernel-hardening-sysctl-976774a3
+Kernel Hardening (sysctl)	ICMP redirects (IPv6): 1 (expected 0)	kernel-hardening-sysctl-4d897fde
+Kernel Hardening (sysctl)	ICMP redirects (IPv6): not available on this kernel	kernel-hardening-sysctl-c7e1bdc0
+Kernel Hardening (sysctl)	IP forwarding disabled	kernel-hardening-sysctl-9780d896
+Kernel Hardening (sysctl)	IP forwarding enabled — verify intent (expected on routers/container hosts)	kernel-hardening-sysctl-68c36b14
+Kernel Hardening (sysctl)	IPv6 forwarding disabled	kernel-hardening-sysctl-f71545ae
+Kernel Hardening (sysctl)	Ignore ICMP broadcasts: 1	kernel-hardening-sysctl-018a090c
+Kernel Hardening (sysctl)	Ignore ICMP broadcasts: not available on this kernel	kernel-hardening-sysctl-1655c145
+Kernel Hardening (sysctl)	Log martian packets: 0 (expected 1)	kernel-hardening-sysctl-bfae0d58
+Kernel Hardening (sysctl)	Log martian packets: not available on this kernel	kernel-hardening-sysctl-cc0acc35
+Kernel Hardening (sysctl)	Protected hardlinks: 1	kernel-hardening-sysctl-b9ffedc3
+Kernel Hardening (sysctl)	Protected hardlinks: not available on this kernel	kernel-hardening-sysctl-a8713efc
+Kernel Hardening (sysctl)	Protected symlinks: 1	kernel-hardening-sysctl-c2ec8dad
+Kernel Hardening (sysctl)	Protected symlinks: not available on this kernel	kernel-hardening-sysctl-0ea59f0e
+Kernel Hardening (sysctl)	Reverse path filtering: 2 (expected 1)	kernel-hardening-sysctl-6645dc93
+Kernel Hardening (sysctl)	Reverse path filtering: not available on this kernel	kernel-hardening-sysctl-be8c50a1
+Kernel Hardening (sysctl)	Sending ICMP redirects disabled	kernel-hardening-sysctl-9133226b
+Kernel Hardening (sysctl)	Sending ICMP redirects enabled	kernel-hardening-sysctl-69d89250
+Kernel Hardening (sysctl)	Source routing (IPv4): 0	kernel-hardening-sysctl-0145a5dc
+Kernel Hardening (sysctl)	Source routing (IPv4): not available on this kernel	kernel-hardening-sysctl-871bc206
+Kernel Hardening (sysctl)	Source routing (IPv6): 0	kernel-hardening-sysctl-d56dc245
+Kernel Hardening (sysctl)	Source routing (IPv6): not available on this kernel	kernel-hardening-sysctl-3fa840da
+Kernel Hardening (sysctl)	TCP SYN cookies: 1	kernel-hardening-sysctl-60a727a2
+Kernel Hardening (sysctl)	TCP SYN cookies: not available on this kernel	kernel-hardening-sysctl-7fded4ff
+Kernel Hardening (sysctl)	dmesg_restrict: 1	kernel-hardening-sysctl-4ddf683e
+Kernel Hardening (sysctl)	dmesg_restrict: not available on this kernel	kernel-hardening-sysctl-e40dbd5a
+Kernel Hardening (sysctl)	fs.suid_dumpable= (recommended: 0)	kernel-hardening-sysctl-27f4e048
+Kernel Hardening (sysctl)	fs.suid_dumpable=2 (recommended: 0)	kernel-hardening-sysctl-ac281107
+Kernel Hardening (sysctl)	kptr_restrict: 1 (expected 2)	kernel-hardening-sysctl-9a4540e9
+Kernel Hardening (sysctl)	kptr_restrict: not available on this kernel	kernel-hardening-sysctl-7004d830
+Local Accounts	3 users found (x)	local-accounts-c2175ccc
+MAC Framework (AppArmor / SELinux)	No MAC framework active (AppArmor or SELinux)	mac-framework-apparmor-selinux-b60a666a
+Microsoft Defender	Antivirus signatures 9 days old	microsoft-defender-acb1eed0
+Microsoft Defender	Real-time protection enabled	microsoft-defender-e9d00fa6
+Mixed	5 kbit link, 10 kb file, 7 minutesx, 3mb	mixed-975bd99c
+Network	Port 8080 open on localhost	network-f227a428
+Open Ports & Services	Public listening ports:	open-ports-services-e99b7ffc
+Open Ports & Services	Public listening ports: 0	open-ports-services-1654d548
+PAM Account Lockout	No PAM account lockout — brute force will not lock accounts	pam-account-lockout-4b2bd80f
+PATH Security	/etc/ld.so.preload not in use	path-security-b2894d08
+PATH Security	All binaries in PATH are root-owned	path-security-b8ed1863
+PATH Security	LD_LIBRARY_PATH not set	path-security-20111632
+PATH Security	LD_PRELOAD not set	path-security-7539f7ac
+PATH Security	No PATH manipulation in /etc/profile.d or /etc/environment	path-security-909f49fa
+PATH Security	No world-writable or unsafe directories in PATH	path-security-4f11058f
+Parens	listening (3 connections) and (12)	parens-f882999e
+PowerShell	PowerShell script block logging disabled	powershell-a7f0f515
+Recent Logins	Last 10 successful logins:	recent-logins-bbd5e81c
+Recent Logins	No failed login attempts found	recent-logins-51e30005
+Remote Desktop	Remote Desktop requires Network Level Authentication	remote-desktop-7524bc66
+Rootkit Scanners	No rootkit scanner installed	rootkit-scanners-0383e79c
+SMB	SMB signing required	smb-77bf9ccd
+SMB	SMBv1 server enabled	smb-568ad101
+SSH Configuration	PermitRootLogin yes — direct root login allowed	ssh-configuration-b995a64e
+SSH Configuration	SSH server not detected — skipping	ssh-configuration-1fa77746
+SUID / SGID Binaries	No unexpected SUID/SGID binaries found	suid-sgid-binaries-e4954a68
+Software Update	2 recommended update(s) available	software-update-700c4863
+System Information	/tmp has sticky bit (1777)	system-information-ca7cf1bd
+System Information	Arch:       x86_64	system-information-c940bed5
+System Information	CPU usage: 100%	system-information-ac241d2f
+System Information	CPU usage: 98%	system-information-ac241d2f
+System Information	CPU usage: 99%	system-information-ac241d2f
+System Information	Date:       Tue Oct 27 19:12:24 UTC 2026	system-information-20161e2e
+System Information	Date:       Tue Oct 27 19:13:13 UTC 2026	system-information-818159d6
+System Information	Date:       Tue Oct 27 19:13:51 UTC 2026	system-information-d7cb9603
+System Information	Date:       Tue Oct 27 19:14:41 UTC 2026	system-information-2b31acdd
+System Information	Date:       Tue Oct 27 19:15:25 UTC 2026	system-information-b27d24d6
+System Information	Date:       Tue Oct 27 19:16:08 UTC 2026	system-information-36acaced
+System Information	Date:       Tue Oct 27 19:16:50 UTC 2026	system-information-f214bc77
+System Information	Date:       Tue Oct 27 19:17:31 UTC 2026	system-information-d28b4cb8
+System Information	Date:       Tue Oct 27 19:18:11 UTC 2026	system-information-0c0438e6
+System Information	Disk / at 81% used (192G / 246G)	system-information-8536bae8
+System Information	Disk /dev/shm: 0% used (0 / 64M)	system-information-8972dcb1
+System Information	Disk /etc/hosts: 88% used (207G / 246G)	system-information-904e69cc
+System Information	Disk /etc/hosts: 89% used (208G / 246G)	system-information-904e69cc
+System Information	Disk /home: 93% used (3.5T / 3.6T)	system-information-893cbaf1
+System Information	Family:     debian / pkg: apt / init: unknown	system-information-cd34cb59
+System Information	Family:     rhel / pkg: dnf / init: unknown	system-information-5e0a0492
+System Information	Hostname:   media-01	system-information-8ab07454
+System Information	Hostname:   nas-backup	system-information-18f494df
+System Information	Hostname:   web-01	system-information-67346432
+System Information	Kernel:     6.8.0-142-generic	system-information-08795c9c
+System Information	Load avg:  67.94, 85.33, 81.58	system-information-d05bef05
+System Information	Load avg:  70.96, 83.33, 81.09	system-information-013be542
+System Information	Load avg:  74.72, 88.62, 82.46	system-information-1f334de3
+System Information	Load avg:  75.49, 82.54, 80.92	system-information-75b36aaf
+System Information	Load avg:  81.35, 83.24, 81.24	system-information-1d180206
+System Information	Load avg:  83.76, 84.14, 81.87	system-information-3e54a6eb
+System Information	Load avg:  83.86, 92.23, 83.21	system-information-57c05c36
+System Information	Load avg:  86.90, 84.61, 81.80	system-information-e69e7a07
+System Information	Load avg:  87.38, 85.01, 82.05	system-information-85a59a82
+System Information	Memory: 11834 MB used / 32095 MB total (37%)	system-information-02adb507
+System Information	Memory: 11925 MB used / 32095 MB total (37%)	system-information-02adb507
+System Information	Memory: 12119 MB used / 32095 MB total (38%)	system-information-02adb507
+System Information	No reboot required	system-information-7eff2b8d
+System Information	OS:         Debian GNU/Linux 12 (bookworm)	system-information-307e964c
+System Information	OS:         Rocky Linux 9.8 (Blue Onyx)	system-information-3712d8be
+System Information	OS:         Ubuntu 24.04.5 LTS	system-information-b62ff525
+System Information	Public IP:  203.0.113.10	system-information-7a72c001
+System Information	Public IP:  unavailable	system-information-f8aa1e79
+System Information	Running kernel is current	system-information-3dd741fd
+System Information	Uptime:     29 days, 22 hours	system-information-f712a1e6
+TCP Wrappers	/etc/hosts.deny not present (acceptable if firewall is active)	tcp-wrappers-5dca48bc
+Time Synchronization	No NTP service — clock drift corrupts log timestamps	time-synchronization-e07703a0
+Uptime	Uptime: 45 days, 3 hours, 12 minutes, 9 seconds, 15 ms	uptime-09d359bf
+Users & Sudo	Human accounts with login shells: 	users-sudo-2c86b813
+Users & Sudo	Human accounts with login shells: ubuntu 	users-sudo-4b6187da
+Users & Sudo	Human accounts with no/locked password: ubuntu	users-sudo-f21682aa
+Users & Sudo	No NOPASSWD sudo rules	users-sudo-ff72fb04
+Users & Sudo	No human accounts with empty passwords	users-sudo-fff01657
+Users & Sudo	No world-writable home directories	users-sudo-d5a055f4
+Users & Sudo	Only root has UID 0	users-sudo-708c9b40
+Users & Sudo	PASS_MAX_DAYS=99999 (recommended ≤ 90)	users-sudo-6c25cb1f
+Users & Sudo	Sudo logging not configured	users-sudo-bdb0c604
+Users & Sudo	pwquality not configured (/etc/security/pwquality.conf missing)	users-sudo-a5fd66b5
+Users & Sudo	pwquality.conf found but minlen not set	users-sudo-b4dfc2c6
+Windows Firewall	Firewall profile Domain enabled, inbound blocked by default	windows-firewall-093cf4e4
+Windows Firewall	Firewall profile Public allows inbound by default	windows-firewall-24a9e020
+Windows Update	Last update installed 12 days ago (KB5031356)	windows-update-ba143573
+Windows Update	Last update installed 6 days ago (KB5044384)	windows-update-cafccb41
+World-Writable Files	No world-writable files found	world-writable-files-3a0beff5
+World-Writable Files	World-writable cron entry: /etc/cron.d/backup	world-writable-files-b6233d77

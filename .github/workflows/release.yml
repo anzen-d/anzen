@@ -20,6 +20,8 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           grep -q "^ANZEN_VERSION=\"$version\"$" anzen.sh || {
             echo "::error::tag $GITHUB_REF_NAME does not match ANZEN_VERSION in anzen.sh"; exit 1; }
+          grep -q "^ANZEN_VERSION=\"$version\"$" macos/anzen-macos.sh || {
+            echo "::error::tag $GITHUB_REF_NAME does not match ANZEN_VERSION in macos/anzen-macos.sh"; exit 1; }
           grep -q "\$AnzenVersion = '$version'" windows/anzen.ps1 || {
             echo "::error::tag $GITHUB_REF_NAME does not match \$AnzenVersion in windows/anzen.ps1"; exit 1; }
 

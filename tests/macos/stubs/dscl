@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "GroupMembership: root demo alice bob"

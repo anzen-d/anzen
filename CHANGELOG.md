@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-28
+
+### Added
+- **macOS edition** — `macos/anzen-macos.sh`, runs with the Bash 3.2 that ships
+  with macOS. 10 modules: system, updates, FileVault, SIP, Gatekeeper,
+  application firewall and stealth mode, sharing services, accounts
+  (auto-login, guest, admins), SSH and trust stores (keychains, certifi, Java;
+  the shared distrusted-certificate list). Same finding IDs, scores, accept
+  file, JSON and history layout as the other editions
+- CI: macOS tests under a real Bash 3.2 with stub macOS commands, plus a
+  `macos-latest` job that checks finding-ID parity with the Linux edition
+  (BSD sed) on a 141-message corpus and does a full run as root
+
 ## [0.10.0] - 2026-10-28
 
 ### Added

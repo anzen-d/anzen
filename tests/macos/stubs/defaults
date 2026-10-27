@@ -1,0 +1,11 @@
+#!/bin/sh
+# defaults read DOMAIN KEY — values for an insecure test Mac
+case "$2:$3" in
+  */com.apple.SoftwareUpdate:AutomaticCheckEnabled) echo 1 ;;
+  */com.apple.SoftwareUpdate:AutomaticDownload) echo 0 ;;
+  */com.apple.SoftwareUpdate:CriticalUpdateInstall) echo 0 ;;
+  */com.apple.SoftwareUpdate:LastRecommendedUpdatesAvailable) echo 2 ;;
+  */com.apple.loginwindow:autoLoginUser) echo demo ;;
+  */com.apple.loginwindow:GuestEnabled) echo 1 ;;
+  *) exit 1 ;;
+esac

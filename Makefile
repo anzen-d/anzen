@@ -28,7 +28,8 @@ endif
 		anzen.sh anzen-tui.sh install.sh \
 		lib/*.sh \
 		lib/checks/*.sh \
-		lib/checks/runtimes/*.sh
+		lib/checks/runtimes/*.sh \
+		macos/anzen-macos.sh tests/macos/check-ids.sh
 	@echo "Lint complete."
 
 ci: lint test

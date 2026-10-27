@@ -23,13 +23,19 @@ jobs:
         run: |
           tar -C src -c . | docker run --rm -i --entrypoint sh koalaman/shellcheck-alpine:v0.10.0 -c '
             mkdir -p /w && cd /w && tar x &&
-            shellcheck -S warning anzen.sh anzen-tui.sh install.sh lib/*.sh lib/checks/*.sh lib/checks/runtimes/*.sh'
+            shellcheck -S warning anzen.sh anzen-tui.sh install.sh lib/*.sh lib/checks/*.sh lib/checks/runtimes/*.sh macos/anzen-macos.sh tests/macos/check-ids.sh'
 
       - name: Test (bats)
         run: |
           tar -C src -c . | docker run --rm -i --entrypoint sh bats/bats:1.11.1 -c '
             apk add -q python3 bash coreutils curl findutils grep tar >/dev/null &&
             mkdir -p /w && cd /w && tar x && bats tests/'
+
+      - name: macOS edition under Bash 3.2
+        run: |
+          tar -C src -c . | docker run --rm -i --entrypoint sh public.ecr.aws/docker/library/bash:3.2 -c '
+            apk add -q bats coreutils sed grep tar >/dev/null &&
+            mkdir -p /w && cd /w && tar x && bats tests/test_macos.bats && bash tests/macos/check-ids.sh'
 
       - name: Windows edition (PSScriptAnalyzer + Pester)
         run: |

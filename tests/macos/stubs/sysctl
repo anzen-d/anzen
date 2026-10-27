@@ -1,0 +1,3 @@
+#!/bin/sh
+# kern.boottime: 50 days ago
+now=$(date +%s); echo "{ sec = $((now - 50*86400)), usec = 0 } Thu Jan  1 00:00:00 2026"

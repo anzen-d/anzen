@@ -1,0 +1,8 @@
+#!/bin/sh
+cat <<'OUT'
+Active Internet connections (including servers)
+Proto Recv-Q Send-Q  Local Address          Foreign Address        (state)
+tcp4       0      0  *.22                   *.*                    LISTEN
+tcp4       0      0  *.5900                 *.*                    LISTEN
+tcp4       0      0  127.0.0.1.631          *.*                    LISTEN
+OUT

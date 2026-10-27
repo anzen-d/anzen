@@ -1,0 +1,5 @@
+#!/bin/sh
+case $1 in
+  --getglobalstate) echo "Firewall is ${STUB_FIREWALL:-disabled}. (State = 0)" ;;
+  --getstealthmode) echo "Firewall stealth mode is off" ;;
+esac

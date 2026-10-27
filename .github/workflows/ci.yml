@@ -38,7 +38,11 @@ jobs:
       - name: shellcheck
         run: |
           docker run --rm -v "$PWD":/code -w /code koalaman/shellcheck-alpine:v0.10.0 \
-            shellcheck -S warning anzen.sh anzen-tui.sh install.sh lib/*.sh lib/checks/*.sh lib/checks/runtimes/*.sh tests/distro-matrix.sh
+            shellcheck -S warning anzen.sh anzen-tui.sh install.sh lib/*.sh lib/checks/*.sh lib/checks/runtimes/*.sh tests/distro-matrix.sh macos/anzen-macos.sh tests/macos/check-ids.sh
+      - name: macOS edition under Bash 3.2
+        run: |
+          docker run --rm -v "$PWD":/code -w /code --entrypoint sh bash:3.2 -c \
+            'apk add -q bats coreutils sed grep >/dev/null && bats tests/test_macos.bats && bash tests/macos/check-ids.sh'
       - name: bats
         run: |
           docker run --rm -v "$PWD":/code -w /code --entrypoint sh bats/bats:1.11.1 -c \
@@ -80,3 +84,20 @@ jobs:
           $report.summary | Format-List
           if (-not $report.findings.Count) { Write-Error 'empty report'; exit 1 }
           exit 0
+
+  macos:
+    name: macOS edition
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Finding IDs match the Linux edition (BSD sed)
+        run: /bin/bash tests/macos/check-ids.sh
+      - name: Tests under the system Bash 3.2
+        run: |
+          /bin/bash --version | head -1
+          brew install bats-core >/dev/null
+          PATH="/bin:$PATH" bats tests/test_macos.bats
+      - name: Full run as root on a real Mac
+        run: |
+          sudo /bin/bash macos/anzen-macos.sh --output="$RUNNER_TEMP/anzen.json" || [ $? -eq 1 ]
+          python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d['summary']); assert d['findings']" "$RUNNER_TEMP/anzen.json"

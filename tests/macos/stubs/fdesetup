@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "FileVault is ${STUB_FILEVAULT:-Off}."

@@ -32,7 +32,8 @@ Small, self-contained, no deep knowledge of the codebase needed.
 
 - **Windows parity** — HTML/TXT/SARIF reports, notifications and `-Remote`
   (WinRM/SSH) in the PowerShell edition
-- **macOS edition**
+- **macOS parity** — HTML/TXT/SARIF reports, notifications, `--remote`, more
+  checks (MDM profiles, XProtect version, Lockdown Mode, unsigned launch agents)
 - **Kubernetes depth** — RBAC, pod security, network policies (beyond the
   current runtime checks)
 - **Plugin catalogue** — shareable `CUSTOM_CHECKS_DIR` modules (NAS, Proxmox,

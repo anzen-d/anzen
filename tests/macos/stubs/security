@@ -1,0 +1,4 @@
+#!/bin/sh
+# security find-certificate -a -p KEYCHAIN — the System Roots keychain contains a
+# distrusted eMudhra intermediate on this test Mac
+case "$*" in *SystemRootCertificates*) cat "$STUB_FIXTURES/isrg-root-x1.pem" "$STUB_FIXTURES/emudhra-dv-g3b.pem" ;; esac
