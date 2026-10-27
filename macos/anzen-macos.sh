@@ -17,7 +17,7 @@
 
 set -u
 
-ANZEN_VERSION="0.11.2"
+ANZEN_VERSION="0.11.3"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 FAIL_PENALTY=10

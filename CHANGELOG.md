@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.11.3] - 2026-10-28
+
+### Fixed
+- macOS trust stores: "No certificate stores found to check" was printed after
+  scanning, because the certificate counter was updated in a subshell
+- Shorter name for the AAA Certificate Services entry in the distrusted list;
+  the explanation lives in `docs/modules.md`
+
+### Notes
+- Confirmed on a real Mac (macOS 26.6.2): `security verify-cert -p basic -l`
+  and Apple's own TLS stack (`nscurl`) agree, so the keychain check reflects
+  whether Apple's block has reached the machine
+
 ## [0.11.2] - 2026-10-28
 
 ### Fixed
