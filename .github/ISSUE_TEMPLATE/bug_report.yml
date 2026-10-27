@@ -1,0 +1,25 @@
+name: Bug report
+description: Something broke, or a check is wrong
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Command you ran, what you expected, what you got. Paste error output.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: anzen version
+      placeholder: "anzen.sh --version"
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Distro / Windows version
+      placeholder: "e.g. Debian 12, Fedora 41, Windows 11 23H2"
+    validations:
+      required: true

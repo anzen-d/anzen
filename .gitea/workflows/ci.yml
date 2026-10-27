@@ -1,0 +1,52 @@
+# Lint (shellcheck) and test (bats) on every push and pull request.
+# Portable: needs only git, tar and docker on the runner — the checkout is
+# streamed into the tool containers, so no host paths or bind mounts.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        run: |
+          rm -rf src
+          git -c http.extraHeader="Authorization: token ${{ gitea.token }}" \
+            clone --depth 1 --branch "${{ gitea.ref_name }}" \
+            "${{ gitea.server_url }}/${{ gitea.repository }}.git" src
+          git -C src log --oneline -1
+
+      - name: Lint (shellcheck)
+        run: |
+          tar -C src -c . | docker run --rm -i --entrypoint sh koalaman/shellcheck-alpine:v0.10.0 -c '
+            mkdir /code && cd /code && tar x &&
+            shellcheck -S warning anzen.sh anzen-tui.sh install.sh lib/*.sh lib/checks/*.sh lib/checks/runtimes/*.sh'
+
+      - name: Test (bats)
+        run: |
+          tar -C src -c . | docker run --rm -i --entrypoint sh bats/bats:1.11.1 -c '
+            apk add -q python3 bash coreutils curl findutils grep >/dev/null &&
+            mkdir /code && cd /code && tar x && bats tests/'
+
+      - name: Windows edition (PSScriptAnalyzer + Pester)
+        run: |
+          tar -C src -c . | docker run --rm -i --entrypoint sh mcr.microsoft.com/powershell:7.4-ubuntu-22.04 -c '
+            mkdir /code && cd /code && tar x && pwsh -NoLogo -Command "
+              \$ErrorActionPreference = \"Stop\"
+              Install-Module PSScriptAnalyzer -RequiredVersion 1.23.0 -Force -Scope CurrentUser
+              Install-Module Pester -MinimumVersion 5.5 -Force -Scope CurrentUser -SkipPublisherCheck
+              \$issues = Invoke-ScriptAnalyzer -Path windows/anzen.ps1 -Severity Warning,Error -ExcludeRule PSAvoidUsingWriteHost,PSUseApprovedVerbs,PSUseShouldProcessForStateChangingFunctions,PSUseSingularNouns
+              \$issues | Format-Table RuleName,Line,Message -AutoSize | Out-String -Width 200
+              if (\$issues) { exit 1 }
+              \$r = Invoke-Pester -Path windows/tests -PassThru -Output Detailed
+              if (\$r.FailedCount) { exit 1 }"'
+
+      - name: Distro matrix (Debian, Ubuntu, Fedora, Rocky, Alpine, Arch, openSUSE)
+        run: src/tests/distro-matrix.sh
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf src

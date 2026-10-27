@@ -1,0 +1,122 @@
+# anzen.conf — Anzen configuration file
+# Copy to anzen.conf and adjust to your environment.
+# This file is sourced as bash; use KEY=value syntax.
+
+# ── Disk ──────────────────────────────────────────────────────────────────────
+# DISK_WARN_PCT=75          # Warn when disk usage exceeds this %
+# DISK_FAIL_PCT=90          # Fail when disk usage exceeds this %
+
+# ── Memory ────────────────────────────────────────────────────────────────────
+# MEM_WARN_PCT=75
+# MEM_FAIL_PCT=90
+
+# ── Failed logins ─────────────────────────────────────────────────────────────
+# FAIL_LOGIN_OK=10          # OK below this count
+# FAIL_LOGIN_WARN=50        # Warn above this count, fail above twice this
+
+# ── Service count ─────────────────────────────────────────────────────────────
+# SERVICE_COUNT_WARN=30
+# SERVICE_COUNT_FAIL=50
+
+# ── Password policy ───────────────────────────────────────────────────────────
+# PASS_MAX_DAYS_WARN=90     # Warn if max password age exceeds this (days)
+
+# ── TLS certificate expiry ────────────────────────────────────────────────────
+# TLS_WARN_DAYS=30          # Warn if cert expires within this many days
+# TLS_FAIL_DAYS=7           # Fail if cert expires within this many days
+
+# ── Scoring ───────────────────────────────────────────────────────────────────
+# SCORE_FAIL_PENALTY=10     # Points deducted per FAIL
+# SCORE_WARN_PENALTY=3      # Points deducted per WARN
+
+# ── Module exclusions ─────────────────────────────────────────────────────────
+# Space-separated list of modules to skip entirely.
+# Available modules: system users ssh network network2 packages files secrets
+#                   systemd_hardening tls compiler path_check modules
+#                   services logins kernel auditd
+#
+# EXCLUDE_CHECKS="tls compiler"
+
+# ── SUID whitelist ────────────────────────────────────────────────────────────
+# Additional SUID binaries to accept without warning (space-separated paths).
+# CUSTOM_SUID_WHITELIST="/usr/bin/my-tool /opt/app/helper"
+
+# ── World-writable scan ───────────────────────────────────────────────────────
+# Cap findings to avoid runaway on large media/app directories (default: 50)
+# WW_FILE_CAP=50
+#
+# Glob patterns to exclude from world-writable file scan (space-separated).
+# Useful for media servers, Docker volumes, and app cache directories.
+# EXCLUDE_PATHS="*/MediaServer/plex/* */jellyfin/cache/* /mnt/data/*"
+
+# ── Severity overrides ────────────────────────────────────────────────────────
+# Downgrade FAIL findings whose message contains any of these substrings to WARN.
+# Useful for accepted-risk items in your environment.
+# FAIL_AS_WARN="compiler_tools_present root_login_permitted"
+
+# ── Accepted risks ────────────────────────────────────────────────────────────
+# File of accepted findings, one per line: ID  YYYY-MM-DD  reason
+# IDs are printed in the TXT/HTML/JSON/SARIF reports. Accepted findings are
+# reported as INFO until the date passes, then return at their real level.
+# ACCEPT_FILE="/etc/anzen/anzen.accept"   # default: <anzen dir>/anzen.accept
+
+# ── Notifications ─────────────────────────────────────────────────────────────
+# Send a push notification after each audit run.
+# Only one of NOTIFY_NTFY_URL or NOTIFY_CMD should be set.
+#
+# ntfy topic URL — priority "high" on FAIL, "default" on clean:
+# NOTIFY_NTFY_URL="https://ntfy.sh/your-topic"
+#
+# Generic command — ANZEN_FAILS and ANZEN_SCORE env vars are available:
+# NOTIFY_CMD='curl -s -X POST https://hooks.slack.com/T.../B.../xxx \
+#   -H "Content-Type: application/json" \
+#   -d "{\"text\":\"Anzen: ${ANZEN_FAILS} FAILs, score ${ANZEN_SCORE}%\"}"'
+#
+# Only notify when there are FAILs (default: false = always notify):
+# NOTIFY_ON_FAIL_ONLY=true
+#
+# When to notify: always | fail (any FAIL) | regression (a FAIL whose ID was
+# not a FAIL in the previous history run — needs HISTORY_DIR). Default: always
+# NOTIFY_ON=regression
+#
+# Bearer token for an access-controlled ntfy topic
+# NOTIFY_NTFY_TOKEN="tk_..."
+
+# ── History & dashboard ───────────────────────────────────────────────────────
+# Save every run as JSON under HISTORY_DIR/<host>/; keep the newest HISTORY_KEEP.
+# Build a static dashboard from it with: anzen.sh --dashboard=/path/index.html
+# Point several hosts (or --remote runs) at one shared dir for a fleet view.
+# HISTORY_DIR="/var/lib/anzen/history"
+# HISTORY_KEEP=52
+#
+# Rebuild a dashboard after every saved run (serve it read-only, e.g. nginx)
+# DASHBOARD_FILE="/var/lib/anzen/www/index.html"
+#
+# Fetched after every run — a dead-man switch that alerts when audits stop
+# (Uptime Kuma push monitor, healthchecks.io, ...)
+# HEARTBEAT_URL="https://kuma.example.com/api/push/XXXX?status=up&msg=OK"
+
+# ── Container images (images module) ──────────────────────────────────────────
+# WARN for running images older than this many days (by build date)
+# IMAGE_MAX_AGE_DAYS=180
+# Compare each running image with its registry digest (curl HEAD requests with
+# anonymous tokens — no pulls, not counted by Docker Hub's pull rate limit)
+# IMAGE_CHECK_UPDATES=true
+# WARN for :latest / untagged images (not reproducible)
+# IMAGE_WARN_LATEST=true
+
+# ── CVE scanning (cve module, needs trivy — https://trivy.dev) ────────────────
+# Scans host packages (OS + installed language packages) and every running
+# container image. One finding per vulnerable package: CRITICAL → FAIL, HIGH → WARN.
+# CVE_SEVERITY="CRITICAL,HIGH"
+# CVE_IGNORE_UNFIXED=true          # only CVEs that already have a fixed version
+# CVE_SCAN_IMAGES=true             # also scan running Docker/Podman images
+# CVE_TIMEOUT=60m                  # per trivy run
+# Dirs the host scan skips. Adding /home skips dev checkouts (slow, noisy):
+# CVE_SKIP_DIRS="/proc /sys /dev /run /tmp /var/tmp /var/lib/docker /var/lib/containerd /var/lib/containers /snap /home"
+
+# ── Custom checks ─────────────────────────────────────────────────────────────
+# Site-specific modules kept outside the anzen tree: <name>.sh defining
+# run_<name>_check, using section/ok/warn/fail/info/remedy like built-in checks.
+# They run as root, so files must be owned by you or root and not world-writable.
+# CUSTOM_CHECKS_DIR="/etc/anzen/checks.d"

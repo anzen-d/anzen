@@ -1,0 +1,53 @@
+#!/bin/bash
+# tests/distro-matrix.sh — run anzen inside minimal containers of each supported
+# distro family and fail on shell-level errors (missing commands, bad
+# arithmetic, unbound variables, syntax errors). Findings themselves do not
+# matter here: a minimal container is "insecure" in many ways. What matters is
+# that every module degrades gracefully when a tool or service is absent.
+#
+# Usage: tests/distro-matrix.sh [image ...]     (needs docker)
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Official images via mirrors that do not count against Docker Hub pull limits
+IMAGES=(
+    public.ecr.aws/docker/library/debian:12
+    public.ecr.aws/docker/library/ubuntu:24.04
+    quay.io/fedora/fedora:41
+    quay.io/rockylinux/rockylinux:9
+    public.ecr.aws/docker/library/alpine:3.20
+    public.ecr.aws/docker/library/archlinux:latest
+    registry.opensuse.org/opensuse/leap:15.6
+)
+[ "$#" -gt 0 ] && IMAGES=("$@")
+
+# Every passive module; the active pentest modules probe the network
+MODULES=$(sed -n '/^ALL_MODULES=(/,/)/p' "$ROOT/anzen.sh" | tr -d '()' | sed 's/ALL_MODULES=//' \
+          | tr -s ' \n' '\n' | grep -vE '^(pentest|pentest_external)?$' | sed 's/^/--check=/' | tr '\n' ' ')
+
+# Shell errors, never legitimate output
+ERRORS='command not found|unbound variable|syntax error|integer expression expected|bad substitution|unexpected EOF|No such file or directory.*\.sh|division by 0|invalid arithmetic|ambiguous redirect'
+
+fail=0
+for img in "${IMAGES[@]}"; do
+    # docker cp, not a tar pipe: some minimal images (openSUSE) ship no tar
+    cid=$(docker create -i --entrypoint sh "$img" -c "
+            command -v bash >/dev/null 2>&1 || apk add -q bash >/dev/null 2>&1
+            cd /anzen && bash ./anzen.sh --no-color $MODULES 2>&1
+            echo \"__EXIT=\$?\"") || { echo "FAIL  $img (docker create)"; fail=1; continue; }
+    docker cp -q "$ROOT/." "$cid:/anzen" 2>/dev/null || docker cp "$ROOT/." "$cid:/anzen" >/dev/null
+    out=$(timeout 600 docker start -a "$cid" 2>&1)
+    docker rm -f "$cid" >/dev/null 2>&1
+    rc=$(sed -n 's/^__EXIT=//p' <<< "$out")
+    errs=$(grep -E "$ERRORS" <<< "$out" | sort | uniq -c | sort -rn)
+    os=$(sed -n 's/.*OS: \(.*\)$/\1/p' <<< "$out" | sed 's/\x1b\[[0-9;]*m//g' | head -1)
+    if [ -n "$errs" ] || [[ ! "$rc" =~ ^[01]$ ]]; then
+        printf 'FAIL  %-48s exit=%s  %s\n' "$img" "${rc:-?}" "$os"
+        sed 's/^/      /' <<< "$errs" | head -25
+        fail=1
+    else
+        printf 'ok    %-48s exit=%s  %s\n' "$img" "$rc" "$os"
+    fi
+done
+exit "$fail"

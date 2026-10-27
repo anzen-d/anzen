@@ -1,0 +1,10 @@
+# anzen.accept — accepted risks (copy to anzen.accept or point ACCEPT_FILE at it)
+#
+# One finding per line:  ID  YYYY-MM-DD  reason
+# - ID comes from the reports (TXT "ID:" line, HTML under each finding,
+#   JSON "id", SARIF partialFingerprints)
+# - the date is mandatory: after it passes, the finding returns at its real
+#   level with an "acceptance expired" note
+# - accepted findings are reported as INFO and do not affect the score
+#
+# container-security-9bdb5279  2027-01-31  Portainer needs the Docker socket to manage stacks

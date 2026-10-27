@@ -1,0 +1,7 @@
+reports/
+*.html
+*.txt
+*.log
+/tmp/
+anzen.conf
+anzen.accept

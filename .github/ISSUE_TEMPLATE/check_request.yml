@@ -1,0 +1,16 @@
+name: New check
+description: Propose a check anzen should perform
+labels: [enhancement]
+body:
+  - type: textarea
+    id: check
+    attributes:
+      label: What should be checked
+      description: The risk, how to detect it, suggested severity (FAIL/WARN) and the fix command.
+    validations:
+      required: true
+  - type: input
+    id: refs
+    attributes:
+      label: References
+      placeholder: "CIS benchmark item, vendor docs, CVE..."

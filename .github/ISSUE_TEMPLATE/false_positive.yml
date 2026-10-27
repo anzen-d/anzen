@@ -1,0 +1,24 @@
+name: False positive
+description: anzen reports a problem that is not one
+labels: [false-positive]
+body:
+  - type: input
+    id: finding
+    attributes:
+      label: Finding text and ID
+      placeholder: "[WARN] ... (ID: section-1a2b3c4d)"
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it is wrong
+      description: What the real state is, and how you verified it.
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Distro / Windows version
+    validations:
+      required: true
