@@ -55,6 +55,7 @@ for img in "${IMAGES[@]}"; do
     # docker cp, not a tar pipe: some minimal images (openSUSE) ship no tar
     if ! cid=$(docker create -i --entrypoint sh "$img" -c "
             command -v bash >/dev/null 2>&1 || apk add -q bash >/dev/null 2>&1
+            touch /anzen-canary && chmod 666 /anzen-canary
             cd /anzen && bash ./anzen.sh --no-color $MODULES 2>&1
             echo \"__EXIT=\$?\"" 2>/tmp/anzen-matrix-create.err); then
         echo "FAIL  $img (docker create)"; _annotate "${img##*/}" "docker create failed: $(tr '\n' ' ' < /tmp/anzen-matrix-create.err)"
@@ -69,6 +70,9 @@ for img in "${IMAGES[@]}"; do
     rc=$(sed -n 's/^__EXIT=//p' <<< "$out")
     errs=$(grep -E "$ERRORS" <<< "$out" | sort | uniq -c | sort -rn)
     os=$(sed -n 's/.*OS: \(.*\)$/\1/p' <<< "$out" | sed 's/\x1b\[[0-9;]*m//g' | head -1)
+    # Canary: a check that silently finds nothing (e.g. a find option the
+    # distro's find rejects) produces no shell error, so require a known finding
+    grep -q "World-writable file: /anzen-canary" <<< "$out" || errs="${errs:+$errs$'\n'}canary: world-writable /anzen-canary not reported"
     if [ -n "$errs" ] || [[ ! "$rc" =~ ^[01]$ ]]; then
         printf 'FAIL  %-48s exit=%s  %s\n' "$img" "${rc:-?}" "$os"
         sed 's/^/      /' <<< "$errs" | head -25

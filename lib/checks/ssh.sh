@@ -137,7 +137,13 @@ run_ssh_check() {
         ok "AllowGroups: $ALLOW_GROUPS"
     else
         warn "AllowUsers/AllowGroups not set — all system users can attempt SSH"
-        remedy "echo 'AllowUsers $(whoami)' >> /etc/ssh/sshd_config && $(_sshd_reload)"
+        # Never suggest "AllowUsers root": with PermitRootLogin no it locks everyone out
+        local _u; _u=$(_invoking_user)
+        if [ "$_u" = root ]; then
+            remedy "# echo 'AllowUsers <your-admin-user>' >> /etc/ssh/sshd_config && $(_sshd_reload)"
+        else
+            remedy "echo 'AllowUsers $_u' >> /etc/ssh/sshd_config && $(_sshd_reload)"
+        fi
     fi
 
     # Cipher/MAC hardening
@@ -168,7 +174,7 @@ run_ssh_check() {
         PERM=$(stat -c "%a" "$f" 2>/dev/null)
         if [ "$PERM" != "600" ] && [ "$PERM" != "644" ]; then
             warn "Loose permissions on $f: $PERM"
-            remedy "chmod 600 $f"
+            remedy "chmod 600 $(_q "$f")"
         fi
     done
     [ "$KEY_COUNT" -eq 0 ] && info "No authorized_keys files found"

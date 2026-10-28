@@ -21,7 +21,7 @@ run_logins_check() {
             PERM_OCT=$(stat -c "%a" "$f" 2>/dev/null)
             if [ $((8#$PERM_OCT & 022)) -ne 0 ] 2>/dev/null; then
                 warn "Cron file writable by group/other: $f ($PERM_OCT)"
-                remedy "chmod 644 $f"
+                remedy "chmod 644 $(_q "$f")"
             fi
         done
     done

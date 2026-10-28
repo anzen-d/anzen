@@ -38,6 +38,13 @@ teardown() {
     [ ! -f "$d/20200101T000000Z.json" ]
 }
 
+@test "history_save() with HISTORY_KEEP=0 keeps every run" {
+    d="$HIST/$(hostname -s)"; mkdir -p "$d"
+    for i in 1 2 3; do echo '{}' > "$d/2020010${i}T000000Z.json"; done
+    HISTORY_KEEP=0 history_save "$HIST" >/dev/null
+    [ "$(ls "$d" | wc -l)" -eq 4 ]
+}
+
 @test "history_new_fails() reports every FAIL when there is no previous run" {
     section "SSH"; fail "a"; fail "b"; warn "c"
     run history_new_fails ""

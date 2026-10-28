@@ -173,3 +173,21 @@ _run_ssh_check_with() {
     run grep "^WARN.*X11Forwarding" "$FINDINGS_FILE"
     [ "$status" -eq 0 ]
 }
+
+@test "AllowUsers remedy never suggests root (would lock everyone out)" {
+    for who in root alice; do
+        : > "$FINDINGS_FILE"
+        SUDO_USER=$who bash -c "
+            ANZEN_DIR='$ANZEN_DIR' FINDINGS_FILE='$FINDINGS_FILE' NO_COLOR=true QUIET=true
+            source '$ANZEN_DIR/lib/output.sh'; source '$ANZEN_DIR/lib/utils.sh'
+            source '$ANZEN_DIR/lib/checks/ssh.sh'
+            # sshd -T with no AllowUsers/AllowGroups; sshd itself 'installed'
+            _priv() { printf 'permitrootlogin no\npasswordauthentication no\n'; }
+            command() { [ \"\$2\" = sshd ] && return 0; builtin command \"\$@\"; }
+            run_ssh_check >/dev/null
+        "
+        line=$(grep "AllowUsers/AllowGroups not set" "$FINDINGS_FILE")
+        if [ "$who" = root ]; then [[ "$line" == *"# echo 'AllowUsers <your-admin-user>'"* ]]
+        else [[ "$line" == *"echo 'AllowUsers alice'"* ]]; fi
+    done
+}

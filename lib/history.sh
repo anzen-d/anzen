@@ -57,8 +57,10 @@ history_store() {
     while [ -e "$out" ]; do out="$base-$n.json"; n=$((n + 1)); done
     cp "$3" "$out" && chmod 600 "$out" || return 1
 
+    # HISTORY_KEEP=0 keeps everything ("head -n -0" would list every run)
     local keep="${HISTORY_KEEP:-52}"
-    ls -1 "$d"/*.json 2>/dev/null | sort | head -n "-$keep" | xargs -r rm -f --
+    [ "$keep" -gt 0 ] 2>/dev/null && \
+        ls -1 "$d"/*.json 2>/dev/null | sort | head -n "-$keep" | xargs -r rm -f --
     echo "$out"
 }
 

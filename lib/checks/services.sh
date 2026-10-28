@@ -6,12 +6,13 @@
 run_services_check() {
     section "Docker & Containers"
 
-    if groups 2>/dev/null | grep -qw docker; then
-        fail "User '$(whoami)' is in 'docker' group — equivalent to passwordless root"
-        remedy "gpasswd -d $(whoami) docker  # requires logout to take effect"
+    local _u; _u=$(_invoking_user)
+    if groups "$_u" 2>/dev/null | grep -qw docker; then
+        fail "User '$_u' is in 'docker' group — equivalent to passwordless root"
+        remedy "gpasswd -d $(_q "$_u") docker  # requires logout to take effect"
     fi
-    if groups 2>/dev/null | grep -qw microk8s; then
-        warn "User '$(whoami)' is in 'microk8s' group — verify cluster RBAC"
+    if groups "$_u" 2>/dev/null | grep -qw microk8s; then
+        warn "User '$_u' is in 'microk8s' group — verify cluster RBAC"
     fi
 
     if command -v docker &>/dev/null; then

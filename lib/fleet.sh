@@ -99,7 +99,7 @@ run_fleet() {
     [ "$worst" -eq 255 ] && return 255
 
     for h in "${list[@]}"; do
-        echo -e "\n\033[1m\033[36m━━━ $h ━━━\033[0m"
+        echo -e "\n${BOLD}${CYAN}━━━ $h ━━━${NC}"
         work=$(umask 077; mktemp -d)
         json="$work/out.json"
         _fleet_run_host "$h" "$work" "$@"
@@ -114,7 +114,7 @@ run_fleet() {
                 prev=$(history_latest "$HISTORY_DIR" "$name")
                 [ -n "$prev" ] && new=$(history_new_fails_json "$prev" "$json")
                 history_store "$HISTORY_DIR" "$name" "$json" >/dev/null && \
-                    echo -e "\033[1m\033[36m  History   : $(history_latest "$HISTORY_DIR" "$name")\033[0m"
+                    echo -e "${BOLD}${CYAN}  History   : $(history_latest "$HISTORY_DIR" "$name")${NC}"
             fi
             # Requested reports: --output (one host; extension swapped when several
             # formats) or reports/anzen_<host>_<ts>.<ext>
@@ -132,7 +132,7 @@ run_fleet() {
                     mkdir -p "$REPORT_DIR"
                     dest="$REPORT_DIR/anzen_${name%%.*}_${TIMESTAMP}.$ext"
                 fi
-                cp "$work/out.$ext" "$dest" && echo -e "\033[1m\033[36m  Report    : $dest\033[0m"
+                cp "$work/out.$ext" "$dest" && echo -e "${BOLD}${CYAN}  Report    : $dest${NC}"
             done
             notify_run "${nf:-0}" "${score:-0}" "$new" "$name"
         fi
@@ -146,7 +146,7 @@ run_fleet() {
 
     if [ -n "${HISTORY_DIR:-}" ] && [ -n "${DASHBOARD_FILE:-}" ]; then
         generate_dashboard "$HISTORY_DIR" "$DASHBOARD_FILE" && \
-            echo -e "\033[1m\033[36m  Dashboard : $DASHBOARD_FILE\033[0m"
+            echo -e "${BOLD}${CYAN}  Dashboard : $DASHBOARD_FILE${NC}"
     fi
     heartbeat
     return "$worst"

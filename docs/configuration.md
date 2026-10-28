@@ -34,7 +34,7 @@ cp anzen.conf.example anzen.conf
 | `FAIL_AS_WARN` | — | Substrings; matching FAILs are downgraded to WARN |
 | `ACCEPT_FILE` | `anzen.accept` | Accepted-risk file, see [Accepted Risks](reports.md#accepted-risks) |
 | `HISTORY_DIR` | — | Save every run under `<dir>/<host>/` |
-| `HISTORY_KEEP` | `52` | Runs kept per host |
+| `HISTORY_KEEP` | `52` | Runs kept per host; `0` keeps all |
 | `DASHBOARD_FILE` | — | Rebuild this dashboard after every saved run |
 | `NOTIFY_NTFY_URL` / `NOTIFY_CMD` | — | Notification target |
 | `NOTIFY_ON` | `always` | `always`, `fail` or `regression` (new FAIL vs previous history run; never on a host's first run) |

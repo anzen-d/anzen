@@ -81,7 +81,7 @@ run_compiler_check() {
     local suid_devtools=0
     while IFS= read -r f; do
         fail "SUID bit on dev tool: $f"
-        remedy "chmod u-s '$f'"
+        remedy "chmod u-s $(_q "$f")"
         suid_devtools=$((suid_devtools+1))
     done < <(find /usr/bin /usr/local/bin -type f \
         \( -name "gcc*" -o -name "g++*" -o -name "cc*" -o -name "nmap" -o -name "tcpdump" \) \

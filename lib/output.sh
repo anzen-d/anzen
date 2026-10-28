@@ -3,8 +3,9 @@
 # Copyright (C) 2026 The Anzen contributors
 # lib/output.sh — Terminal output and findings collection
 
-# Honour NO_COLOR (https://no-color.org) and --no-color flag
-if [ "${NO_COLOR:-false}" = "true" ] || [ "${NO_COLOR:-}" = "1" ]; then
+# Honour NO_COLOR (https://no-color.org) and --no-color flag; no colour when
+# stdout is not a terminal (cron | logger, redirects)
+if { [ -n "${NO_COLOR:-}" ] && [ "$NO_COLOR" != false ]; } || [ ! -t 1 ]; then
     RED='' YELLOW='' GREEN='' CYAN='' BOLD='' NC=''
 else
     RED='\033[0;31m'
@@ -94,6 +95,11 @@ _record_as() {
     msg="${msg//$'\n'/ }"
     [ -n "$FINDINGS_FILE" ] && printf '%s\t%s\t%s\t%s\t\n' "$1" "$CURRENT_SECTION" "$msg" "$id" >> "$FINDINGS_FILE"
 }
+
+# _q VALUE — shell-quote a value for a remedy command. Use it for every name
+# taken from the system (file names, users): remediate.sh runs as root, and a
+# file named "x'; cmd #" must not become a command
+_q() { printf '%q' "$1"; }
 
 # Append a remediation command to the most recent finding (amends last line)
 remedy() {

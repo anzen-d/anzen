@@ -33,12 +33,12 @@ run_path_check_check() {
             # World-writable
             if [ $((8#${DMODE:-0} & 8#002)) -ne 0 ]; then
                 fail "World-writable directory in PATH: $dir"
-                remedy "chmod o-w '$dir'"
+                remedy "chmod o-w $(_q "$dir")"
                 ww_path=$((ww_path+1))
             # Group-writable by non-root
             elif [ $((8#${DMODE:-0} & 8#020)) -ne 0 ] && [ "$DOWNER" != "root" ]; then
                 warn "Group-writable non-root PATH dir: $dir (owner: $DOWNER)"
-                remedy "chmod g-w '$dir'  # or chown root '$dir'"
+                remedy "chmod g-w $(_q "$dir")  # or chown root"
                 ww_path=$((ww_path+1))
             fi
         fi
@@ -90,7 +90,7 @@ run_path_check_check() {
             FOWNER=$(stat -c "%U" "$f" 2>/dev/null)
             [ "$FOWNER" = "root" ] && continue
             warn "Non-root owned binary in PATH: $f (owner: $FOWNER)"
-            remedy "chown root:root '$f' && chmod 755 '$f'"
+            remedy "chown root:root $(_q "$f") && chmod 755 $(_q "$f")"
             writable_bins=$((writable_bins+1))
             [ "$writable_bins" -ge 5 ] && break 2
         done < <(find "$dir" -maxdepth 1 -type f 2>/dev/null)

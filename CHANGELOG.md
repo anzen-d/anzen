@@ -6,6 +6,41 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.11.5] - 2026-10-28
+
+### Security
+- **`remediate.sh` command injection through file names.** Remedies quoted
+  file names with `'…'`, so a local user could create a world-writable file
+  named `x'; cmd #` and have `cmd` run as root when the admin ran the generated
+  script. Every name taken from the system now goes through `printf %q`
+- World-writable cron entries were joined into one remedy; in `remediate.sh`
+  the second path ran as a command. Each entry is now its own finding
+
+### Fixed
+- **Alpine: world-writable and SUID/SGID scans always reported nothing.**
+  BusyBox `find` rejects `-false`, and the error was hidden. The distro matrix
+  now plants a world-writable canary file and fails when a distro does not
+  report it
+- **SSH: the `AllowUsers` remedy suggested `AllowUsers root` under sudo.**
+  Together with `PermitRootLogin no` that locks everyone out. The sudo rules,
+  docker group and `AllowUsers` checks now look at the user who ran sudo
+  (`SUDO_USER`); for a plain root run the remedy is a commented placeholder
+- `HISTORY_KEEP=0` deleted all history, including the run just saved; it now
+  keeps every run
+- `--remote-pentest`: arguments were not quoted for the remote shell (a URL
+  with `&` broke the command) and the exit code was that of the cleanup step
+- JSON reports stay valid when a message contains control characters (ANSI
+  escapes from service banners); same fix in the macOS edition
+- `--no-color` / `NO_COLOR` were ignored by the banner, report paths and fleet
+  output; any non-empty `NO_COLOR` now disables colour, as the standard says,
+  and so does output that is not a terminal (cron, `| logger`)
+
+### Changed
+- **File permission scan walks the filesystem once instead of twice**
+  (world-writable and SUID/SGID together). On a host with large app-data
+  trees this halves the longest part of a run. Collected world-writable paths
+  are capped at `WW_FILE_CAP`
+
 ## [0.11.4] - 2026-10-28
 
 ### Fixed

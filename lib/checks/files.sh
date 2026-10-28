@@ -54,7 +54,9 @@ run_files_check() {
         "*/jellyfin/*/cache/*"
         "*/transmission/*/incomplete/*"
     )
-    local p prune_args=( \( -false ) filter_args=()
+    # No "-false" to start the -o chain: BusyBox find (Alpine) rejects it, and
+    # the error, hidden by 2>/dev/null, used to empty both scans
+    local p prune_args=( \( -path /proc ) filter_args=()
     # shellcheck disable=SC2206  # EXCLUDE_PATHS is a space-separated glob list
     excludes+=( ${EXCLUDE_PATHS:-} )
     for p in "${excludes[@]}"; do
@@ -66,34 +68,49 @@ run_files_check() {
     done
     prune_args+=( \) -prune -o )
 
-    local ww_count=0
+    # One walk for both scans (a second walk doubled the run time on hosts with
+    # large app-data trees); SUID/SGID paths are reported further down
+    local f ww_list="" suid_list="" ww_seen=0
     local ww_cap=${WW_FILE_CAP:-50}   # configurable; default cap 50 findings
     while IFS= read -r f; do
-        fail "World-writable file: $f"
-        remedy "chmod o-w '$f'"
-        ww_count=$((ww_count+1))
-        if [ "$ww_count" -ge "$ww_cap" ]; then
-            warn "World-writable scan capped at $ww_cap — set WW_FILE_CAP in anzen.conf or add EXCLUDE_PATHS"
-            break
+        if [ -u "$f" ] || [ -g "$f" ]; then
+            suid_list+="$f"$'\n'
+            # Rare: SUID and world-writable at once
+            (( 8#$(stat -c %a "$f" 2>/dev/null || echo 0) & 2 )) || continue
         fi
-    done < <(find / -xdev "${prune_args[@]}" -type f -perm -o+w ! -perm /1000 \
+        ww_seen=$((ww_seen+1))
+        [ "$ww_seen" -le "$ww_cap" ] && ww_list+="$f"$'\n'
+    done < <(find / -xdev "${prune_args[@]}" -type f \
+        \( -perm -o+w ! -perm /1000 -o -perm -4000 -o -perm -2000 \) \
         "${filter_args[@]}" -print 2>/dev/null)
+
+    local ww_count=0
+    while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        fail "World-writable file: $f"
+        remedy "chmod o-w $(_q "$f")"
+        ww_count=$((ww_count+1))
+    done <<< "$ww_list"
+    if [ "$ww_seen" -gt "$ww_cap" ]; then
+        warn "World-writable scan capped at $ww_cap — set WW_FILE_CAP in anzen.conf or add EXCLUDE_PATHS"
+    fi
 
     [ "$ww_count" -eq 0 ] && ok "No world-writable files found"
 
     for d in /etc/cron.d /etc/cron.daily /etc/cron.weekly /etc/cron.monthly; do
         [ -d "$d" ] || continue
-        WW_CRON=$(find "$d" -perm -o+w 2>/dev/null)
-        if [ -n "$WW_CRON" ]; then
-            fail "World-writable cron entry: $WW_CRON"
-            remedy "chmod o-w $WW_CRON"
-        fi
+        # One finding per entry: a multi-line remedy would run the second
+        # path as a command in remediate.sh
+        while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            fail "World-writable cron entry: $f"
+            remedy "chmod o-w $(_q "$f")"
+        done < <(find "$d" -perm -o+w 2>/dev/null)
     done
 
     section "SUID / SGID Binaries"
 
-    # Same pruned walk as the world-writable scan; container layers never entered
-    SUID=$(find / -xdev "${prune_args[@]}" \( -perm -4000 -o -perm -2000 \) -type f -print 2>/dev/null \
+    SUID=$(printf '%s' "$suid_list" \
         | grep -vE "$_SYSTEM_PATHS" \
         | grep -vE "$_CONTAINER_PATHS" \
         | grep -vE "$_KNOWN_SUID")
@@ -108,7 +125,7 @@ run_files_check() {
     if [ -n "$SUID" ]; then
         while IFS= read -r f; do
             warn "Unexpected SUID/SGID binary: $f"
-            remedy "chmod -s '$f'  # verify this binary doesn't need SUID before removing"
+            remedy "chmod -s $(_q "$f")  # verify this binary doesn't need SUID before removing"
         done <<< "$SUID"
     else
         ok "No unexpected SUID/SGID binaries found"

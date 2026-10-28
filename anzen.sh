@@ -6,7 +6,7 @@
 
 set -uo pipefail
 
-ANZEN_VERSION="0.11.4"
+ANZEN_VERSION="0.11.5"
 ANZEN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPORT_DIR="$ANZEN_DIR/reports"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -147,7 +147,8 @@ if [ -n "$PENTEST_REMOTE_HOST" ]; then
     fi
     echo "Pushing anzen to $PENTEST_REMOTE_HOST for internet-perspective pentest..."
     RPEN_TMPDIR=$(ssh "$PENTEST_REMOTE_HOST" "mktemp -d /tmp/anzen.XXXXXX" 2>/dev/null)
-    if [ -z "$RPEN_TMPDIR" ]; then
+    # Embedded in remote shell commands below, so accept only mktemp's shape
+    if [[ ! "$RPEN_TMPDIR" =~ ^/tmp/anzen\.[a-zA-Z0-9]+$ ]]; then
         echo "ERROR: could not create temp dir on $PENTEST_REMOTE_HOST" >&2; exit 1
     fi
     tar -czf - -C "$ANZEN_DIR" . | ssh "$PENTEST_REMOTE_HOST" "tar -xzf - -C $RPEN_TMPDIR"
@@ -159,9 +160,10 @@ if [ -n "$PENTEST_REMOTE_HOST" ]; then
     $GENERATE_TXT   && RPEN_ARGS+=("--txt")
     $QUIET          && RPEN_ARGS+=("--quiet")
     echo "Running pentest from $PENTEST_REMOTE_HOST → $PENTEST_TARGET ..."
-    ssh "$PENTEST_REMOTE_HOST" "bash $RPEN_TMPDIR/anzen.sh ${RPEN_ARGS[*]}"
+    ssh "$PENTEST_REMOTE_HOST" "bash $RPEN_TMPDIR/anzen.sh $(printf '%q ' "${RPEN_ARGS[@]}")"
+    RPEN_RC=$?
     ssh "$PENTEST_REMOTE_HOST" "rm -rf $RPEN_TMPDIR"
-    exit $?
+    exit "$RPEN_RC"
 fi
 
 # ── Schedule mode ─────────────────────────────────────────────────────────────
@@ -302,9 +304,9 @@ unset _c
 
 # ── Banner ────────────────────────────────────────────────────────────────────
 if [ "$QUIET" = "false" ]; then
-    echo -e "\n\033[1m\033[36m   安全  Anzen $ANZEN_VERSION — Linux Security Audit\033[0m"
-    echo -e "\033[36m   Host: $(_hostname)  |  OS: $OS_PRETTY\033[0m"
-    echo -e "\033[36m   $(date)\033[0m\n"
+    echo -e "\n${BOLD}${CYAN}   安全  Anzen $ANZEN_VERSION — Linux Security Audit${NC}"
+    echo -e "${CYAN}   Host: $(_hostname)  |  OS: $OS_PRETTY${NC}"
+    echo -e "${CYAN}   $(date)${NC}\n"
 fi
 
 # ── Module runner ─────────────────────────────────────────────────────────────
@@ -370,11 +372,11 @@ if [ -n "${HISTORY_DIR:-}" ]; then
     _prev=$(history_latest "$HISTORY_DIR")
     [ -n "$_prev" ] && NEW_FAILS=$(history_new_fails "$_prev")
     unset _prev
-    _hf=$(history_save "$HISTORY_DIR") && echo -e "\033[1m\033[36m  History   : $_hf\033[0m"
+    _hf=$(history_save "$HISTORY_DIR") && echo -e "${BOLD}${CYAN}  History   : $_hf${NC}"
     unset _hf
     if [ -n "${DASHBOARD_FILE:-}" ]; then
         generate_dashboard "$HISTORY_DIR" "$DASHBOARD_FILE" && \
-            echo -e "\033[1m\033[36m  Dashboard : $DASHBOARD_FILE\033[0m"
+            echo -e "${BOLD}${CYAN}  Dashboard : $DASHBOARD_FILE${NC}"
     fi
 fi
 
@@ -412,35 +414,35 @@ _report_path() {
 if $GENERATE_HTML; then
     HTML_FILE=$(_report_path html)
     generate_html_report "$HTML_FILE"
-    echo -e "\033[1m\033[36m  HTML      : $HTML_FILE\033[0m"
+    echo -e "${BOLD}${CYAN}  HTML      : $HTML_FILE${NC}"
 fi
 
 # ── Text ──────────────────────────────────────────────────────────────────────
 if $GENERATE_TXT; then
     TXT_FILE=$(_report_path txt)
     generate_txt_report "$TXT_FILE"
-    echo -e "\033[1m\033[36m  Text      : $TXT_FILE\033[0m"
+    echo -e "${BOLD}${CYAN}  Text      : $TXT_FILE${NC}"
 fi
 
 # ── JSON ──────────────────────────────────────────────────────────────────────
 if $GENERATE_JSON; then
     JSON_FILE=$(_report_path json)
     generate_json_report "$JSON_FILE"
-    echo -e "\033[1m\033[36m  JSON      : $JSON_FILE\033[0m"
+    echo -e "${BOLD}${CYAN}  JSON      : $JSON_FILE${NC}"
 fi
 
 # ── SARIF ─────────────────────────────────────────────────────────────────────
 if $GENERATE_SARIF; then
     SARIF_FILE=$(_report_path sarif.json)
     generate_sarif_report "$SARIF_FILE"
-    echo -e "\033[1m\033[36m  SARIF     : $SARIF_FILE\033[0m"
+    echo -e "${BOLD}${CYAN}  SARIF     : $SARIF_FILE${NC}"
 fi
 
 # ── Remediate ─────────────────────────────────────────────────────────────────
 if $GENERATE_REMEDIATE; then
     REMEDIATE_FILE="$REPORT_DIR/remediate_${TIMESTAMP}.sh"
     REMEDY_COUNT=$(generate_remediate_script "$REMEDIATE_FILE")
-    echo -e "\033[1m\033[36m  Remediate : $REMEDIATE_FILE ($REMEDY_COUNT commands)\033[0m"
+    echo -e "${BOLD}${CYAN}  Remediate : $REMEDIATE_FILE ($REMEDY_COUNT commands)${NC}"
 fi
 
 # ── Baseline ──────────────────────────────────────────────────────────────────

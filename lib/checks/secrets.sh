@@ -30,7 +30,7 @@ run_secrets_check() {
     local loose_keys=0
     while IFS= read -r f; do
         fail "Private key with loose permissions: $f ($(stat -c "%a" "$f" 2>/dev/null))"
-        remedy "chmod 600 '$f'"
+        remedy "chmod 600 $(_q "$f")"
         loose_keys=$((loose_keys+1))
     done < <(head -30 <<< "$key_files" | grep .)
     [ "$loose_keys" -eq 0 ] && ok "No private keys with loose permissions found"
@@ -43,7 +43,7 @@ run_secrets_check() {
     if [ -n "$world_keys" ]; then
         while IFS= read -r f; do
             fail "World-readable private key: $f"
-            remedy "chmod 600 '$f'"
+            remedy "chmod 600 $(_q "$f")"
         done <<< "$world_keys"
     fi
 
@@ -62,7 +62,7 @@ run_secrets_check() {
         PERM=$(stat -c "%a" "$f" 2>/dev/null)
         if [ "$PERM" != "600" ]; then
             fail "AWS credentials file loose permissions: $f ($PERM)"
-            remedy "chmod 600 '$f'"
+            remedy "chmod 600 $(_q "$f")"
         else
             ok "AWS credentials protected: $f"
         fi
@@ -72,7 +72,7 @@ run_secrets_check() {
     for f in /root/.netrc /home/*/.netrc; do
         [ -f "$f" ] || continue
         warn ".netrc file found (may contain plaintext credentials): $f"
-        remedy "rm -f '$f'  # move to ~/.ssh/config or use credential helpers"
+        remedy "rm -f $(_q "$f")  # move to ~/.ssh/config or use credential helpers"
     done
 
     # Hardcoded secrets in config files

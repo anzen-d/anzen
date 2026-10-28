@@ -17,7 +17,7 @@
 
 set -u
 
-ANZEN_VERSION="0.11.4"
+ANZEN_VERSION="0.11.5"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 FAIL_PENALTY=10
@@ -478,7 +478,7 @@ write_json() {
         printf '%s\n' "$SECTIONS" | awk -F'\t' 'NF { gsub(/\\/, "&&", $1); gsub(/"/, "\\\"", $1)
             printf "%s\n    {\"name\": \"%s\", \"fail\": %d, \"warn\": %d, \"ok\": %d, \"score\": %d}", (n++ ? "," : ""), $1, $2, $3, $4, $5 }'
         printf '\n  ],\n  "findings": [\n'
-        awk -F'\t' 'function esc(v) { gsub(/\\/, "&&", v); gsub(/"/, "\\\"", v); return v }
+        awk -F'\t' 'function esc(v) { gsub(/\\/, "&&", v); gsub(/"/, "\\\"", v); gsub(/[\001-\037]/, "", v); return v }
             { if (NR > 1) printf ",\n"
               printf "    {\"id\": \"%s\", \"level\": \"%s\", \"section\": \"%s\", \"message\": \"%s\", \"remedy\": \"%s\"}", esc($4), esc($1), esc($2), esc($3), esc($5) }' "$FINDINGS"
         printf '\n  ]\n}\n'

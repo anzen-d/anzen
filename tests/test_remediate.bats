@@ -98,3 +98,14 @@ teardown() {
     run grep "sshd_config" "$REMEDIATE_OUT"
     [ "$status" -eq 0 ]
 }
+
+@test "remediate: a hostile file name stays one argument (_q)" {
+    local name="/srv/x'; touch $BATS_TEST_TMPDIR/pwned #\$(id)"
+    fail "World-writable file: $name"; remedy "chmod o-w $(_q "$name")"
+    generate_remediate_script "$REMEDIATE_OUT" >/dev/null
+    # Run the generated script with chmod stubbed to print its last argument
+    run bash -c "chmod() { printf '%s\n' \"\${@: -1}\"; }; export -f chmod; bash $REMEDIATE_OUT"
+    [ "$status" -eq 0 ]
+    [ "${lines[0]}" = "$name" ]
+    [ ! -e "$BATS_TEST_TMPDIR/pwned" ]
+}

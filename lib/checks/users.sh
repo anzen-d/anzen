@@ -6,11 +6,14 @@
 run_users_check() {
     section "Users & Sudo"
 
-    # Passwordless sudo
-    if sudo -n -l 2>/dev/null | grep -q "NOPASSWD: ALL"; then
+    # Passwordless sudo, for the user who ran the audit (root can list theirs)
+    local _u _rules; _u=$(_invoking_user)
+    if [ "$EUID" -eq 0 ]; then _rules=$(sudo -n -l -U "$_u" 2>/dev/null)
+    else _rules=$(sudo -n -l 2>/dev/null); fi
+    if grep -q "NOPASSWD: ALL" <<< "$_rules"; then
         fail "NOPASSWD: ALL — full root without a password prompt"
-        remedy "visudo  # remove the NOPASSWD:ALL line for $(whoami)"
-    elif sudo -n -l 2>/dev/null | grep -q "NOPASSWD"; then
+        remedy "visudo  # remove the NOPASSWD:ALL line for $_u"
+    elif grep -q "NOPASSWD" <<< "$_rules"; then
         warn "NOPASSWD sudo rules found (not ALL — review)"
         remedy "visudo  # review and tighten NOPASSWD entries"
     else
@@ -61,8 +64,10 @@ run_users_check() {
     # World-writable home dirs
     WW_HOMES=$(find /home /root -maxdepth 1 -perm -o+w -type d 2>/dev/null)
     if [ -n "$WW_HOMES" ]; then
+        local _d _qd=""
+        while IFS= read -r _d; do _qd+=" $(_q "$_d")"; done <<< "$WW_HOMES"
         fail "World-writable home directories: $WW_HOMES"
-        remedy "chmod 750 $(echo $WW_HOMES | tr '\n' ' ')"
+        remedy "chmod 750$_qd"
     else
         ok "No world-writable home directories"
     fi
@@ -70,7 +75,7 @@ run_users_check() {
     # Legacy insecure files
     while IFS= read -r f; do
         warn "Insecure legacy file found: $f"
-        remedy "rm -f $f"
+        remedy "rm -f $(_q "$f")"
     done < <(find /home /root -maxdepth 2 \
         \( -name ".rhosts" -o -name ".netrc" -o -name ".forward" \) 2>/dev/null)
 

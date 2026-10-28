@@ -23,6 +23,10 @@ _safe_source_config() {
     source "$1"
 }
 
+# _invoking_user — the person behind the audit: SUDO_USER under sudo, so
+# user-level checks (sudo rules, docker group, AllowUsers) are not about root
+_invoking_user() { echo "${SUDO_USER:-$(id -un)}"; }
+
 # Run a command with root privileges without ever prompting: directly when
 # already root, via passwordless sudo otherwise, else unprivileged (the caller
 # then sees whatever partial output a normal user gets)

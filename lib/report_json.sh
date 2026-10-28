@@ -44,7 +44,9 @@ generate_json_report() {
         # One awk pass instead of a sed per field: large hosts have 400+ findings
         awk -F'\t' '
             function esc(v) {
-                gsub(/\\/, "&&", v); gsub(/"/, "\\\"", v); gsub(/\r/, "", v)
+                gsub(/\\/, "&&", v); gsub(/"/, "\\\"", v)
+                # Control characters (ANSI escapes in banners) are invalid in JSON
+                gsub(/[\001-\037]/, "", v)
                 return v
             }
             {

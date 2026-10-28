@@ -73,6 +73,13 @@ teardown() {
     [ "$status" -eq 0 ]
 }
 
+@test "JSON report: control characters in a message keep it valid JSON" {
+    fail "banner $(printf '\033[1mSSH-2.0\001')"
+    generate_json_report "$REPORT_OUT"
+    run python3 -m json.tool "$REPORT_OUT"
+    [ "$status" -eq 0 ]
+}
+
 @test "JSON report: contains findings array" {
     fail "problem"
     generate_json_report "$REPORT_OUT"
