@@ -107,3 +107,12 @@ teardown() {
     [ "$(grep -c '^+' <<< "$output")" -eq 0 ]
     rm -f "$log"
 }
+
+@test "--check run is not saved to HISTORY_DIR unless --history= is given" {
+    printf 'HISTORY_DIR=%s/hist\n' "$OUT_DIR" > "$OUT_DIR/c.conf"; chmod 600 "$OUT_DIR/c.conf"
+    run "$ANZEN_DIR/anzen.sh" --config="$OUT_DIR/c.conf" --check=path_check --no-color
+    [[ "$output" == *"Partial run (--check): not saved to history"* ]]
+    [ ! -d "$OUT_DIR/hist" ] || [ -z "$(ls -A "$OUT_DIR/hist")" ]
+    run "$ANZEN_DIR/anzen.sh" --config="$OUT_DIR/c.conf" --history="$OUT_DIR/hist" --check=path_check --no-color
+    [ "$(ls "$OUT_DIR"/hist/*/*.json | wc -l)" -eq 1 ]
+}

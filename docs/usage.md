@@ -34,7 +34,7 @@ sudo ./anzen.sh --html
 
 | Flag | Description |
 |------|-------------|
-| `--check=MODULE` | Run only the specified module — repeatable |
+| `--check=MODULE` | Run only the specified module — repeatable. Such a partial run is not saved to `HISTORY_DIR` and sends no notification or heartbeat, unless `--history=DIR` is given |
 | `--quiet`, `-q` | Suppress `INFO` lines (show `FAIL`/`WARN`/`OK` only) |
 | `--no-color` | Disable ANSI colour output (also off when `NO_COLOR` is set or output is not a terminal) |
 

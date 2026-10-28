@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-28
+
+### Added
+- **"Exploited CVEs — fix first"**: the KEV findings as an action list. A
+  reboot hint when an installed kernel is newer than the running one and fixes
+  its exploited CVEs; targets ranked by exploited CVEs (ransomware-linked
+  first); CVEs that affect several targets, with how many have a fix
+
+### Fixed
+- **A `--check` run was saved to history.** The next full run then reported
+  every other FAIL as new (a burst of regression alerts) and the dashboard
+  showed a partial host. Partial runs now skip history, notifications and the
+  heartbeat, locally and in fleet mode, unless `--history=` is given
+
 ## [0.13.0] - 2026-10-28
 
 ### Added

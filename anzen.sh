@@ -6,7 +6,7 @@
 
 set -uo pipefail
 
-ANZEN_VERSION="0.13.0"
+ANZEN_VERSION="0.14.0"
 ANZEN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPORT_DIR="$ANZEN_DIR/reports"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -241,6 +241,11 @@ source "$ANZEN_DIR/lib/notify.sh"
 source "$ANZEN_DIR/lib/history.sh"
 
 [ -n "$HISTORY_ARG" ] && HISTORY_DIR="$HISTORY_ARG"
+# A --check run covers a few modules: saved to history it would make the next
+# full run report every other FAIL as new, so it stays out of history,
+# notifications and the heartbeat unless --history= asks for it
+PARTIAL_RUN=false
+[ "${#CHECKS[@]}" -gt 0 ] && [ -z "$HISTORY_ARG" ] && PARTIAL_RUN=true
 
 # ── Dashboard mode (reads history, runs no checks) ────────────────────────────
 if [ -n "$DASHBOARD_ONLY" ]; then
@@ -390,7 +395,10 @@ print_summary
 
 # ── History ───────────────────────────────────────────────────────────────────
 NEW_FAILS=""
-if [ -n "${HISTORY_DIR:-}" ]; then
+if $PARTIAL_RUN; then
+    [ -n "${HISTORY_DIR:-}${NOTIFY_CMD:-}${NOTIFY_NTFY_URL:-}${HEARTBEAT_URL:-}" ] && \
+        echo -e "${CYAN}  Partial run (--check): not saved to history, no notification or heartbeat${NC}"
+elif [ -n "${HISTORY_DIR:-}" ]; then
     # First run for this host: nothing to compare with, so nothing is "new"
     _prev=$(history_latest "$HISTORY_DIR")
     [ -n "$_prev" ] && NEW_FAILS=$(history_new_fails "$_prev")
@@ -404,10 +412,12 @@ if [ -n "${HISTORY_DIR:-}" ]; then
 fi
 
 # ── Notify + heartbeat ────────────────────────────────────────────────────────
-_nf=$(grep -c "^FAIL	" "$FINDINGS_FILE" 2>/dev/null) || _nf=0
-notify_run "$_nf" "$(_overall_score)" "$NEW_FAILS"
-unset _nf
-heartbeat
+if ! $PARTIAL_RUN; then
+    _nf=$(grep -c "^FAIL	" "$FINDINGS_FILE" 2>/dev/null) || _nf=0
+    notify_run "$_nf" "$(_overall_score)" "$NEW_FAILS"
+    unset _nf
+    heartbeat
+fi
 
 mkdir -p "$REPORT_DIR"
 

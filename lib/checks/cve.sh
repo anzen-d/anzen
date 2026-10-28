@@ -140,7 +140,90 @@ _cve_scan() {
     return "$rc"
 }
 
+# _cve_newer_kernel FIXED — print the newest installed kernel when it is newer
+# than the running one and at least FIXED (a Debian-style "6.8.0-147.147")
+_cve_newer_kernel() {
+    local running newest fixed=${1%.*}
+    # Overridable for tests
+    running=${ANZEN_RUNNING_KERNEL:-$(uname -r)}
+    newest=$(ls "${ANZEN_BOOT_DIR:-/boot}"/vmlinuz-* 2>/dev/null | sed 's|.*/vmlinuz-||' | sort -V | tail -1)
+    [ -n "$newest" ] && [ "$newest" != "$running" ] || return 1
+    # Version numbers only: 6.8.0-147-generic → 6.8.0-147
+    [ "$(printf '%s\n' "$running" "$newest" | sort -V | tail -1)" = "$newest" ] || return 1
+    [ "$(printf '%s\n' "$fixed" "${newest%-[a-z]*}" | sort -V | tail -1)" = "${newest%-[a-z]*}" ] || return 1
+    echo "$newest"
+}
+
+# _cve_fix_first — one action list from the exploited (KEV) findings: reboot
+# when an installed kernel fixes them, targets ranked by exploited CVEs, and
+# CVEs that affect several targets. INFO lines: guidance, not extra penalties
+_cve_fix_first() {
+    [ -n "$_KEV_FILE" ] || return 0
+    local hits; hits=$(awk -F'\t' '$1 == "FAIL" && $2 ~ /^Vulnerabilities/ && index($3, ": ACTIVELY EXPLOITED ")' "$FINDINGS_FILE")
+    [ -n "$hits" ] || return 0
+    section "Exploited CVEs — fix first"
+
+    # Reboot: kernel findings on the host whose fix is already installed
+    local kfix newest kcves
+    kfix=$(awk -F'\t' '$3 ~ /^linux-(image|modules|headers|tools)[^ ]* [^ ]+ in host: / && match($5, /fixed in [^ ]+/) {
+               print substr($5, RSTART + 9, RLENGTH - 9); exit }' <<< "$hits")
+    if [ -n "$kfix" ] && newest=$(_cve_newer_kernel "$kfix"); then
+        kcves=$(awk -F'\t' '$3 ~ /^linux-(image|modules|headers|tools)[^ ]* [^ ]+ in host: / {
+                    m = $3; sub(/.*: ACTIVELY EXPLOITED /, "", m); sub(/ \(CISA KEV.*/, "", m)
+                    n = split(m, ids, " "); for (i = 1; i <= n; i++) if (!(ids[i] in s)) { s[ids[i]] = 1; o = o (o == "" ? "" : " ") ids[i] } }
+                END { print o }' <<< "$hits")
+        info "Reboot into $newest (installed; running ${ANZEN_RUNNING_KERNEL:-$(uname -r)}) — fixes actively exploited kernel CVEs: $kcves"
+    fi
+
+    # Targets (host, or image [containers]) by number of exploited CVEs
+    awk -F'\t' '
+        {
+            m = $3; i = index(m, ": ACTIVELY EXPLOITED ")
+            head = substr(m, 1, i - 1); rest = substr(m, i + 21)
+            t = head; sub(/^[^ ]+ [^ ]+ in /, "", t)
+            # One target per image: its OS and language findings ("[c] Python")
+            sub(/\] .*/, "]", t)
+            ids = rest; sub(/ \(CISA KEV.*/, "", ids)
+            if (!(t in seen)) { seen[t] = 1; order[++n] = t }
+            if (rest ~ /used by ransomware/) rw[t] = 1
+            if ($5 !~ /fixed in /) nofix[t] = 1
+            k = split(ids, a, " ")
+            for (j = 1; j <= k; j++) if (!((t, a[j]) in c)) { c[t, a[j]] = 1; cnt[t]++; l[t] = l[t] (l[t] == "" ? "" : " ") a[j] }
+        }
+        END { for (i = 1; i <= n; i++) { t = order[i]
+                  printf "%d\t%d\t%s: %d actively exploited CVE%s (%s)%s%s\n", cnt[t], rw[t], t, cnt[t], (cnt[t] > 1 ? "s" : ""), l[t], \
+                      (rw[t] ? ", used by ransomware" : ""), (nofix[t] ? " — no fix for some yet" : "") } }' <<< "$hits" \
+        | sort -t$'\t' -k2,2nr -k1,1nr | head -10 | cut -f3 | while IFS= read -r line; do info "$line"; done
+    local ntargets; ntargets=$(awk -F'\t' '{ m = $3; i = index(m, ": ACTIVELY EXPLOITED "); t = substr(m, 1, i - 1); sub(/^[^ ]+ [^ ]+ in /, "", t); sub(/\] .*/, "]", t); if (!(t in s)) { s[t]; n++ } } END { print n + 0 }' <<< "$hits")
+    [ "$ntargets" -gt 10 ] && info "… and $((ntargets - 10)) more targets with exploited CVEs (see the findings above)"
+
+    # CVEs that affect several targets: one update often fixes many
+    awk -F'\t' '
+        {
+            m = $3; i = index(m, ": ACTIVELY EXPLOITED ")
+            head = substr(m, 1, i - 1); rest = substr(m, i + 21)
+            split(head, h, " "); t = head; sub(/^[^ ]+ [^ ]+ in /, "", t)
+            ids = rest; sub(/ \(CISA KEV.*/, "", ids)
+            k = split(ids, a, " ")
+            for (j = 1; j <= k; j++) {
+                v = a[j]
+                if (!(v in seen)) { seen[v] = 1; order[++n] = v }
+                if (!((v, t) in vt)) { vt[v, t] = 1; nt[v]++; if ($5 ~ /fixed in /) nf[v]++ }
+                if (!((v, h[1]) in vp)) { vp[v, h[1]] = 1; if (++np[v] <= 3) pk[v] = pk[v] (pk[v] == "" ? "" : ", ") h[1]; else if (np[v] == 4) pk[v] = pk[v] ", …" }
+            }
+        }
+        END { for (i = 1; i <= n; i++) { v = order[i]; if (nt[v] < 2) continue
+                  printf "%d\t%s (%s): %d targets, %d with a fix available\n", nt[v], v, pk[v], nt[v], nf[v] } }' <<< "$hits" \
+        | sort -t$'\t' -k1,1nr | head -5 | cut -f2 | while IFS= read -r line; do info "$line"; done
+    return 0
+}
+
 run_cve_check() {
+    _cve_scan_all
+    _cve_fix_first
+}
+
+_cve_scan_all() {
     section "Vulnerabilities (host)"
 
     if ! command -v trivy &>/dev/null; then

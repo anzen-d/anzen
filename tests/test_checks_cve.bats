@@ -107,3 +107,37 @@ kev_rows() {
     _cve_report "host" "x %s" < "$BATS_TEST_TMPDIR/r" >/dev/null
     [ "$_CVE_N" -eq 1 ]
 }
+
+fix_first_findings() {
+    local k=$'\t'
+    {
+    echo "FAIL${k}Vulnerabilities (host)${k}linux-modules-6.8.0-142-generic 6.8.0-142.142 in host: ACTIVELY EXPLOITED CVE-2026-53266 (CISA KEV, due 2026-08-30) — 1 HIGH${k}id1${k}x  # fixed in 6.8.0-147.147"
+    echo "FAIL${k}Vulnerabilities (containers)${k}apache2-utils 2.4.46-r3 in old:latest [speedtest]: ACTIVELY EXPLOITED CVE-2021-41773 (CISA KEV, due 2021-11-17, used by ransomware) — 1 HIGH${k}id2${k}x  # fixed in 2.4.48"
+    echo "FAIL${k}Vulnerabilities (containers)${k}brotli-libs 1.1.0 in a:1 [a]: ACTIVELY EXPLOITED CVE-2026-1 (CISA KEV, due 2026-11-10) — 1 MEDIUM${k}id3${k}x  # fixed in 1.1.1"
+    echo "FAIL${k}Vulnerabilities (containers)${k}libbrotli1 1.0.9 in b:2 [b]: ACTIVELY EXPLOITED CVE-2026-1 (CISA KEV, due 2026-11-10) — 1 MEDIUM${k}id4${k}x"
+    echo "FAIL${k}Vulnerabilities (containers)${k}starlette 0.47 in b:2 [b] Python: ACTIVELY EXPLOITED CVE-2026-2 (CISA KEV, due 2026-09-16) — 1 HIGH${k}id5${k}x  # fixed in 0.49"
+    } > "$FINDINGS_FILE"
+}
+
+@test "_cve_fix_first() ranks targets, groups CVEs and suggests a reboot" {
+    fix_first_findings
+    _KEV_FILE=/dev/null
+    boot=$(mktemp -d); touch "$boot/vmlinuz-6.8.0-142-generic" "$boot/vmlinuz-6.8.0-147-generic"
+    ANZEN_BOOT_DIR=$boot ANZEN_RUNNING_KERNEL=6.8.0-142-generic _cve_fix_first >/dev/null
+    info=$(grep $'^INFO\tExploited CVEs' "$FINDINGS_FILE" | cut -f3)
+    [[ "$info" == *"Reboot into 6.8.0-147-generic (installed; running 6.8.0-142-generic) — fixes actively exploited kernel CVEs: CVE-2026-53266"* ]]
+    # Ransomware first; an image's OS and Python findings are one target
+    [ "$(sed -n 2p <<< "$info")" = "old:latest [speedtest]: 1 actively exploited CVE (CVE-2021-41773), used by ransomware" ]
+    [[ "$info" == *"b:2 [b]: 2 actively exploited CVEs (CVE-2026-1 CVE-2026-2) — no fix for some yet"* ]]
+    [[ "$info" == *"CVE-2026-1 (brotli-libs, libbrotli1): 2 targets, 1 with a fix available"* ]]
+    rm -rf "$boot"
+}
+
+@test "_cve_fix_first() suggests no reboot when the installed kernel is not newer than the fix" {
+    fix_first_findings
+    _KEV_FILE=/dev/null
+    boot=$(mktemp -d); touch "$boot/vmlinuz-6.8.0-142-generic" "$boot/vmlinuz-6.8.0-145-generic"
+    ANZEN_BOOT_DIR=$boot ANZEN_RUNNING_KERNEL=6.8.0-142-generic _cve_fix_first >/dev/null
+    ! grep -q "Reboot into" "$FINDINGS_FILE"
+    rm -rf "$boot"
+}

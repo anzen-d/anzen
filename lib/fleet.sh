@@ -111,7 +111,8 @@ run_fleet() {
             nf=$(sed -n 's/^  "summary": {"fail": \([0-9]*\),.*/\1/p' "$json")
             score=$(sed -n 's/.*"score": \([0-9]*\)}.*/\1/p' "$json" | head -1)
             new=""
-            if [ -n "${HISTORY_DIR:-}" ]; then
+            # PARTIAL_RUN (anzen.sh): --check runs stay out of history and alerts
+            if [ -n "${HISTORY_DIR:-}" ] && ! ${PARTIAL_RUN:-false}; then
                 prev=$(history_latest "$HISTORY_DIR" "$name")
                 [ -n "$prev" ] && new=$(history_new_fails_json "$prev" "$json")
                 history_store "$HISTORY_DIR" "$name" "$json" >/dev/null && \
@@ -135,7 +136,7 @@ run_fleet() {
                 fi
                 cp "$work/out.$ext" "$dest" && echo -e "${BOLD}${CYAN}  Report    : $dest${NC}"
             done
-            notify_run "${nf:-0}" "${score:-0}" "$new" "$name"
+            ${PARTIAL_RUN:-false} || notify_run "${nf:-0}" "${score:-0}" "$new" "$name"
         fi
         rm -rf "$work"
         case "$rc" in
@@ -145,6 +146,7 @@ run_fleet() {
         esac
     done
 
+    ${PARTIAL_RUN:-false} && return "$worst"
     if [ -n "${HISTORY_DIR:-}" ] && [ -n "${DASHBOARD_FILE:-}" ]; then
         generate_dashboard "$HISTORY_DIR" "$DASHBOARD_FILE" && \
             echo -e "${BOLD}${CYAN}  Dashboard : $DASHBOARD_FILE${NC}"

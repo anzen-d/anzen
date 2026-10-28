@@ -183,6 +183,19 @@ without any list the check is skipped (INFO), never failed.
 CVEs published in the last `CVE_NEW_DAYS` days are listed in one INFO line per
 host or image, so a weekly report shows what is new at a glance.
 
+The **Exploited CVEs — fix first** section turns the exploited findings into
+an action list:
+
+```
+[INFO] Reboot into 6.8.0-147-generic (installed; running 6.8.0-142-generic) — fixes actively exploited kernel CVEs: CVE-2026-53266 CVE-2026-53362
+[INFO] old/speedtest:latest [speedtest]: 3 actively exploited CVEs (CVE-2021-40438 CVE-2021-41773 CVE-2021-42013), used by ransomware
+[INFO] CVE-2026-111497 (brotli-libs, libbrotli1): 36 targets, 35 with a fix available
+```
+
+Targets (the host, or an image with its containers) are ranked with
+ransomware-linked ones first, then by the number of exploited CVEs; CVEs that
+affect several targets show how far one update reaches.
+
 ```bash
 sudo ./anzen.sh --check=cve            # host + images; can take 20+ min on a busy host
 ```

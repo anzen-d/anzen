@@ -24,13 +24,21 @@ SH
 teardown() { rm -rf "$T"; }
 
 @test "fleet: each host's JSON lands in history, dashboard is built" {
-    run "$ANZEN_DIR/anzen.sh" --config="$T/c.conf" --remote=root@alpha,beta --check=kernel --quiet --no-color
+    # --check runs are saved only with an explicit --history=
+    run "$ANZEN_DIR/anzen.sh" --config="$T/c.conf" --history="$T/hist" --remote=root@alpha,beta --check=kernel --quiet --no-color
     [ "$status" -ne 255 ]
     # Both runs report the local hostname, so one history dir holds two runs
     [ "$(ls "$T"/hist/*/*.json | wc -l)" -eq 2 ]
     [ -f "$T/dash.html" ]
     grep -qx 'root@alpha' "$T/ssh.log"
     grep -qx 'beta' "$T/ssh.log"
+}
+
+@test "fleet: a --check run without --history= stays out of history" {
+    run "$ANZEN_DIR/anzen.sh" --config="$T/c.conf" --remote=h1 --check=kernel --quiet --no-color
+    [ "$status" -ne 255 ]
+    [ ! -d "$T/hist" ] || [ -z "$(ls -A "$T/hist")" ]
+    [ ! -f "$T/dash.html" ]
 }
 
 @test "fleet: remote gets scan settings only, and cleans up" {
