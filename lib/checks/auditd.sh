@@ -17,7 +17,7 @@ run_auditd_check() {
                 ok "Audit rules loaded: $rule_count"
             else
                 warn "auditd running but no rules loaded"
-                remedy "# Install a ruleset: apt-get install -y auditd audispd-plugins\n# Or copy: cp /usr/share/doc/auditd/examples/rules/30-stig.rules /etc/audit/rules.d/"
+                remedy "# Install a ruleset: apt-get install -y auditd audispd-plugins, or cp /usr/share/doc/auditd/examples/rules/30-stig.rules /etc/audit/rules.d/"
             fi
         else
             warn "auditd installed but not running"

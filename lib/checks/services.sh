@@ -91,7 +91,7 @@ run_services_check() {
     if ss -tlnp 2>/dev/null | grep -q ":5432[[:space:]]"; then
         if ss -tlnp 2>/dev/null | grep -v "127\." | grep -q ":5432[[:space:]]"; then
             warn "PostgreSQL listening on 0.0.0.0:5432"
-            remedy "# In postgresql.conf: listen_addresses = 'localhost'\nsystemctl restart postgresql"
+            remedy "# set listen_addresses = 'localhost' in postgresql.conf, then: systemctl restart postgresql"
         else
             ok "PostgreSQL bound to localhost"
         fi
@@ -113,7 +113,7 @@ run_services_check() {
 
     if ss -tlnp 2>/dev/null | grep -v "127\." | grep -q ":3306[[:space:]]"; then
         warn "MySQL/MariaDB (3306) exposed on public interface"
-        remedy "# In my.cnf: bind-address = 127.0.0.1\nsystemctl restart mysql"
+        remedy "# set bind-address = 127.0.0.1 in my.cnf, then: systemctl restart mysql"
     fi
 
     section "Samba / SMB"
@@ -124,7 +124,7 @@ run_services_check() {
             GUEST=$(_priv testparm -s 2>/dev/null | grep -iE "guest ok|public" | grep -iv "no" | head -5 || true)
             if [ -n "$GUEST" ]; then
                 fail "Samba guest/public share may be enabled: $GUEST"
-                remedy "# In smb.conf under [global]: map to guest = never\nguest ok = no"
+                remedy "# in smb.conf [global]: map to guest = never; and guest ok = no in each share"
             else
                 ok "No obvious guest shares in Samba config"
             fi

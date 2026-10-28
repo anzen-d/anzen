@@ -89,3 +89,21 @@ teardown() {
         cut -f1 "$FINDINGS_FILE" | tr "\n" " "'
     [[ "$output" == *"FAIL OK WARN"* ]]
 }
+
+@test "JSON report lists module durations and stays valid" {
+    run "$ANZEN_DIR/anzen.sh" --check=path_check --check=kernel --quiet --no-color --json --output="$OUT_DIR/r.json"
+    grep -qE '^  "durations": \{"path_check": [0-9]+, "kernel": [0-9]+\},$' "$OUT_DIR/r.json"
+    python3 -m json.tool "$OUT_DIR/r.json" >/dev/null
+}
+
+@test "--debug writes a private trace with file:line, never to stderr" {
+    # Read-only reports dir (as after a sudo run): falls back to a temp file
+    cp -r "$ANZEN_DIR" "$OUT_DIR/a" && rm -rf "$OUT_DIR/a/reports" && mkdir "$OUT_DIR/a/reports" && chmod 555 "$OUT_DIR/a/reports"
+    run bash -c "'$OUT_DIR/a/anzen.sh' --check=path_check --debug --no-color 2>&1 >/dev/null"
+    log=$(sed -n 's/^Debug trace: //p' <<< "$output")
+    [ -f "$log" ]
+    [ "$(stat -c %a "$log")" = 600 ]
+    grep -q '^+ path_check.sh:[0-9]* run_path_check_check: ' "$log"
+    [ "$(grep -c '^+' <<< "$output")" -eq 0 ]
+    rm -f "$log"
+}

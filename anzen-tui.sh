@@ -370,18 +370,22 @@ _latest_report() {
     [[ "${#matches[@]}" -gt 0 ]] && printf '%s' "${matches[-1]}"
 }
 
-# ── Post-run: offer to view generated reports ─────────────────────────────────
+# ── Offer to view reports: after a run, the formats it wrote; with "all"
+# (menu item 5), the newest report of every format ──────────────────────────
 _offer_view_reports() {
-    local candidates=()
-    if [[ -n "$OUTPUT_FILE" && -f "$OUTPUT_FILE" ]]; then
+    local all=${1:-} candidates=() f ext
+    if [[ -z "$all" && -n "$OUTPUT_FILE" && -f "$OUTPUT_FILE" ]]; then
         candidates+=("$OUTPUT_FILE")
     else
-        local f
-        f=$(_latest_report "$ANZEN_DIR/reports/anzen_*.txt");  [[ -n "$f" && "${FMT_STATE[txt]}"  == "ON" ]] && candidates+=("$f")
-        f=$(_latest_report "$ANZEN_DIR/reports/anzen_*.json"); [[ -n "$f" && "${FMT_STATE[json]}" == "ON" ]] && candidates+=("$f")
-        f=$(_latest_report "$ANZEN_DIR/reports/anzen_*.html"); [[ -n "$f" && "${FMT_STATE[html]}" == "ON" ]] && candidates+=("$f")
+        for ext in txt json html; do
+            f=$(_latest_report "$ANZEN_DIR/reports/anzen_*.$ext")
+            [[ -n "$f" ]] && { [[ -n "$all" ]] || [[ "${FMT_STATE[$ext]}" == "ON" ]]; } && candidates+=("$f")
+        done
     fi
-    [[ "${#candidates[@]}" -eq 0 ]] && return 0
+    if [[ "${#candidates[@]}" -eq 0 ]]; then
+        [[ -n "$all" ]] && dlg --title " View Reports " --msgbox "No reports yet in $ANZEN_DIR/reports/" 7 60
+        return 0
+    fi
 
     local items=()
     local r; for r in "${candidates[@]}"; do items+=("$r" "$(basename "$r")"); done
@@ -414,7 +418,9 @@ _run_with_output() {
     local -a args=("$@")
     # Ch.15: temp file captures full output for later report viewing / logging
     local tmp; tmp=$(mktemp /tmp/anzen_run.XXXXXX)
-    trap 'rm -f "$tmp"' RETURN
+    # A RETURN trap outlives the function: clear it, or every later return
+    # runs it with $tmp unset (set -u: "tmp: unbound variable")
+    trap 'rm -f "$tmp"; trap - RETURN' RETURN
 
     _dims
     local rc=0
@@ -631,7 +637,7 @@ main_menu() {
             2) select_formats    ;;
             3) select_options    ;;
             4) advanced_settings ;;
-            5) _offer_view_reports ;;
+            5) _offer_view_reports all ;;
             6) show_about        ;;
             7) run_audit         ;;
         esac

@@ -30,6 +30,9 @@ generate_json_report() {
         printf '  "date": "%s",\n'       "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
         printf '  "summary": {"fail": %d, "warn": %d, "ok": %d, "info": %d, "score": %d},\n' \
             "$fails" "$warns" "$oks" "$infos" "$score"
+        # Module run times in seconds (Linux edition only; readers treat it as optional)
+        printf '  "durations": {%s},\n' "$( [ -s "${TIMES_FILE:-}" ] && \
+            awk -F'\t' '{ printf "%s\"%s\": %d", (NR > 1 ? ", " : ""), $1, $2 }' "$TIMES_FILE")"
         printf '  "sections": ['
         local s f w o sc sfirst=true
         while IFS=$'\t' read -r s f w o sc; do

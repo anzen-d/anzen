@@ -161,7 +161,9 @@ run_ssh_check() {
         fi
     else
         warn "Ciphers/MACs/KexAlgorithms not explicitly set — using OpenSSH defaults"
-        remedy "cat >> /etc/ssh/sshd_config <<'EOF'\nCiphers aes256-gcm@openssh.com,chacha20-poly1305@openssh.com\nMACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com\nKexAlgorithms curve25519-sha256,diffie-hellman-group16-sha512\nEOF\n$(_sshd_reload)"
+        # One line: remediate.sh prints remedies verbatim, so a "\n" heredoc
+        # never ended and swallowed every later command into sshd_config
+        remedy "echo 'Ciphers aes256-gcm@openssh.com,chacha20-poly1305@openssh.com' >> /etc/ssh/sshd_config && echo 'MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com' >> /etc/ssh/sshd_config && echo 'KexAlgorithms curve25519-sha256,diffie-hellman-group16-sha512' >> /etc/ssh/sshd_config && $(_sshd_reload)"
     fi
 
     # Authorized keys

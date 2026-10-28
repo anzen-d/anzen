@@ -6,6 +6,44 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-28
+
+### Added
+- **`--debug`**: traces every command with file and line to
+  `reports/anzen_debug_<timestamp>.log` (mode 600; `/tmp` when `reports/` is
+  not writable). Checks hide expected errors, which also hid real ones such as
+  the Alpine `find` bug fixed in 0.11.5; the trace shows them
+- **Run time per module**: the summary lists the slowest modules, and the JSON
+  report has a `durations` object (seconds per module), so a slow run points
+  at what to exclude
+
+### Fixed
+- **`pentest_external`: TLS 1.0/1.1 reported as accepted on every server.**
+  The check looked for `CONNECTED`, which `openssl s_client` prints as soon as
+  TCP connects. It now requires a completed handshake, and offers TLS 1.0/1.1
+  with `SECLEVEL=0` so a modern OpenSSL can test them at all
+- **`pentest_external`: strong TLS 1.3 suites reported as weak ciphers.**
+  `-cipher` does not apply to TLS 1.3; the test now runs without it. OpenSSL 3
+  cannot offer RC4/DES/3DES/EXPORT, so those are reported as not tested
+  instead of passing
+- `pentest_external`: TLS checks ignored the port in the target URL
+  (`https://host:8443` tested 443)
+- `pentest_external`: certificate expiry used `date -d`, which BusyBox cannot
+  parse, so every certificate was reported EXPIRED there; it now uses
+  `openssl x509 -checkend` and the `TLS_FAIL_DAYS`/`TLS_WARN_DAYS` settings
+- `pentest_external`: port probes without nmap had no timeout (a filtered port
+  waited ~2 minutes); `--wan` did nothing when the target resolved to a public
+  IP, and an HTML error page from the IP lookup could become the scan target
+- `pentest_external`: HTTP TRACE was reported enabled when a 405 page named
+  the method; DMARC `sp=` was read as the policy
+- **SSH: the cipher remedy broke `remediate.sh`.** Its literal `\n` heredoc
+  never ended, so every later command was appended to `sshd_config`. All
+  remedies are now one line, and a test enforces it
+- TUI: the run log cleanup trap outlived its function (`tmp: unbound
+  variable` after the first audit); "View Reports" showed nothing unless
+  formats had been selected in the same session
+- Baseline diff output ignored `--no-color`
+
 ## [0.11.5] - 2026-10-28
 
 ### Security

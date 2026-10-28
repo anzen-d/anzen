@@ -27,7 +27,7 @@ sudo ./anzen.sh --html
 | `--html` | HTML report → `reports/anzen_TIMESTAMP.html` |
 | `--txt` | Plain-text report → `reports/anzen_TIMESTAMP.txt` |
 | `--json` | JSON report → `reports/anzen_TIMESTAMP.json` |
-| `--output=FILE` | Override output path (applies to first enabled format) |
+| `--output=FILE` | Override output path; with several formats the extension is swapped per format (`out.html`, `out.json`, …) |
 | `--remediate` | Generate `reports/remediate_TIMESTAMP.sh` from findings |
 
 ### Filtering
@@ -36,13 +36,14 @@ sudo ./anzen.sh --html
 |------|-------------|
 | `--check=MODULE` | Run only the specified module — repeatable |
 | `--quiet`, `-q` | Suppress `INFO` lines (show `FAIL`/`WARN`/`OK` only) |
-| `--no-color` | Disable ANSI colour output |
+| `--no-color` | Disable ANSI colour output (also off when `NO_COLOR` is set or output is not a terminal) |
 
 ### Advanced
 
 | Flag | Description |
 |------|-------------|
 | `--parallel`, `-p` | Run all modules in parallel |
+| `--debug` | Trace every command, with file and line, to `reports/anzen_debug_TIMESTAMP.log` (or a `/tmp` file if `reports/` is not writable). The log is mode `600` and can contain secrets the checks matched, so do not share it unreviewed |
 | `--baseline` | Save this run as the baseline for future diffs |
 | `--diff` | Compare against saved baseline — exits `2` on regressions |
 | `--config=FILE` | Load config from `FILE` instead of `anzen.conf` |
@@ -153,6 +154,13 @@ sudo ./anzen.sh --diff      # exits 2 if anything regressed
 - **Plain-text fallback** — activates automatically when stdin/stdout is not a TTY, or with `-n`; uses bash `select` menu
 - **Auto-continue** — "Press Enter" prompts time out after `-t` seconds (default 30)
 - **Syslog** — every audit run is logged via `logger -t anzen-tui`
+
+## Run time
+
+The summary lists the slowest modules (10 seconds or more), and the JSON report
+has a `durations` object with every module's run time in seconds. A slow
+`files` or `secrets` module usually means a large data tree: exclude it with
+`EXCLUDE_PATHS` in `anzen.conf`.
 
 ## Severity Levels
 

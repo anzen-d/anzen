@@ -109,3 +109,8 @@ teardown() {
     [ "${lines[0]}" = "$name" ]
     [ ! -e "$BATS_TEST_TMPDIR/pwned" ]
 }
+
+@test "remediate: no remedy contains a literal \\n (remedies run verbatim, one line each)" {
+    run grep -nE 'remedy "[^"]*\\n' "$ANZEN_DIR"/lib/checks/*.sh
+    [ "$status" -ne 0 ]
+}

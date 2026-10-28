@@ -34,7 +34,7 @@ save_baseline() {
         printf '\n  ],\n  "fail_count": %d\n}\n' "$fail_count"
     } > "$output"
 
-    echo -e "\033[32m  Baseline saved: $output ($fail_count FAILs)\033[0m"
+    echo -e "${GREEN}  Baseline saved: $output ($fail_count FAILs)${NC}"
 }
 
 # _baseline_entries FILE — "ID<TAB>MESSAGE" per baseline FAIL. Baselines saved
@@ -50,7 +50,7 @@ diff_baseline() {
     local baseline="${1:-$BASELINE_FILE}"
 
     if [ ! -f "$baseline" ]; then
-        echo -e "\033[31m  No baseline found at $baseline\033[0m"
+        echo -e "${RED}  No baseline found at $baseline${NC}"
         echo -e "  Run with --baseline first to save a reference point."
         return 1
     fi
@@ -63,7 +63,7 @@ diff_baseline() {
     local key=1
     if [ -n "$baseline_entries" ] && grep -q $'^\t' <<< "$baseline_entries"; then
         key=2
-        echo -e "\033[33m  Baseline predates finding IDs — comparing messages; re-run --baseline\033[0m"
+        echo -e "${YELLOW}  Baseline predates finding IDs — comparing messages; re-run --baseline${NC}"
     fi
 
     # _only_in A B — messages of entries in A whose key is not in B
@@ -77,26 +77,26 @@ diff_baseline() {
     new_fails=$(_only_in "$current_entries" "$baseline_entries")
     resolved_fails=$(_only_in "$baseline_entries" "$current_entries")
 
-    echo -e "\n\033[1m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-    echo -e "\033[1m  BASELINE DIFF\033[0m  (vs $(stat -c "%y" "$baseline" 2>/dev/null | cut -d. -f1))"
-    echo -e "\033[1m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    echo -e "\n${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}  BASELINE DIFF${NC}  (vs $(stat -c "%y" "$baseline" 2>/dev/null | cut -d. -f1))"
+    echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
     if [ -n "$new_fails" ]; then
-        echo -e "\033[1m\033[31m  NEW FAILURES (regressions):\033[0m"
+        echo -e "${BOLD}${RED}  NEW FAILURES (regressions):${NC}"
         while IFS= read -r f; do
-            echo -e "  \033[31m+ $f\033[0m"
+            echo -e "  ${RED}+ $f${NC}"
         done <<< "$new_fails"
     fi
 
     if [ -n "$resolved_fails" ]; then
-        echo -e "\033[1m\033[32m  RESOLVED (fixed since baseline):\033[0m"
+        echo -e "${BOLD}${GREEN}  RESOLVED (fixed since baseline):${NC}"
         while IFS= read -r f; do
-            echo -e "  \033[32m- $f\033[0m"
+            echo -e "  ${GREEN}- $f${NC}"
         done <<< "$resolved_fails"
     fi
 
     if [ -z "$new_fails" ] && [ -z "$resolved_fails" ]; then
-        echo -e "\033[32m  No changes since baseline.\033[0m"
+        echo -e "${GREEN}  No changes since baseline.${NC}"
     fi
 
     # Return 1 if regressions exist

@@ -6,7 +6,7 @@
 
 set -uo pipefail
 
-ANZEN_VERSION="0.11.5"
+ANZEN_VERSION="0.12.0"
 ANZEN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPORT_DIR="$ANZEN_DIR/reports"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -34,6 +34,7 @@ PENTEST_RESOLVE_IP=""
 PENTEST_REMOTE_HOST=""
 HISTORY_ARG=""
 DASHBOARD_ONLY=""
+DEBUG=false
 
 for arg in "$@"; do
     case $arg in
@@ -48,6 +49,7 @@ for arg in "$@"; do
         --strict)        STRICT=true ;;
         --quiet|-q)      QUIET=true ;;
         --no-color)      NO_COLOR=true ;;
+        --debug)         DEBUG=true ;;
         --version|-v)    echo "anzen $ANZEN_VERSION"; exit 0 ;;
         --output=*)      OUTPUT_FILE="${arg#*=}" ;;
         --config=*)      CONFIG_FILE="${arg#*=}" ;;
@@ -80,6 +82,8 @@ Filtering:
   --quiet, -q          Suppress INFO lines (show FAIL/WARN/OK only)
   --no-color           Disable ANSI colour output
   --strict             Exit non-zero on WARN in addition to FAIL
+  --debug              Trace every command to reports/anzen_debug_TIMESTAMP.log
+                       (mode 600; may contain secrets the checks matched)
 
 Modules:
   system users ssh network network2 packages files secrets
@@ -218,8 +222,10 @@ fi
 
 # ── Findings temp file ────────────────────────────────────────────────────────
 FINDINGS_FILE=$(umask 077; mktemp /tmp/anzen_findings.XXXXXX)
-export FINDINGS_FILE
-trap 'rm -f "$FINDINGS_FILE" "${FINDINGS_FILE}.tmp"' EXIT
+# Per-module run time, "MODULE<TAB>SECONDS" (summary and JSON report)
+TIMES_FILE="${FINDINGS_FILE}.times"
+export FINDINGS_FILE TIMES_FILE
+trap 'rm -f "$FINDINGS_FILE" "${FINDINGS_FILE}.tmp" "$TIMES_FILE"' EXIT
 
 # ── Load libraries ────────────────────────────────────────────────────────────
 source "$ANZEN_DIR/lib/os_detect.sh"
@@ -260,6 +266,21 @@ if [ -n "$REMOTE_HOST" ]; then
     done
     run_fleet "$REMOTE_HOST" "${_fleet_args[@]}"
     exit $?
+fi
+
+# ── Debug trace ───────────────────────────────────────────────────────────────
+# Checks hide expected errors with 2>/dev/null, which also hides real ones (a
+# find option a distro rejects); the trace shows each command with file:line
+if $DEBUG; then
+    DEBUG_LOG="$REPORT_DIR/anzen_debug_${TIMESTAMP}.log"
+    # reports/ may belong to root from an earlier sudo run: fall back to /tmp
+    if ! { mkdir -p "$REPORT_DIR" && (umask 077; : > "$DEBUG_LOG"); } 2>/dev/null; then
+        DEBUG_LOG=$(umask 077; mktemp /tmp/anzen_debug.XXXXXX) || exit 1
+    fi
+    exec {BASH_XTRACEFD}>>"$DEBUG_LOG"
+    PS4='+ ${BASH_SOURCE[0]##*/}:${LINENO} ${FUNCNAME[0]:-main}: '
+    echo "Debug trace: $DEBUG_LOG" >&2
+    set -x
 fi
 
 # ── Accepted risks ────────────────────────────────────────────────────────────
@@ -328,16 +349,18 @@ _should_run() {
 }
 
 _run_module() {
-    local name=$1
+    local name=$1 t0=$SECONDS
     local func="run_${name}_check"
-    command -v "$func" &>/dev/null && _should_run "$name" && $func
+    command -v "$func" &>/dev/null && _should_run "$name" || return 0
+    $func
+    printf '%s\t%d\n' "$name" $(( SECONDS - t0 )) >> "$TIMES_FILE"
     return 0
 }
 
 # ── Run checks ────────────────────────────────────────────────────────────────
 if $PARALLEL; then
     PARALLEL_DIR=$(umask 077; mktemp -d /tmp/anzen_parallel.XXXXXX)
-    trap 'rm -rf "$PARALLEL_DIR" "$FINDINGS_FILE" "${FINDINGS_FILE}.tmp"' EXIT
+    trap 'rm -rf "$PARALLEL_DIR" "$FINDINGS_FILE" "${FINDINGS_FILE}.tmp" "$TIMES_FILE"' EXIT
 
     for mod in "${ALL_MODULES[@]}"; do
         _should_run "$mod" || continue

@@ -49,6 +49,7 @@ Machine-readable output:
 {
   "hostname": "server1", "os": "...", "kernel": "...", "date": "...",
   "summary": { "fail": 3, "warn": 43, "ok": 52, "info": 12, "score": 88 },
+  "durations": { "ssh": 1, "files": 312, "cve": 95 },
   "sections": [
     { "name": "SSH Configuration", "fail": 1, "warn": 3, "ok": 9, "score": 80 }
   ],
@@ -58,6 +59,8 @@ Machine-readable output:
   ]
 }
 ```
+
+`durations` (seconds per module) is written by the Linux edition only.
 
 ### SARIF
 SARIF 2.1.0 for GitHub/GitLab code scanning. Each result carries the finding ID

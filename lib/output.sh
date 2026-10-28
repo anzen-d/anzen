@@ -192,6 +192,11 @@ _repeated_findings() {
     ' "$FINDINGS_FILE" | sort -t$'\t' -k1,1nr
 }
 
+# _format_secs SECONDS — "42s" or "9m 05s"
+_format_secs() {
+    if [ "$1" -ge 60 ]; then printf '%dm %02ds' $(( $1 / 60 )) $(( $1 % 60 )); else printf '%ds' "$1"; fi
+}
+
 print_summary() {
     local fails warns oks score
     fails=$(grep -c "^FAIL	" "$FINDINGS_FILE" 2>/dev/null) || fails=0
@@ -214,6 +219,17 @@ print_summary() {
         while IFS=$'\t' read -r n lvl prefix; do
             printf "  %4s× %-4s %s\n" "$n" "$lvl" "$prefix"
         done <<< "$reps"
+    fi
+    # Slowest modules, so a long run points at what to exclude (EXCLUDE_PATHS)
+    if [ -s "${TIMES_FILE:-}" ]; then
+        local slow mod secs
+        slow=$(sort -t$'\t' -k2,2nr "$TIMES_FILE" | awk -F'\t' '$2 >= 10' | head -3)
+        if [ -n "$slow" ]; then
+            echo -e "\n  ${BOLD}Slowest:${NC}"
+            while IFS=$'\t' read -r mod secs; do
+                printf "  %8s  %s\n" "$(_format_secs "$secs")" "$mod"
+            done <<< "$slow"
+        fi
     fi
     echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "  ${RED}${BOLD}FAIL: $fails${NC}   ${YELLOW}${BOLD}WARN: $warns${NC}   ${GREEN}${BOLD}OK: $oks${NC}   Score: ${BOLD}${score}%${NC}"
