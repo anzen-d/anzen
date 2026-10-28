@@ -76,6 +76,8 @@ mac() { run bash "$ANZEN_DIR/macos/anzen-macos.sh" "$@"; }
 ts_env() {
     touch "$BATS_TEST_TMPDIR/SystemRoots.keychain"
     export ANZEN_SYSTEM_ROOTS_KEYCHAIN="$BATS_TEST_TMPDIR/SystemRoots.keychain"
+    touch "$BATS_TEST_TMPDIR/System.keychain"
+    export ANZEN_SYSTEM_KEYCHAIN="$BATS_TEST_TMPDIR/System.keychain"
     cp "$STUB_FIXTURES/isrg-root-x1.pem" "$BATS_TEST_TMPDIR/cert.pem"
     export ANZEN_CERT_PEM="$BATS_TEST_TMPDIR/cert.pem"
     # Hermetic on a real Mac too: no Homebrew bundles, certifi or Java
@@ -83,20 +85,21 @@ ts_env() {
     # and no real System keychain: point HOME at the temp dir (done in setup)
 }
 
-@test "macos: distrusted root in the keychain but blocked by Apple is OK, not FAIL" {
+@test "macos: distrusted root in System Roots is INFO, not FAIL (Apple blocks it in TLS)" {
     ts_env
     mac --check=truststore
     [ "$status" -eq 0 ]
-    [[ "$output" == *"[ OK ] emSign ECC Root CA - G3 (distrusted root) is in SystemRoots.keychain but blocked by macOS trust evaluation"* ]]
-    [[ "$output" == *"[INFO] AAA Certificate Services"*"legitimate root; Apple blocks the affected intermediates"* ]]
+    [[ "$output" == *"[INFO] emSign ECC Root CA - G3 (distrusted root) is in SystemRoots.keychain"*"Apple blocks the compromised chain in TLS"* ]]
+    [[ "$output" == *"[INFO] AAA Certificate Services"* ]]
     [[ "$output" != *"[FAIL]"* ]]
 }
 
-@test "macos: distrusted root still trusted by macOS is a FAIL" {
+@test "macos: distrusted root added to the System keychain is a FAIL" {
     ts_env
-    STUB_TRUSTED=1 mac --check=truststore
+    STUB_ADDED=1 mac --check=truststore --output="$BATS_TEST_TMPDIR/r.json"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"[FAIL] Distrusted certificate still trusted by macOS: emSign ECC Root CA - G3"* ]]
+    [[ "$output" == *"[FAIL] Distrusted certificate added to System.keychain: emSign ECC Root CA - G3"* ]]
+    grep -q 'sudo security delete-certificate -Z 3043FA4FF257DCA0C380EE2E58EA78B23FE6BBC1' "$BATS_TEST_TMPDIR/r.json"
 }
 
 @test "macos: /etc/ssl/cert.pem with the distrusted roots is FAIL/WARN (curl, git, openssl)" {

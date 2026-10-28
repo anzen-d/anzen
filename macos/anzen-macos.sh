@@ -17,7 +17,7 @@
 
 set -u
 
-ANZEN_VERSION="0.11.3"
+ANZEN_VERSION="0.11.4"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 FAIL_PENALTY=10
@@ -25,6 +25,7 @@ WARN_PENALTY=3
 SOCKETFILTERFW="${ANZEN_SOCKETFILTERFW:-/usr/libexec/ApplicationFirewall/socketfilterfw}"
 # Overridable for tests
 SYSTEM_ROOTS_KEYCHAIN="${ANZEN_SYSTEM_ROOTS_KEYCHAIN:-/System/Library/Keychains/SystemRootCertificates.keychain}"
+SYSTEM_KEYCHAIN="${ANZEN_SYSTEM_KEYCHAIN:-/Library/Keychains/System.keychain}"
 CERT_PEM="${ANZEN_CERT_PEM:-/etc/ssl/cert.pem}"
 HOMEBREW_BUNDLES="${ANZEN_HOMEBREW_BUNDLES-/opt/homebrew/etc/ca-certificates/cert.pem /usr/local/etc/ca-certificates/cert.pem /opt/homebrew/etc/openssl@3/cert.pem /usr/local/etc/openssl@3/cert.pem}"
 CHECK_RUNTIMES="${ANZEN_CHECK_RUNTIMES:-1}"   # Python certifi, Java cacerts
@@ -330,6 +331,7 @@ check_ssh() {
 # Distrusted CA certificates: same list and fingerprint scheme as the Linux
 # truststore module (SHA-256 of the DER certificate)
 _sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi; }
+_sha1() { if command -v sha1sum >/dev/null 2>&1; then sha1sum; else shasum -a 1; fi; }
 
 # _pem_certs — PEM on stdin → "FINGERPRINT<TAB>BASE64" per certificate
 _pem_certs() {
@@ -367,33 +369,26 @@ _ts_report() {
     TS_FOUND=1
 }
 
-# _ts_keychain KEYCHAIN — Apple blocks distrusted CAs with automatic certificate
-# configuration data updates while the certificate stays in the keychain, so
-# presence is not enough: ask the system trust evaluation (security verify-cert)
+# _ts_keychain KEYCHAIN — Apple blocks distrusted CAs in TLS trust evaluation
+# while the certificate stays in SystemRootCertificates.keychain (confirmed on
+# macOS 26.6.2: connections fail with -1202, yet `security verify-cert -p basic`
+# still says trusted, so no local command shows the block). A match there is
+# INFO; one in a keychain the user or an admin added it to is a FAIL
 _ts_keychain() {
-    local kc=$1 certs hits sev inc name ref b64 tmp
+    local kc=$1 certs hits sev inc name ref b64 sha1
     certs=$(security find-certificate -a -p "$kc" 2>/dev/null | _pem_certs)
     _ts_count "$certs"
     hits=$(_ts_hits "$certs")
     [ -n "$hits" ] || return 0
-    tmp=$(mktemp "${TMPDIR:-/tmp}/anzen-cert.XXXXXX")
     while IFS='	' read -r sev inc name ref b64; do
-        if [ "$sev" = WARN ]; then
-            # Trusted by design (AAA Certificate Services): Apple blocks the
-            # cross-signed intermediates instead
-            info "$name is in $(basename "$kc") — legitimate root; Apple blocks the affected intermediates [$inc]"
-            continue
-        fi
-        { echo '-----BEGIN CERTIFICATE-----'; printf '%s\n' "$b64" | fold -w 64; echo '-----END CERTIFICATE-----'; } > "$tmp"
-        # -l: the certificate under test is a CA; -L: local data only, no network
-        if security verify-cert -c "$tmp" -p basic -l -L -q >/dev/null 2>&1; then
-            fail "Distrusted certificate still trusted by macOS: $name [$inc]" "install pending macOS updates and make sure \"Install Security Responses and system files\" is on  # $ref"
-            TS_FOUND=1
+        if [ "$kc" = "$SYSTEM_ROOTS_KEYCHAIN" ]; then
+            info "$name is in $(basename "$kc") — Apple blocks the compromised chain in TLS; keep macOS updated [$inc]"
         else
-            ok "$name is in $(basename "$kc") but blocked by macOS trust evaluation [$inc]"
+            sha1=$(printf '%s' "$b64" | base64 --decode 2>/dev/null | _sha1 | awk '{ print toupper($1) }')
+            fail "Distrusted certificate added to $(basename "$kc"): $name [$inc]" "sudo security delete-certificate -Z $sha1 \"$kc\"  # $ref"
+            TS_FOUND=1
         fi
     done <<< "$hits"
-    rm -f "$tmp"
 }
 
 check_truststore() {
@@ -402,7 +397,7 @@ check_truststore() {
     info "Distrusted certificate list: $(grep -vcE '^[[:space:]]*(#|$)' "$ROOT_DIR/lib/data/distrusted-certs.tsv") entries"
     TS_CHECKED=0; TS_FOUND=0
     local kc f
-    for kc in "$SYSTEM_ROOTS_KEYCHAIN" /Library/Keychains/System.keychain \
+    for kc in "$SYSTEM_ROOTS_KEYCHAIN" "$SYSTEM_KEYCHAIN" \
               "$HOME/Library/Keychains/login.keychain-db"; do
         [ -f "$kc" ] && _ts_keychain "$kc"
     done

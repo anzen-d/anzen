@@ -5,8 +5,7 @@ case "$1" in
     # The System Roots keychain still contains the distrusted emSign ECC root and
     # AAA Certificate Services (as on real Macs, where Apple blocks via config data)
     case "$*" in *SystemRoots*|*SystemRootCertificates*)
-        cat "$STUB_FIXTURES/isrg-root-x1.pem" "$STUB_FIXTURES/emsign-ecc-root-g3.pem" "$STUB_FIXTURES/aaa-certificate-services.pem" ;; esac ;;
-  verify-cert)
-    # STUB_TRUSTED=1: macOS still trusts it (not blocked); default: blocked
-    [ "${STUB_TRUSTED:-0}" = 1 ] ;;
+        cat "$STUB_FIXTURES/isrg-root-x1.pem" "$STUB_FIXTURES/emsign-ecc-root-g3.pem" "$STUB_FIXTURES/aaa-certificate-services.pem" ;;
+    # STUB_ADDED=1: an admin added the emSign root to the System keychain
+    *System.keychain*) [ "${STUB_ADDED:-0}" = 1 ] && cat "$STUB_FIXTURES/emsign-ecc-root-g3.pem" ;; esac ;;
 esac

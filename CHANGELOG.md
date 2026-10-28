@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.11.4] - 2026-10-28
+
+### Fixed
+- **macOS: false FAIL for the emSign root in `SystemRootCertificates.keychain`.**
+  On macOS 26.6.2 a TLS connection through the compromised chain fails
+  (`nscurl`: error -1202, certificate invalid), so Apple's block works, but
+  `security verify-cert` still reports the root as trusted. That check is
+  removed: a match in the System Roots keychain is now INFO. A listed
+  certificate added to the System or login keychain is a FAIL, with the
+  `security delete-certificate -Z <SHA-1>` command to remove it
+
 ## [0.11.3] - 2026-10-28
 
 ### Fixed
@@ -16,9 +27,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Notes
 - On a real Mac (macOS 26.6.2), `security verify-cert -p basic -l` still
-  reports the emSign root as trusted. Whether that matches Apple's TLS-level
-  block is not yet confirmed: an earlier note here claimed `nscurl` agreed, but
-  `nscurl` exits 0 even when a connection fails, so that test was invalid
+  reports the emSign root as trusted. An earlier note here claimed `nscurl`
+  agreed, but `nscurl` exits 0 even when a connection fails, so that test was
+  invalid. Its output shows that Apple blocks the chain (see 0.11.4)
 
 ## [0.11.2] - 2026-10-28
 

@@ -28,7 +28,7 @@ checks were limited.
 | `sharing` | Remote Login, Screen Sharing / Remote Management, File Sharing (SMB/AFP), Printer Sharing listening on all interfaces |
 | `accounts` | Automatic login and a stored `/etc/kcpassword`, guest account, number of administrators, password after screen saver |
 | `ssh` | `PermitRootLogin` and password authentication, when Remote Login is on |
-| `truststore` | [Distrusted CA certificates](modules.md#trust-stores) (same list as Linux and Windows). **Keychains:** Apple blocks distrusted CAs with automatic certificate configuration data updates, and the certificate stays in the keychain, so anzen asks macOS's own trust evaluation (`security verify-cert`): blocked is OK, still trusted is FAIL. **`/etc/ssl/cert.pem`**, used by `curl`, `git` and `openssl`, does not get Apple's block, so a listed root there is a FAIL. The same goes for Homebrew's bundles, Python `certifi` and Java `cacerts` |
+| `truststore` | [Distrusted CA certificates](modules.md#trust-stores) (same list as Linux and Windows). **Keychains:** Apple blocks the compromised chain in TLS trust evaluation (Safari, `URLSession`, `nscurl`) while the root stays in `SystemRootCertificates.keychain`. No local command shows that block (`security verify-cert` still reports the root as trusted), so a match there is INFO. A listed certificate that someone added to the System or login keychain is a FAIL. **`/etc/ssl/cert.pem`**, used by `curl`, `git` and `openssl`, does not get Apple's block, so a listed root there is a FAIL. The same goes for Homebrew's bundles, Python `certifi` and Java `cacerts` |
 
 Options: `--check=MODULE`, `--json`, `--output=FILE`, `--history=DIR`,
 `--accept=FILE`, `--quiet`, `--no-color`, `--strict`, `--list`, `--version`.
