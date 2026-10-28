@@ -119,6 +119,11 @@
 # CVE_IGNORE_UNFIXED=true          # only CVEs that already have a fixed version
 # CVE_SCAN_IMAGES=true             # also scan running Docker/Podman images
 # CVE_TIMEOUT=60m                  # per trivy run
+# CVE_NEW_DAYS=7                   # list CVEs published in the last N days (INFO)
+# KEV_CHECK=true                   # CISA Known Exploited Vulnerabilities: FAIL at any
+#                                  # severity, even without a fix (list cached 24 h)
+# KEV_URL="https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+# KEV_CACHE_DIR=/var/cache/anzen   # default: /var/cache/anzen as root, ~/.cache/anzen otherwise
 # Dirs the host scan skips. Adding /home skips dev checkouts (slow, noisy):
 # CVE_SKIP_DIRS="/proc /sys /dev /run /tmp /var/tmp /var/lib/docker /var/lib/containerd /var/lib/containers /snap /home"
 

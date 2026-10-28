@@ -164,6 +164,25 @@ version and which containers use the image. trivy updates its vulnerability
 database itself, so a weekly run with `NOTIFY_ON=regression` alerts you when a
 new CVE is published for something you run.
 
+### Actively exploited CVEs (CISA KEV)
+
+Hundreds of CVEs per host are normal; the few that attackers use right now are
+what to fix first. Anzen downloads the [CISA Known Exploited Vulnerabilities
+catalog](https://www.cisa.gov/known-exploited-vulnerabilities-catalog)
+(cached for a day) and matches it against every trivy result. A match is a
+**FAIL at any severity, with or without a fix**, and is named first:
+
+```
+[FAIL] sudo 1.9.5 in host: ACTIVELY EXPLOITED CVE-2025-1111 (CISA KEV, due 2025-04-22, used by ransomware) — 1 MEDIUM
+```
+
+The due date is the deadline CISA sets for US federal agencies, a useful
+yardstick for everyone else. Without network access the cached list is used;
+without any list the check is skipped (INFO), never failed.
+
+CVEs published in the last `CVE_NEW_DAYS` days are listed in one INFO line per
+host or image, so a weekly report shows what is new at a glance.
+
 ```bash
 sudo ./anzen.sh --check=cve            # host + images; can take 20+ min on a busy host
 ```
@@ -175,6 +194,10 @@ sudo ./anzen.sh --check=cve            # host + images; can take 20+ min on a bu
 | `CVE_SCAN_IMAGES` | `true` | Also scan running container images |
 | `CVE_TIMEOUT` | `60m` | Timeout per trivy run |
 | `CVE_SKIP_DIRS` | system dirs | Dirs the host scan skips; add `/home` to skip dev checkouts |
+| `CVE_NEW_DAYS` | `7` | CVEs published within this many days are listed as new |
+| `KEV_CHECK` | `true` | Match against the CISA KEV catalog |
+| `KEV_URL` | CISA feed | KEV JSON feed (a mirror, for air-gapped sites) |
+| `KEV_CACHE_DIR` | `/var/cache/anzen` | Where the list is cached (`~/.cache/anzen` without root) |
 
 ## Custom Checks
 

@@ -39,7 +39,7 @@ tool: know the whole state of your machines and stop worrying about them.
 
 - **23 Linux check modules:** SSH, sudo and users, kernel sysctls, file permissions, secrets, systemd sandboxing, TLS, firewall, Docker/Podman/LXD/k8s, image freshness, local and external pentest.
 - **Distrusted CA certificates** in system, Java, Python and container trust stores, from a curated list, starting with the [eMudhra intermediates compromised in October 2026](docs/modules.md#trust-stores).
-- **Known CVEs** in host packages and in **every running container image**, via [Trivy](https://trivy.dev).
+- **Known CVEs** in host packages and in **every running container image**, via [Trivy](https://trivy.dev), with **actively exploited** ones from the [CISA KEV catalog](docs/modules.md#actively-exploited-cves-cisa-kev) flagged first.
 - **Windows and macOS editions:** Defender, firewall, BitLocker, SMBv1, RDP/NLA and LSA protection on Windows; FileVault, SIP, Gatekeeper, firewall and sharing services on macOS. Both use the same report format.
 - **History and dashboard:** per-host score trends, new and fixed problems, all in one static HTML page.
 - **Alerts only when something new breaks**, via ntfy or any command, plus a dead-man switch.

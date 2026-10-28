@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-28
+
+### Added
+- **Actively exploited CVEs (CISA KEV).** The `cve` module downloads the CISA
+  Known Exploited Vulnerabilities catalog (cached for a day, kept when a refresh
+  fails) and matches it against every trivy result. A match is a FAIL at any
+  severity, with or without a fix, named first with CISA's due date and
+  whether ransomware uses it. Settings: `KEV_CHECK`, `KEV_URL`, `KEV_CACHE_DIR`
+- **New CVEs at a glance**: CVEs published in the last `CVE_NEW_DAYS` (7) days
+  are listed in one INFO line per host or image
+
+### Fixed
+- Container images no longer report kernel packages (`linux-libc-dev`,
+  `linux-headers`, …): containers run on the host kernel, so those CVEs do not
+  apply there
+
 ## [0.12.0] - 2026-10-28
 
 ### Added

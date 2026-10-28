@@ -56,3 +56,54 @@ rows() {
         | _cve_report "host" "x %s" >/dev/null
     grep -q 'stdlib v1.23.4 in host /usr/local/bin/terraform: 1 CRITICAL' "$FINDINGS_FILE"
 }
+
+kev_rows() {
+    # KEV CVE at MEDIUM without a fix, a non-KEV MEDIUM, and a fresh HIGH
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "img (debian 12)" sudo 1.9.5 "" MEDIUM CVE-2025-1111 2025-03-01T00:00:00Z \
+        "img (debian 12)" sudo 1.9.5 "1.9.6" MEDIUM CVE-2025-2222 2025-03-01T00:00:00Z \
+        "img (debian 12)" curl 8.0.0 "8.0.1" HIGH CVE-2026-3333 "$(date -u +%F)T00:00:00Z"
+}
+
+@test "_cve_report() makes a CISA KEV CVE a FAIL at any severity, even unfixed" {
+    _KEV_FILE=$(mktemp)
+    printf 'CVE-2025-1111\t2025-04-01\t2025-04-22\tKnown\n' > "$_KEV_FILE"
+    _cve_report "host" "x %s" < <(kev_rows) >/dev/null
+    grep -q $'^FAIL\t.*sudo 1.9.5 in host: ACTIVELY EXPLOITED CVE-2025-1111 (CISA KEV, due 2025-04-22, used by ransomware) — 1 MEDIUM' "$FINDINGS_FILE"
+    # The non-KEV MEDIUM is below CVE_SEVERITY and stays out
+    ! grep -q CVE-2025-2222 "$FINDINGS_FILE"
+    [ "$_CVE_N" -eq 2 ]
+    rm -f "$_KEV_FILE"
+}
+
+@test "_cve_report() lists CVEs published in the last CVE_NEW_DAYS as INFO" {
+    _KEV_FILE=""
+    kev_rows | _cve_report "host" "x %s" >/dev/null
+    grep -q $'^INFO\t.*Published in the last 7 days (1): CVE-2026-3333 (curl)' "$FINDINGS_FILE"
+}
+
+@test "_kev_load() parses the CISA feed and refuses a truncated one" {
+    feed=$(mktemp); export KEV_CACHE_DIR=$(mktemp -d)
+    { echo '{"vulnerabilities": ['
+      for i in $(seq 1 600); do
+          printf '{"cveID": "CVE-2024-%d", "dateAdded": "2024-01-01", "dueDate": "2024-01-22", "knownRansomwareCampaignUse": "Unknown"},\n' "$i"
+      done; echo '{"cveID": "not-a-cve; rm -rf /"}]}'; } > "$feed"
+    KEV_URL="file://$feed" _kev_load
+    [ "$(wc -l < "$_KEV_FILE")" -eq 600 ]
+    grep -q $'^CVE-2024-7\t2024-01-01\t2024-01-22\tUnknown$' "$_KEV_FILE"
+    # Truncated feed: keep the previous list instead of replacing it
+    echo '{"cveID": "CVE-2024-1"}' > "$feed"; touch -d '2 days ago' "$KEV_CACHE_DIR/kev.tsv"
+    KEV_URL="file://$feed" _kev_load
+    [ "$(wc -l < "$_KEV_FILE")" -eq 600 ]
+    rm -rf "$feed" "$KEV_CACHE_DIR"
+}
+
+@test "_cve_report() ignores kernel packages inside container images" {
+    _KEV_FILE=""
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "img (debian 12)" linux-libc-dev 6.1.1 6.1.2 CRITICAL CVE-2026-5 \
+        > "$BATS_TEST_TMPDIR/r"
+    _cve_report "img [c]" "x %s" image < "$BATS_TEST_TMPDIR/r" >/dev/null
+    [ "$_CVE_N" -eq 0 ]
+    _cve_report "host" "x %s" < "$BATS_TEST_TMPDIR/r" >/dev/null
+    [ "$_CVE_N" -eq 1 ]
+}
