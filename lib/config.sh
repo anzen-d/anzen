@@ -93,6 +93,9 @@ KEV_URL="${KEV_URL:-https://www.cisa.gov/sites/default/files/feeds/known_exploit
 KEV_CACHE_DIR="${KEV_CACHE_DIR:-}"   # default: /var/cache/anzen (root) or ~/.cache/anzen
 CVE_SKIP_DIRS="${CVE_SKIP_DIRS:-/proc /sys /dev /run /tmp /var/tmp /var/lib/docker /var/lib/containerd /var/lib/containers /snap}"
 
+# Drift module state (what the previous full run saw)
+DRIFT_STATE_DIR="${DRIFT_STATE_DIR:-/var/lib/anzen/state}"
+
 # Directory of site-specific check modules (<name>.sh defining run_<name>_check)
 CUSTOM_CHECKS_DIR="${CUSTOM_CHECKS_DIR:-}"
 
@@ -112,4 +115,5 @@ export IMAGE_MAX_AGE_DAYS IMAGE_CHECK_UPDATES IMAGE_WARN_LATEST
 export DISTRUSTED_CERTS_FILE TRUSTSTORE_SCAN_CONTAINERS
 export CVE_SEVERITY CVE_IGNORE_UNFIXED CVE_SCAN_IMAGES CVE_TIMEOUT CVE_SKIP_DIRS
 export CVE_NEW_DAYS KEV_CHECK KEV_URL KEV_CACHE_DIR
+export DRIFT_STATE_DIR
 export HISTORY_DIR HISTORY_KEEP CUSTOM_CHECKS_DIR DASHBOARD_FILE HEARTBEAT_URL

@@ -94,6 +94,8 @@ ALL_MODULES=(
     truststore        "Distrusted CA certificates (trust stores)"
     cve               "Known CVEs: host + container images (trivy)"
     docker_security   "Container / Docker security"
+    drift             "Changes since last run (keys, cron, units, ports)"
+    compromise        "Indicators of compromise"
 )
 
 MODULE_NAMES=()

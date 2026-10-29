@@ -116,3 +116,8 @@ teardown() {
     run "$ANZEN_DIR/anzen.sh" --config="$OUT_DIR/c.conf" --history="$OUT_DIR/hist" --check=path_check --no-color
     [ "$(ls "$OUT_DIR"/hist/*/*.json | wc -l)" -eq 1 ]
 }
+
+@test "--offline makes no public-IP lookup" {
+    run "$ANZEN_DIR/anzen.sh" --check=system --offline --no-color --json --output="$OUT_DIR/o.json"
+    grep -q '"public_ip": "unavailable (--offline)"' "$OUT_DIR/o.json"
+}

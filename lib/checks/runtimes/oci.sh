@@ -81,7 +81,17 @@ _oci_container_checks() {
     containers=$("$rt" ps --format '{{.ID}} {{.Names}}' 2>/dev/null) || return
     [ -z "$containers" ] && { info "[$rt] No running containers"; return; }
 
-    local priv=0 root=0 hostnet=0 mounts=0
+    local priv=0 root=0 hostnet=0 mounts=0 caps=0 ns=0 envsec=0
+
+    # Docker publishes ports with its own iptables rules, ahead of ufw and
+    # firewalld: "ufw deny 8080" does not stop a published 8080. Rules in the
+    # DOCKER-USER chain are the supported way to filter them
+    local fw="" docker_user=false
+    if [ "$rt" = "docker" ]; then
+        ufw status 2>/dev/null | grep -q '^Status: active' && fw=ufw
+        [ -z "$fw" ] && systemctl is-active --quiet firewalld 2>/dev/null && fw=firewalld
+        [ "$(iptables -S DOCKER-USER 2>/dev/null | grep -cv -- '-N DOCKER-USER\|-j RETURN$')" -gt 0 ] && docker_user=true
+    fi
 
     while IFS=' ' read -r cid cname; do
         [ -z "$cid" ] && continue
@@ -114,12 +124,70 @@ _oci_container_checks() {
             vol="${vol%/}"
             case "$vol" in
                 ""|/) ;;
-                /etc|/proc|/sys|/var/run/docker.sock|/run/podman|/root)
+                /etc|/proc|/sys|/var/run/docker.sock|/run/docker.sock|/run/podman|/root)
                     fail "[$rt] $cname mounts sensitive path: $vol  [CIS 5.5]"
                     remedy "# Remove or restrict the $vol mount in $cname"
                     mounts=$((mounts+1)) ;;
             esac
         done
+
+        # One inspect for the rest: capabilities, namespaces, security options,
+        # environment and published ports, one "key=value" per line
+        local cfg line cap bad_caps="" warn_caps="" sec_env="" pubs=""
+        cfg=$("$rt" inspect "$cid" --format '{{range .HostConfig.CapAdd}}cap={{.}}{{println}}{{end}}pid={{.HostConfig.PidMode}}{{println}}ipc={{.HostConfig.IpcMode}}{{println}}{{range .HostConfig.SecurityOpt}}sec={{.}}{{println}}{{end}}{{range .Config.Env}}env={{.}}{{println}}{{end}}{{range $p, $b := .NetworkSettings.Ports}}{{range $b}}port={{.HostIp}} {{$p}}{{println}}{{end}}{{end}}' 2>/dev/null)
+        while IFS= read -r line; do
+            case $line in
+                cap=*)
+                    cap=${line#cap=}; cap=${cap#CAP_}
+                    case $cap in
+                        ALL|SYS_ADMIN|SYS_MODULE|SYS_RAWIO|SYS_PTRACE|DAC_READ_SEARCH) bad_caps+=" $cap" ;;
+                        NET_ADMIN|NET_RAW|SYS_TIME|BPF|PERFMON|SYS_BOOT) warn_caps+=" $cap" ;;
+                    esac ;;
+                pid=host)
+                    fail "[$rt] $cname shares the host PID namespace (pid: host)  [CIS 5.15]"
+                    remedy "# Remove pid: host from $cname"; ns=$((ns+1)) ;;
+                ipc=host)
+                    warn "[$rt] $cname shares the host IPC namespace (ipc: host)  [CIS 5.16]"
+                    remedy "# Remove ipc: host from $cname"; ns=$((ns+1)) ;;
+                sec=*seccomp*unconfined*)
+                    warn "[$rt] $cname runs without a seccomp profile  [CIS 5.21]"
+                    remedy "# Remove security_opt seccomp=unconfined from $cname"; ns=$((ns+1)) ;;
+                sec=*apparmor*unconfined*)
+                    warn "[$rt] $cname runs without AppArmor confinement  [CIS 5.1]"
+                    remedy "# Remove security_opt apparmor=unconfined from $cname"; ns=$((ns+1)) ;;
+                env=*)
+                    # Names only, never values. *_FILE variables point at secrets
+                    # files, which is the right way
+                    line=${line#env=}
+                    # Whole name segments: TOKEN, not TOKENIZERS_PARALLELISM
+                    [[ "${line%%=*}" =~ (^|_)(PASSWORD|PASSWD|PASS|SECRET|TOKEN|APIKEY|API_KEY|PRIVATE_KEY|ACCESS_KEY|SECRET_KEY)(_|$) ]] || continue
+                    [[ "${line%%=*}" == *_FILE ]] && continue
+                    [ -n "${line#*=}" ] && sec_env+=" ${line%%=*}" ;;
+                port=*)
+                    line=${line#port=}
+                    case ${line%% *} in ""|0.0.0.0|::) pubs+=" ${line#* }" ;; esac ;;
+            esac
+        done <<< "$cfg"
+        if [ -n "$bad_caps" ]; then
+            fail "[$rt] $cname adds capabilities that allow escaping to the host:$bad_caps  [CIS 5.3]"
+            remedy "# Remove cap_add$bad_caps from $cname unless it truly needs them"; caps=$((caps+1))
+        elif [ -n "$warn_caps" ]; then
+            warn "[$rt] $cname adds powerful capabilities:$warn_caps  [CIS 5.3]"
+            remedy "# Keep only the capabilities $cname needs (VPN containers need NET_ADMIN)"; caps=$((caps+1))
+        fi
+        if [ -n "$sec_env" ]; then
+            warn "[$rt] Secrets in environment variables of $cname:$sec_env (readable via docker inspect)"
+            remedy "# Use secrets files (*_FILE variables, docker secrets) for $cname"; envsec=$((envsec+1))
+        fi
+        if [ -n "$pubs" ]; then
+            pubs=$(tr ' ' '\n' <<< "$pubs" | sort -u | grep . | tr '\n' ' ')
+            if [ -n "$fw" ] && ! $docker_user; then
+                warn "[$rt] $cname publishes ${pubs% } on all interfaces — Docker's rules bypass $fw"
+                remedy "# Bind to 127.0.0.1 (\"127.0.0.1:PORT:PORT\") if only a local proxy uses it, or filter in the DOCKER-USER chain"
+            else
+                info "[$rt] $cname publishes ${pubs% } on all interfaces"
+            fi
+        fi
 
         if [ "$rt" = "docker" ] || [ "$rt" = "nerdctl" ]; then
             local memlimit
@@ -135,4 +203,9 @@ _oci_container_checks() {
     [ "$root"    -eq 0 ] && ok "[$rt] No containers running as root"
     [ "$hostnet" -eq 0 ] && ok "[$rt] No containers on host network"
     [ "$mounts"  -eq 0 ] && ok "[$rt] No sensitive host paths mounted"
+    [ "$caps"    -eq 0 ] && ok "[$rt] No containers with added dangerous capabilities"
+    [ "$ns"      -eq 0 ] && ok "[$rt] No host PID/IPC namespaces, seccomp and AppArmor active"
+    [ "$envsec"  -eq 0 ] && ok "[$rt] No secrets in container environment variables"
+    [ -n "$fw" ] && $docker_user && info "[$rt] DOCKER-USER chain has rules — make sure they cover the published ports"
+    return 0
 }

@@ -6,7 +6,7 @@
 
 set -uo pipefail
 
-ANZEN_VERSION="0.14.0"
+ANZEN_VERSION="0.15.0"
 ANZEN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPORT_DIR="$ANZEN_DIR/reports"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -35,6 +35,7 @@ PENTEST_REMOTE_HOST=""
 HISTORY_ARG=""
 DASHBOARD_ONLY=""
 DEBUG=false
+OFFLINE=false
 
 for arg in "$@"; do
     case $arg in
@@ -50,6 +51,7 @@ for arg in "$@"; do
         --quiet|-q)      QUIET=true ;;
         --no-color)      NO_COLOR=true ;;
         --debug)         DEBUG=true ;;
+        --offline)       OFFLINE=true ;;
         --version|-v)    echo "anzen $ANZEN_VERSION"; exit 0 ;;
         --output=*)      OUTPUT_FILE="${arg#*=}" ;;
         --config=*)      CONFIG_FILE="${arg#*=}" ;;
@@ -82,6 +84,8 @@ Filtering:
   --quiet, -q          Suppress INFO lines (show FAIL/WARN/OK only)
   --no-color           Disable ANSI colour output
   --strict             Exit non-zero on WARN in addition to FAIL
+  --offline            No network connections: no public-IP lookup, KEV download,
+                       registry checks, trivy DB update or notifications
   --debug              Trace every command to reports/anzen_debug_TIMESTAMP.log
                        (mode 600; may contain secrets the checks matched)
 
@@ -89,6 +93,8 @@ Modules:
   system users ssh network network2 packages files secrets
   systemd_hardening tls compiler path_check modules
   services docker_security images logins kernel auditd cve truststore
+  drift                What changed since the last run (keys, cron, units, ports…)
+  compromise           Indicators of compromise (preload, temp-dir processes, miners)
   pentest              Active local self-pentest (ports, banners, HTTP)
   pentest_external     Active external endpoint pentest (requires --target)
 
@@ -132,12 +138,12 @@ EOF
     esac
 done
 
-export QUIET NO_COLOR PENTEST_TARGET PENTEST_WAN PENTEST_RESOLVE_IP
+export QUIET NO_COLOR PENTEST_TARGET PENTEST_WAN PENTEST_RESOLVE_IP OFFLINE
 
 ALL_MODULES=(system users ssh network network2 packages files secrets
              systemd_hardening tls compiler path_check modules
              services docker_security images logins kernel auditd cve truststore
-             pentest pentest_external)
+             drift compromise pentest pentest_external)
 
 
 # ── Shared utilities (defines _safe_source_config) ───────────────────────────
@@ -265,7 +271,7 @@ if [ -n "$REMOTE_HOST" ]; then
     _fleet_args=()
     for arg in "$@"; do
         case $arg in
-            --check=*|--parallel|-p|--strict|--quiet|-q|--no-color|--target=*|--wan|--resolve-to=*)
+            --check=*|--parallel|-p|--strict|--quiet|-q|--no-color|--offline|--target=*|--wan|--resolve-to=*)
                 _fleet_args+=("$arg") ;;
         esac
     done

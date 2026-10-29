@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-29
+
+### Added
+- **`drift` module: what changed since the last run.** New accounts, UID 0
+  accounts, SSH keys (root's are a FAIL), cron files, sudoers files, systemd
+  units, SUID binaries (a FAIL in temp dirs), listening ports and
+  `/etc/ld.so.preload`. The state lives in `DRIFT_STATE_DIR` (root, mode
+  600); partial runs compare without updating it
+- **`compromise` module: indicators of compromise.** `/etc/ld.so.preload`,
+  processes running from `/tmp`, `/var/tmp`, `/dev/shm` or from memory,
+  cryptominer processes and mining-pool connections, kernel modules without a
+  file on disk; processes still running a binary an update replaced (INFO)
+- **Containers:** added capabilities (SYS_ADMIN and similar are a FAIL), host
+  PID/IPC namespaces, seccomp/AppArmor disabled, **secrets in environment
+  variables** (names only, never values), and **ports published past ufw or
+  firewalld**: Docker's iptables rules bypass them unless DOCKER-USER filters
+- **`--offline`**: no network connections at all. Every connection anzen makes
+  is now listed in `docs/installation.md`
+- **Signed releases**: a Sigstore build provenance attestation for every
+  release tarball (`gh attestation verify`)
+
 ## [0.14.0] - 2026-10-28
 
 ### Added

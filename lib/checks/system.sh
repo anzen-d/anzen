@@ -6,9 +6,13 @@
 run_system_check() {
     section "System Information"
 
-    PUBLIC_IP=$(curl -sf --max-time 3 https://api.ipify.org 2>/dev/null \
-        || curl -sf --max-time 3 https://ifconfig.me 2>/dev/null \
-        || echo "unavailable")
+    if [ "${OFFLINE:-false}" = "true" ]; then
+        PUBLIC_IP="unavailable (--offline)"
+    else
+        PUBLIC_IP=$(curl -sf --max-time 3 https://api.ipify.org 2>/dev/null \
+            || curl -sf --max-time 3 https://ifconfig.me 2>/dev/null \
+            || echo "unavailable")
+    fi
     export ANZEN_PUBLIC_IP="$PUBLIC_IP"
 
     info "Hostname:   $(_hostname)"

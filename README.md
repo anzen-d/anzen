@@ -37,7 +37,8 @@ The name comes from Japanese: **安全 (anzen)** means *safety* or *security*.
 the characters suggest *complete peace of mind*. That is the goal of the
 tool: know the whole state of your machines and stop worrying about them.
 
-- **23 Linux check modules:** SSH, sudo and users, kernel sysctls, file permissions, secrets, systemd sandboxing, TLS, firewall, Docker/Podman/LXD/k8s, image freshness, local and external pentest.
+- **25 Linux check modules:** SSH, sudo and users, kernel sysctls, file permissions, secrets, systemd sandboxing, TLS, firewall, Docker/Podman/LXD/k8s, image freshness, local and external pentest.
+- **"Am I already compromised?"**: what changed since the last run (new SSH keys, cron jobs, services, SUID binaries, accounts, listening ports) and indicators of compromise (preloaded libraries, processes running from `/tmp` or memory, cryptominers).
 - **Distrusted CA certificates** in system, Java, Python and container trust stores, from a curated list, starting with the [eMudhra intermediates compromised in October 2026](docs/modules.md#trust-stores).
 - **Known CVEs** in host packages and in **every running container image**, via [Trivy](https://trivy.dev), with **actively exploited** ones from the [CISA KEV catalog](docs/modules.md#actively-exploited-cves-cisa-kev) flagged first.
 - **Windows and macOS editions:** Defender, firewall, BitLocker, SMBv1, RDP/NLA and LSA protection on Windows; FileVault, SIP, Gatekeeper, firewall and sharing services on macOS. Both use the same report format.
@@ -146,7 +147,8 @@ sudo ./anzen.sh --config=/etc/anzen/anzen.conf --parallel --schedule=weekly:04:3
 | Kernel and filesystem | `kernel`, `modules`, `files`, `path_check`, `compiler`, `systemd_hardening` |
 | Secrets and certificates | `secrets`, `truststore` |
 | Containers | `docker_security`, `images` |
-| Vulnerabilities | `cve` (Trivy) |
+| Vulnerabilities | `cve` (Trivy, CISA KEV) |
+| Compromise detection | `drift`, `compromise` |
 | Active testing | `pentest`, `pentest_external` |
 | Windows | `system`, `updates`, `defender`, `firewall`, `accounts`, `passwords`, `uac`, `bitlocker`, `smb`, `rdp`, `credentials`, `powershell`, `secureboot`, `network`, `truststore` |
 | macOS | `system`, `updates`, `filevault`, `sip`, `gatekeeper`, `firewall`, `sharing`, `accounts`, `ssh`, `truststore` |

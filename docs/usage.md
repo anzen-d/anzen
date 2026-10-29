@@ -43,6 +43,7 @@ sudo ./anzen.sh --html
 | Flag | Description |
 |------|-------------|
 | `--parallel`, `-p` | Run all modules in parallel |
+| `--offline` | No network connections: no public-IP lookup, CISA KEV download, registry checks, trivy database update, notifications or heartbeat ([list](installation.md#network-connections)) |
 | `--debug` | Trace every command, with file and line, to `reports/anzen_debug_TIMESTAMP.log` (or a `/tmp` file if `reports/` is not writable). The log is mode `600` and can contain secrets the checks matched, so do not share it unreviewed |
 | `--baseline` | Save this run as the baseline for future diffs |
 | `--diff` | Compare against saved baseline — exits `2` on regressions |

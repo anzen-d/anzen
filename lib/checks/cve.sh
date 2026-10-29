@@ -15,6 +15,8 @@ _CVE_TEMPLATE='{{range .}}{{$t:=.Target}}{{range .Vulnerabilities}}{{$t}}{{"\t"}
 _cve_trivy_args() {
     local args=(--quiet --scanners vuln --timeout "${CVE_TIMEOUT:-60m}"
                 --format template --template "$_CVE_TEMPLATE")
+    # Offline: use trivy's cached databases (a scan without them fails, reported)
+    [ "${OFFLINE:-false}" = "true" ] && args+=(--skip-db-update --skip-java-db-update --offline-scan)
     if [ -n "$_KEV_FILE" ]; then
         args+=(--severity "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL")
     else
@@ -38,7 +40,7 @@ _kev_load() {
     if [ -s "$cache" ] && [ -n "$(find "$cache" -mmin -1440 2>/dev/null)" ]; then
         _KEV_FILE=$cache; return 0
     fi
-    if command -v curl &>/dev/null && (umask 077; mkdir -p "$dir") 2>/dev/null; then
+    if [ "${OFFLINE:-false}" != "true" ] && command -v curl &>/dev/null && (umask 077; mkdir -p "$dir") 2>/dev/null; then
         tmp=$(mktemp "$dir/kev.XXXXXX")
         # Token per field, whatever the JSON layout; IDs validated before use
         curl -fsSL -m 60 "${KEV_URL:-https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json}" 2>/dev/null \

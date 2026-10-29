@@ -1,5 +1,6 @@
 # Push a tag like v0.9.0 → GitHub Release with a source tarball, its SHA-256
-# checksum and the matching CHANGELOG section as release notes.
+# checksum, a signed build provenance attestation (Sigstore) and the matching
+# CHANGELOG section as release notes.
 name: Release
 
 on:
@@ -8,6 +9,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write       # Sigstore signing for the attestation
+  attestations: write
 
 jobs:
   release:
@@ -30,6 +33,12 @@ jobs:
           name="anzen-${GITHUB_REF_NAME#v}"
           git archive --format=tar.gz --prefix="$name/" -o "$name.tar.gz" "$GITHUB_REF_NAME"
           sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+
+      # Verify: gh attestation verify anzen-X.Y.Z.tar.gz --repo anzen-d/anzen
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: anzen-*.tar.gz
 
       - name: Release notes from CHANGELOG
         run: |

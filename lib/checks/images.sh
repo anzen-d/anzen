@@ -60,7 +60,10 @@ run_images_check() {
 
     local max_age="${IMAGE_MAX_AGE_DAYS:-180}" now; now=$(date +%s)
     local check_updates="${IMAGE_CHECK_UPDATES:-true}"
-    if [ "$check_updates" = "true" ] && ! command -v curl &>/dev/null; then
+    if [ "$check_updates" = "true" ] && [ "${OFFLINE:-false}" = "true" ]; then
+        info "Upstream update check skipped (--offline)"
+        check_updates=false
+    elif [ "$check_updates" = "true" ] && ! command -v curl &>/dev/null; then
         info "Upstream update check needs curl — skipped"
         check_updates=false
     fi

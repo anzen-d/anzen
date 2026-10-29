@@ -15,6 +15,13 @@ reporting ("Security" tab → "Report a vulnerability") with:
 You will get an acknowledgement within a week. Fixes are released as soon as
 possible and credited in the changelog unless you prefer otherwise.
 
+## Verifying releases
+
+Release tarballs come with a SHA-256 checksum and a signed build provenance
+attestation; see [docs/installation.md](docs/installation.md#verify-a-release).
+The network connections anzen makes, and `--offline`, are listed in the same
+file.
+
 ## Scope
 
 In scope: command injection, unsafe temp files or symlink handling, privilege

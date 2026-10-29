@@ -46,6 +46,7 @@ _notify() {
 
 # notify_run FAILS SCORE NEW_FAILS [HOST] — apply NOTIFY_ON, then _notify
 notify_run() {
+    [ "${OFFLINE:-false}" = "true" ] && return 0
     [ -n "${NOTIFY_CMD:-}" ] || [ -n "${NOTIFY_NTFY_URL:-}" ] || return 0
     local on="${NOTIFY_ON:-always}"
     [ "${NOTIFY_ON_FAIL_ONLY:-false}" = "true" ] && on=fail
@@ -60,6 +61,7 @@ notify_run() {
 
 # heartbeat — fetch HEARTBEAT_URL (dead-man switch: Uptime Kuma push, healthchecks.io, ...)
 heartbeat() {
+    [ "${OFFLINE:-false}" = "true" ] && return 0
     [ -n "${HEARTBEAT_URL:-}" ] || return 0
     curl -fsS -m 10 -o /dev/null "$HEARTBEAT_URL" || echo "[WARN] Heartbeat to HEARTBEAT_URL failed" >&2
 }

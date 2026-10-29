@@ -22,10 +22,12 @@
 | Login History | `logins` | Root crontab contents, cron file permissions, recent/failed login history, account password expiry |
 | Kernel Hardening | `kernel` | ASLR, SYN cookies, IP forwarding, ICMP redirects, source routing, martian packet logging, core dumps, AppArmor/SELinux status |
 | Audit Daemon | `auditd` | auditd running + rules loaded, NTP/time sync, TCP wrappers, rkhunter/chkrootkit |
-| Container Security | `docker_security` | Docker, Podman, nerdctl, LXD, LXC, Kubernetes — runtime-specific security checks |
+| Container Security | `docker_security` | Docker, Podman, nerdctl, LXD, LXC, Kubernetes: privileged containers, root user, host network/PID/IPC, dangerous added capabilities, seccomp/AppArmor disabled, sensitive mounts (Docker socket), memory limits, **secrets in environment variables** (names only), **ports published past ufw/firewalld** |
 | Container Images | `images` | Running images: age, `:latest`/untagged, containers not recreated after a pull, newer digest upstream |
 | Trust stores | `truststore` | Distrusted / compromised CA certificates in system bundles, Java `cacerts`, Python `certifi`, local anchors and running containers |
-| Vulnerabilities | `cve` | Known CVEs in host packages and running container images (needs trivy) |
+| Vulnerabilities | `cve` | Known CVEs in host packages and running container images (needs trivy), actively exploited ones (CISA KEV) first |
+| Changes since last run | `drift` | New accounts, UID 0 accounts, SSH keys, cron files, systemd units, sudoers files, SUID binaries, listening ports and `ld.so.preload` since the previous full run — see [Drift](#drift) |
+| Indicators of compromise | `compromise` | `/etc/ld.so.preload`, processes running from `/tmp`/`/dev/shm` or from memory, cryptominers and mining-pool connections, kernel modules without a file on disk |
 | Local Pentest | `pentest` | Active self-pentest: port scan, service banner grabbing, local HTTP sensitive path enumeration, HTTP security headers |
 | External Pentest | `pentest_external` | Active pentest of a remote endpoint (requires `--target`): DNS recon, port scan with service fingerprinting, TLS/SSL analysis, HTTP security headers, content-aware sensitive path enumeration, CORS, HTTP methods, open redirect, clickjacking, information disclosure |
 
@@ -82,6 +84,25 @@ your own file in the same format:
 # SHA256  SEVERITY  INCIDENT  NAME  REFERENCE   (tab-separated)
 42C4ACCD…1493	FAIL	emudhra-2026	EM DV TLS CA - G3B (…)	https://…
 ```
+
+## Drift
+
+Attackers who get in leave persistence behind: an SSH key, a cron job, a
+systemd unit, a SUID binary, an account or a listening port. The `drift`
+module records these after every full run (`DRIFT_STATE_DIR`, default
+`/var/lib/anzen/state`, root only) and reports what is new next time:
+
+```
+[FAIL] New SSH key for root: ssh-ed25519 laptop@home
+[WARN] New systemd unit: /etc/systemd/system/sysupdate.service
+[WARN] New listening port: tcp 0.0.0.0:31337 (python3)
+```
+
+The first run records a baseline. Partial (`--check`) runs compare without
+updating the state, so the next full run still reports what they saw. Changes
+you made yourself show up once; with `NOTIFY_ON=regression` every new FAIL is
+an alert. Root on the host can edit the state too: for hosts that matter, keep
+a copy elsewhere (or audit them in [fleet mode](fleet.md)).
 
 ## Pentesting
 
