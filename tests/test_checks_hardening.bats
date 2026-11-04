@@ -125,3 +125,41 @@ _services() {
     run env NO_COLOR=1 bash "$ANZEN_DIR/anzen.sh" --version
     [ "$status" -eq 0 ]
 }
+
+@test "services: Redis and PostgreSQL on 127.0.0.1 + [::1] are not 'exposed'" {
+    # Debian/Ubuntu defaults: bind 127.0.0.1 -::1 / listen_addresses = localhost
+    SS_TCP=("LISTEN 0 0 127.0.0.1:6379 0.0.0.0:*" "LISTEN 0 0 [::1]:6379 [::]:*"
+            "LISTEN 0 0 127.0.0.1:5432 0.0.0.0:*" "LISTEN 0 0 [::1]:5432 [::]:*")
+    SS_UDP=()
+    # shellcheck disable=SC1091
+    source "$ANZEN_DIR/lib/checks/services.sh"
+    _svc_probe() { printf -- '-NOAUTH\r\n'; }
+    _services
+    ! grep -q "Redis (6379) exposed" "$FINDINGS_FILE"
+    ! grep -q "PostgreSQL listening on 0.0.0.0" "$FINDINGS_FILE"
+    grep -q "^OK	.*PostgreSQL bound to localhost" "$FINDINGS_FILE"
+}
+
+@test "system: a mount point with shell syntax is quoted in the disk remedy" {
+    # shellcheck disable=SC1091
+    source "$ANZEN_DIR/lib/checks/system.sh"
+    mnt='/media/u/x$(touch '"$T"'/pwned)'
+    df() { printf 'Filesystem Size Used Avail Use%% Mounted\n/dev/sdb1 1G 1G 0 99%% %s\n' "$mnt"; }
+    run_system_check > /dev/null 2>&1 || true
+    r=$(grep "^FAIL	.*Disk /media/u/x" "$FINDINGS_FILE" | cut -f5)
+    [ -n "$r" ]
+    bash -c "$r" 2>/dev/null || true
+    [ ! -e "$T/pwned" ]
+}
+
+@test "notify: ntfy token and heartbeat URL never appear in curl's arguments" {
+    # shellcheck disable=SC1091
+    source "$ANZEN_DIR/lib/notify.sh"
+    curl() { printf 'ARGS %s\n' "$*" >> "$T/curl"; printf 'STDIN %s\n' "$(cat)" >> "$T/curl"; }
+    NOTIFY_NTFY_URL="https://ntfy.example/topic" NOTIFY_NTFY_TOKEN="tk_secret" _notify 1 80 "" h
+    HEARTBEAT_URL="https://kuma.example/api/push/pushsecret" heartbeat
+    ! grep "^ARGS" "$T/curl" | grep -qE "tk_secret|pushsecret"
+    grep -q '^STDIN url = "https://ntfy.example/topic"' "$T/curl"
+    grep -q 'header = "Authorization: Bearer tk_secret"' "$T/curl"
+    grep -q 'url = "https://kuma.example/api/push/pushsecret"' "$T/curl"
+}

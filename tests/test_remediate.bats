@@ -33,11 +33,17 @@ teardown() {
     [[ "$output" == "#!/bin/bash" ]]
 }
 
-@test "generate_remediate_script() includes set -euo pipefail" {
-    fail "issue"; remedy "echo fix"
+@test "generate_remediate_script(): a failing command does not stop the rest" {
+    fail 'first "$(x)"'; remedy "false  # an inspection that finds nothing"
+    fail "advice"; remedy "# edit the config by hand"
+    fail "second"; remedy "echo second-ran"
     generate_remediate_script "$REMEDIATE_OUT"
-    run grep "set -euo pipefail" "$REMEDIATE_OUT"
-    [ "$status" -eq 0 ]
+    bash -n "$REMEDIATE_OUT"
+    run bash "$REMEDIATE_OUT"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *'FAILED: first "$(x)"'* ]]
+    [[ "$output" == *second-ran* ]]
+    [[ "$output" == *"1 command(s) failed"* ]]
 }
 
 @test "generate_remediate_script() includes remedy command" {

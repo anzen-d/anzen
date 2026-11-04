@@ -86,6 +86,7 @@ run_tls_check() {
     done
 
     # Check live HTTPS ports on localhost
+    local tls_ports=""
     for port in $https_ports; do
         local expiry pem
         pem=$(echo Q | openssl s_client -connect "127.0.0.1:$port" \
@@ -93,6 +94,7 @@ run_tls_check() {
         expiry=$(echo "$pem" | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2-)
         [ -z "$expiry" ] && continue
         echo "$pem" | _tls_weak_cert "port $port"
+        tls_ports+=" $port"
         local expiry_epoch
         expiry_epoch=$(date -d "$expiry" +%s 2>/dev/null) || continue
         local now_epoch
@@ -114,14 +116,8 @@ run_tls_check() {
         checked=$((checked+1))
     done
 
-    # Check weak TLS protocols only on ports that responded with a valid cert above
-    for port in $https_ports; do
-        # Skip if port didn't respond with a cert during the expiry check
-        local test_cert
-        test_cert=$(echo Q | openssl s_client -connect "127.0.0.1:$port" \
-            -servername localhost 2>/dev/null | openssl x509 -noout 2>/dev/null && echo yes || echo no)
-        [ "$test_cert" = "yes" ] || continue
-
+    # Weak protocols, only on ports that served a certificate above
+    for port in $tls_ports; do
         local tls1_ok
         tls1_ok=$(echo Q | openssl s_client -connect "127.0.0.1:$port" \
             -tls1 2>&1 | grep "Cipher is" | grep -vc "(NONE)" || true)

@@ -98,6 +98,7 @@ DRIFT_STATE_DIR="${DRIFT_STATE_DIR:-/var/lib/anzen/state}"
 
 # Directory of site-specific check modules (<name>.sh defining run_<name>_check)
 CUSTOM_CHECKS_DIR="${CUSTOM_CHECKS_DIR:-}"
+PLUGINS="${PLUGINS:-}"           # plugins/ to enable, e.g. "backup_age cert_expiry"
 
 # Load user config if present (overrides defaults above)
 _conf="${ANZEN_DIR}/anzen.conf"
@@ -116,4 +117,4 @@ export DISTRUSTED_CERTS_FILE TRUSTSTORE_SCAN_CONTAINERS
 export CVE_SEVERITY CVE_IGNORE_UNFIXED CVE_SCAN_IMAGES CVE_TIMEOUT CVE_SKIP_DIRS
 export CVE_NEW_DAYS KEV_CHECK KEV_URL KEV_CACHE_DIR
 export DRIFT_STATE_DIR
-export HISTORY_DIR HISTORY_KEEP CUSTOM_CHECKS_DIR DASHBOARD_FILE HEARTBEAT_URL
+export PLUGINS HISTORY_DIR HISTORY_KEEP CUSTOM_CHECKS_DIR DASHBOARD_FILE HEARTBEAT_URL

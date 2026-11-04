@@ -249,7 +249,16 @@ _cve_scan_all() {
     if ! _cve_scan rootfs / "$rows"; then
         warn "Host CVE scan failed: ${_CVE_ERR:-trivy exited non-zero}"
     else
-        _cve_report "host" "apt-get install --only-upgrade %s  # OS package; otherwise update the app that ships it" < "$rows"
+        local upg
+        case "${PKG_MGR:-}" in
+            apt)     upg="apt-get install --only-upgrade %s" ;;
+            dnf|yum) upg="$PKG_MGR upgrade -y %s" ;;
+            zypper)  upg="zypper update -y %s" ;;
+            apk)     upg="apk upgrade %s" ;;
+            pacman)  upg="pacman -Syu  # updates %s with the rest (Arch has no partial upgrades)" ;;
+            *)       upg="# update the package %s" ;;
+        esac
+        _cve_report "host" "$upg  # OS package; otherwise update the app that ships it" < "$rows"
         [ "$_CVE_N" -eq 0 ] && ok "No ${CVE_SEVERITY:-CRITICAL,HIGH} CVEs with a fix available on the host${_KEV_FILE:+, none actively exploited}"
     fi
 

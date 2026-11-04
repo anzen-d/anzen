@@ -3,35 +3,6 @@
 # Copyright (C) 2026 The Anzen contributors
 # checks/services.sh — Containers, databases, brute-force protection, SMB
 
-# _svc_listen_addrs PORT — local addresses with a TCP listener on PORT
-_svc_listen_addrs() {
-    ss -tln 2>/dev/null | awk 'NR>1{print $4}' | grep -E ":$1\$" | sed -E "s/:$1\$//; s/^\[//; s/\]\$//; s/%.*//"
-}
-
-# _svc_public_tcp PORT — true if PORT listens on a non-loopback address
-_svc_public_tcp() {
-    _svc_listen_addrs "$1" | grep -qvE '^(127\.|::1$)'
-}
-
-# _svc_probe_addr PORT — address to connect to for a local probe of PORT
-_svc_probe_addr() {
-    local a
-    a=$(_svc_listen_addrs "$1" | head -1)
-    case "$a" in
-        "") ;;
-        0.0.0.0|\*|::) echo 127.0.0.1 ;;
-        *) echo "$a" ;;
-    esac
-}
-
-# _svc_probe ADDR PORT PAYLOAD — send PAYLOAD (printf format) and print the
-# first bytes of the reply; local connections only, 2 s timeout
-_svc_probe() {
-    command -v timeout &>/dev/null || return 1
-    # shellcheck disable=SC2016
-    timeout 2 bash -c 'exec 3<>"/dev/tcp/$1/$2" || exit 1; printf "$3" >&3; head -c 64 <&3' _ "$1" "$2" "$3" 2>/dev/null
-}
-
 run_services_check() {
     section "Docker & Containers"
 
@@ -118,7 +89,7 @@ run_services_check() {
     section "Database Exposure"
 
     if ss -tlnp 2>/dev/null | grep -q ":5432[[:space:]]"; then
-        if ss -tlnp 2>/dev/null | grep -v "127\." | grep -q ":5432[[:space:]]"; then
+        if _svc_public_tcp 5432; then
             warn "PostgreSQL listening on 0.0.0.0:5432"
             remedy "# set listen_addresses = 'localhost' in postgresql.conf, then: systemctl restart postgresql"
         else
@@ -135,7 +106,7 @@ run_services_check() {
         fi
     fi
 
-    if ss -tlnp 2>/dev/null | grep -v "127\." | grep -q ":6379[[:space:]]"; then
+    if _svc_public_tcp 6379; then
         fail "Redis (6379) exposed on public interface"
         remedy "sed -i 's/^bind .*/bind 127.0.0.1/' /etc/redis/redis.conf && systemctl restart redis"
     fi
@@ -177,7 +148,7 @@ run_services_check() {
         remedy "# in mongod.conf: net.bindIp: 127.0.0.1 and security.authorization: enabled, then: systemctl restart mongod"
     fi
 
-    if ss -tlnp 2>/dev/null | grep -v "127\." | grep -q ":3306[[:space:]]"; then
+    if _svc_public_tcp 3306; then
         warn "MySQL/MariaDB (3306) exposed on public interface"
         remedy "# set bind-address = 127.0.0.1 in my.cnf, then: systemctl restart mysql"
     fi

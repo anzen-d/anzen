@@ -6,7 +6,7 @@
 
 set -uo pipefail
 
-ANZEN_VERSION="0.16.0"
+ANZEN_VERSION="0.17.0"
 ANZEN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPORT_DIR="$ANZEN_DIR/reports"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -310,20 +310,42 @@ for check_file in "$ANZEN_DIR"/lib/checks/*.sh; do
     source "$check_file"
 done
 
-# ── Custom checks (site-specific modules kept outside this repo) ─────────────
-# Each CUSTOM_CHECKS_DIR/<name>.sh must define run_<name>_check. They run as
-# root, so the same ownership/world-writable rule as anzen.conf applies.
+# ── Plugins and custom checks ────────────────────────────────────────────────
+# _load_module_file FILE — source a plugin or custom check and add it to
+# ALL_MODULES. They run as root, so the anzen.conf ownership rule applies
+_load_module_file() {
+    local f=$1 name
+    name=$(basename "$f" .sh)
+    _trusted_file "$f" || return 0
+    if ! bash -n "$f" 2>/dev/null; then
+        echo "[WARN] Syntax error in $f — skipping" >&2
+        return 0
+    fi
+    # A second ssh.sh would replace run_ssh_check and run it twice
+    if [[ " ${ALL_MODULES[*]} " == *" $name "* ]]; then
+        echo "[WARN] $f: module '$name' is already loaded — skipping" >&2
+        return 0
+    fi
+    # shellcheck source=/dev/null
+    source "$f"
+    ALL_MODULES+=("$name")
+}
+
+# PLUGINS: names from the plugins/ catalogue that ships with anzen
+for _p in ${PLUGINS:-}; do
+    if [[ "$_p" =~ ^[a-z0-9_]+$ ]] && [ -f "$ANZEN_DIR/plugins/$_p.sh" ]; then
+        _load_module_file "$ANZEN_DIR/plugins/$_p.sh"
+    else
+        echo "[WARN] Unknown plugin '$_p' (available: $(cd "$ANZEN_DIR/plugins" 2>/dev/null && ls -1 -- *.sh 2>/dev/null | sed 's/\.sh$//' | tr '\n' ' '))" >&2
+    fi
+done
+unset _p
+
+# CUSTOM_CHECKS_DIR: site-specific modules kept outside this repo. Each
+# <name>.sh must define run_<name>_check
 if [ -n "${CUSTOM_CHECKS_DIR:-}" ]; then
     for check_file in "$CUSTOM_CHECKS_DIR"/*.sh; do
-        [ -f "$check_file" ] || continue
-        _trusted_file "$check_file" || continue
-        if ! bash -n "$check_file" 2>/dev/null; then
-            echo "[WARN] Syntax error in $check_file — skipping" >&2
-            continue
-        fi
-        # shellcheck source=/dev/null
-        source "$check_file"
-        ALL_MODULES+=("$(basename "$check_file" .sh)")
+        [ -f "$check_file" ] && _load_module_file "$check_file"
     done
 fi
 

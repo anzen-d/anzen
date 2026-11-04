@@ -18,7 +18,10 @@ generate_remediate_script() {
 # ⚠  Review each command carefully before running!
 # ⚠  Run as root or with sudo
 # ============================================================
-set -euo pipefail
+# Each command runs on its own: one that fails is reported and the rest
+# still run (no set -e — many lines are checks that may find nothing)
+set -uo pipefail
+_failed=0
 
 HEADER
 
@@ -33,11 +36,19 @@ HEADER
             fi
 
             printf '# [%s] %s\n' "$level" "$msg"
-            printf '%s\n\n' "$remedy"
+            if [[ "$remedy" == \#* ]]; then
+                # Advice only: nothing to run
+                printf '%s\n\n' "$remedy"
+            else
+                # Newline before "}": the remedy may end in a "# comment"
+                printf '{ %s\n} || { echo "FAILED: %s" >&2; _failed=$((_failed + 1)); }\n\n' \
+                    "$remedy" "$(printf '%s' "$msg" | sed 's/[\\"$`]/\\&/g')"
+            fi
             count=$((count + 1))
         done < "$FINDINGS_FILE"
 
         printf '# ── End of remediation (%s commands) ──\n' "$count"
+        printf 'if [ "$_failed" -gt 0 ]; then echo "Remediation finished: $_failed command(s) failed — see above."; exit 1; fi\n'
         printf 'echo "Remediation script complete."\n'
 
     } > "$output_file"

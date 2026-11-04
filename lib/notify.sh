@@ -34,15 +34,22 @@ _notify() {
             title="Anzen: Clean audit on $host"
             priority="default"
         fi
-        local auth=()
-        [ -n "${NOTIFY_NTFY_TOKEN:-}" ] && auth=(-H "Authorization: Bearer ${NOTIFY_NTFY_TOKEN}")
-        curl -sfS -X POST "${NOTIFY_NTFY_URL}" "${auth[@]}" \
+        # URL and token go in a curl config on stdin: arguments are visible
+        # to every local user in ps / /proc/PID/cmdline while curl runs
+        {
+            printf 'url = "%s"\n' "$(_curl_cfg_quote "$NOTIFY_NTFY_URL")"
+            [ -n "${NOTIFY_NTFY_TOKEN:-}" ] && \
+                printf 'header = "Authorization: Bearer %s"\n' "$(_curl_cfg_quote "$NOTIFY_NTFY_TOKEN")"
+        } | curl -sfS -K - -X POST \
             -H "Title: ${title}" \
             -H "Priority: ${priority}" \
             --data-raw "$body" \
             >/dev/null 2>&1 || true
     fi
 }
+
+# _curl_cfg_quote VALUE — escape a value for a double-quoted curl config entry
+_curl_cfg_quote() { printf '%s' "$1" | sed 's/[\\"]/\\&/g'; }
 
 # notify_run FAILS SCORE NEW_FAILS [HOST] — apply NOTIFY_ON, then _notify
 notify_run() {
@@ -63,5 +70,7 @@ notify_run() {
 heartbeat() {
     [ "${OFFLINE:-false}" = "true" ] && return 0
     [ -n "${HEARTBEAT_URL:-}" ] || return 0
-    curl -fsS -m 10 -o /dev/null "$HEARTBEAT_URL" || echo "[WARN] Heartbeat to HEARTBEAT_URL failed" >&2
+    # The URL usually holds the push token: keep it off the command line
+    printf 'url = "%s"\n' "$(_curl_cfg_quote "$HEARTBEAT_URL")" \
+        | curl -fsS -m 10 -o /dev/null -K - || echo "[WARN] Heartbeat to HEARTBEAT_URL failed" >&2
 }

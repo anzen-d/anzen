@@ -42,9 +42,10 @@ cp anzen.conf.example anzen.conf
 | `NOTIFY_NTFY_TOKEN` | — | Bearer token for the ntfy topic |
 | `HEARTBEAT_URL` | — | Fetched after every run (dead-man switch) |
 | `CUSTOM_CHECKS_DIR` | — | Directory of site-specific check modules |
+| `PLUGINS` | — | [Plugins](../plugins/README.md) to enable by name, e.g. `"backup_age cert_expiry"` |
 
 Settings of the [plugins](../plugins/README.md), used only when the plugin is
-in `CUSTOM_CHECKS_DIR`:
+enabled:
 
 | Variable | Default | Plugin | Description |
 |----------|---------|--------|-------------|

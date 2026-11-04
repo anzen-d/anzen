@@ -1,19 +1,22 @@
 # Plugin catalogue
 
-Optional check modules for software anzen does not audit by default. Each
-file is a regular [custom check](../docs/modules.md#custom-checks): copy the
-ones you want into your `CUSTOM_CHECKS_DIR` and set their variables in
-`anzen.conf`.
+Optional check modules for software anzen does not audit by default. Turn
+them on by name in `anzen.conf` and set their variables there:
 
 ```bash
-sudo install -d -m 755 /etc/anzen/checks.d
-sudo install -m 644 plugins/backup_age.sh /etc/anzen/checks.d/
-echo 'CUSTOM_CHECKS_DIR=/etc/anzen/checks.d' | sudo tee -a /etc/anzen/anzen.conf
-echo 'BACKUP_AGE_PATHS="/srv/restic/snapshots:2"' | sudo tee -a /etc/anzen/anzen.conf
+PLUGINS="backup_age nginx_proxy_manager"
+BACKUP_AGE_PATHS="/srv/restic/snapshots:2"
+NPM_DATA_DIR="/opt/npm/data"
+```
+
+```bash
 sudo anzen --config=/etc/anzen/anzen.conf --check=backup_age
 ```
 
-`install.sh` also copies them to `/usr/local/lib/anzen/plugins`.
+They load from the `plugins/` directory next to `anzen.sh`
+(`/usr/local/lib/anzen/plugins` after `install.sh`), so an update brings the
+new versions. To change one, copy it into your
+[`CUSTOM_CHECKS_DIR`](../docs/modules.md#custom-checks) under a new name.
 
 | Plugin | Checks | Settings |
 |--------|--------|----------|
@@ -21,8 +24,8 @@ sudo anzen --config=/etc/anzen/anzen.conf --check=backup_age
 | `cert_expiry` | Expiry of certificates served by other hosts (SNI) | `CERT_EXPIRY_HOSTS`, `CERT_EXPIRY_TIMEOUT`, `TLS_WARN_DAYS`, `TLS_FAIL_DAYS` |
 | `nginx_proxy_manager` | Proxy hosts without access control, without HTTPS or Force SSL; admin port 81 exposed | `NPM_DATA_DIR`, `NPM_PUBLIC_HOSTS` |
 
-Every plugin says what it found when its settings are missing, and does
-nothing else, so copying one in is harmless.
+A plugin with its settings missing only prints an INFO line, so turning one
+on is harmless.
 
 ## Writing one
 

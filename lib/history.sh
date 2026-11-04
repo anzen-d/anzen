@@ -78,7 +78,7 @@ history_save() {
 # _dashboard_runs DIR — JS array literal: one object per history file with
 # host, date, summary and sections; findings only for each host's two newest
 _dashboard_runs() {
-    local dir=$1 host_dir f first=true n i files
+    local dir=$1 host_dir f first=true n i files obj
     printf '['
     for host_dir in "$dir"/*/; do
         [ -d "$host_dir" ] || continue
@@ -86,25 +86,39 @@ _dashboard_runs() {
         n=${#files[@]}
         for (( i = 0; i < n; i++ )); do
             f=${files[$i]}
-            $first || printf ','
-            first=false
-            awk -v full="$(( i >= n - 2 ))" '
-                /^  "hostname": /  { sub(/,$/, ""); host = $0 }
-                /^  "date": /      { sub(/,$/, ""); date = $0 }
-                /^  "version": /   { sub(/,$/, ""); ver = $0 }
-                /^  "summary": /   { sub(/,$/, ""); summ = $0 }
+            # The lines are pasted into the page's script as they are, so every
+            # line must have exactly the shape anzen writes. Fleet reports come
+            # from the remote host: a compromised one must not inject script
+            # S: a JSON string. Via ENVIRON: awk -v would eat the backslashes
+            obj=$(S='"([^"\\]|\\.)*"' awk -v full="$(( i >= n - 2 ))" '
+                BEGIN { S = ENVIRON["S"] }
+                function chk(re) { if ($0 !~ re) bad = 1 }
+                /^  "hostname": /  { chk("^  \"hostname\": " S ",?$"); sub(/,$/, ""); host = $0 }
+                /^  "date": /      { chk("^  \"date\": " S ",?$"); sub(/,$/, ""); date = $0 }
+                /^  "version": /   { chk("^  \"version\": " S ",?$"); sub(/,$/, ""); ver = $0 }
+                /^  "summary": /   { chk("^  \"summary\": \\{\"fail\": [0-9]+, \"warn\": [0-9]+, \"ok\": [0-9]+, \"info\": [0-9]+, \"score\": [0-9]+\\},?$")
+                                     sub(/,$/, ""); summ = $0 }
                 /^  "sections": \[/ { in_s = 1; next }
                 /^  "findings": \[/ { in_f = 1; next }
                 /^  \]/            { in_s = 0; in_f = 0; next }
-                in_s { sub(/,$/, ""); secs = secs (secs == "" ? "" : ",") $0 }
+                in_s { chk("^    \\{\"name\": " S ", \"fail\": [0-9]+, \"warn\": [0-9]+, \"ok\": [0-9]+, \"score\": [0-9]+\\},?$")
+                       sub(/,$/, ""); secs = secs (secs == "" ? "" : ",") $0 }
+                in_f { chk("^    \\{\"id\": " S ", \"level\": \"(FAIL|WARN|OK|INFO)\", \"section\": " S ", \"message\": " S ", \"remedy\": " S "\\},?$") }
                 in_f && full == 1 && $0 !~ /"level": "OK"/ {
                     sub(/,$/, ""); fnd = fnd (fnd == "" ? "" : ",") $0
                 }
                 END {
+                    if (bad || host == "" || date == "" || summ == "") exit 1
                     printf "{%s,%s,%s,%s,\"sections\":[%s],\"findings\":%s}\n", \
                         host, date, (ver == "" ? "\"version\": \"\"" : ver), summ, secs, \
                         (full == 1 ? "[" fnd "]" : "null")
-                }' "$f"
+                }' "$f") || {
+                echo "[WARN] Dashboard: skipping $f (not an anzen report)" >&2
+                continue
+            }
+            $first || printf ','
+            first=false
+            printf '%s\n' "$obj"
         done
     done
     printf ']'
@@ -307,7 +321,7 @@ function renderDetail() {
     $("#rows").innerHTML = issues
       .filter(f => (!l || f.level === l) && (!q || `${f.message} ${f.section} ${f.id}`.toLowerCase().includes(q)))
       .sort((a, b) => (a.level === b.level ? 0 : a.level === "FAIL" ? -1 : 1))
-      .map(f => `<tr><td class="lvl ${f.level}">${f.level}</td><td>${esc(f.section)}</td>
+      .map(f => `<tr><td class="lvl ${esc(f.level)}">${esc(f.level)}</td><td>${esc(f.section)}</td>
         <td class="msg">${esc(f.message)}<div class="id">${esc(f.id)}</div></td></tr>`).join("")
       || '<tr><td colspan="3" class="empty">No matching findings.</td></tr>';
   };

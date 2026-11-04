@@ -12,6 +12,8 @@ _port_name() {
         873) echo "rsync" ;;  3306) echo "MySQL" ;;    3389) echo "RDP" ;;
         5432) echo "PostgreSQL" ;; 5900) echo "VNC" ;; 6379) echo "Redis" ;;
         8080) echo "HTTP-alt" ;; 9200) echo "Elasticsearch" ;; 27017) echo "MongoDB" ;;
+        512) echo "rexec" ;;  513) echo "rlogin" ;;    514) echo "rsh" ;;
+        5984) echo "CouchDB" ;; 11211) echo "Memcached" ;;
         *) echo "" ;;
     esac
 }
@@ -75,18 +77,17 @@ run_network_check() {
         info "Public listening ports: $PUBLIC_COUNT"
     fi
 
-    declare -A RISKY=( [23]="Telnet" [21]="FTP" [512]="rexec" [513]="rlogin" [514]="rsh"
-                       [3306]="MySQL" [6379]="Redis" [9200]="Elasticsearch" [27017]="MongoDB"
-                       [5900]="VNC" [3389]="RDP" [5984]="CouchDB" [11211]="Memcached" )
-    for port in "${!RISKY[@]}"; do
-        if ss -tlnp 2>/dev/null | grep "LISTEN" | grep -vE "127\.|::1\b" | grep -q ":${port}[[:space:]\"]"; then
+    local port svc
+    for port in 21 23 512 513 514 3306 3389 5900 5984 6379 9200 11211 27017; do
+        svc=$(_port_name "$port")
+        if _svc_public_tcp "$port"; then
             # HTTP datastores are recognisable: another app on the port is not one
             if ! _is_risky_service "$port"; then
-                warn "Port ${port} open publicly (usual ${RISKY[$port]} port, but another service answers)"
+                warn "Port ${port} open publicly (usual $svc port, but another service answers)"
                 continue
             fi
-            fail "High-risk port open publicly: ${port}/${RISKY[$port]}"
-            remedy "ufw deny $port  # or: systemctl stop ${RISKY[$port],}"
+            fail "High-risk port open publicly: ${port}/$svc"
+            remedy "ufw deny $port  # or: systemctl stop ${svc,}"
         fi
     done
 
@@ -98,7 +99,7 @@ run_network_check() {
     done < <(ss -tlnp 2>/dev/null | grep "LISTEN" | grep -vE "127\.|::1\b" \
              | awk '{print $4}' | sort -t: -k2 -n | uniq)
 
-    if ss -tlnp 2>/dev/null | grep -v "127\." | grep -q ":111[[:space:]]"; then
+    if _svc_public_tcp 111; then
         warn "RPC portmapper (111) exposed — disable if NFS not needed"
         remedy "systemctl disable --now rpcbind && ufw deny 111"
     fi

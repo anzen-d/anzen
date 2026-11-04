@@ -132,3 +132,6 @@
 # run_<name>_check, using section/ok/warn/fail/info/remedy like built-in checks.
 # They run as root, so files must be owned by you or root and not world-writable.
 # CUSTOM_CHECKS_DIR="/etc/anzen/checks.d"
+
+# Plugins from the catalogue in plugins/ (see plugins/README.md for settings)
+# PLUGINS="backup_age cert_expiry nginx_proxy_manager"

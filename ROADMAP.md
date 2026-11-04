@@ -39,7 +39,7 @@ Small, self-contained, no deep knowledge of the codebase needed.
 - **Kubernetes depth** — RBAC, pod security, network policies (beyond the
   current runtime checks)
 - **Plugin catalogue** — started in `plugins/` (backup age, remote certificate
-  expiry, Nginx Proxy Manager); more plugins and a way to enable them by name
+  expiry, Nginx Proxy Manager, enabled with `PLUGINS=`); more plugins welcome
 - **Packaging** — `.deb`/`.rpm`/AUR packages, Homebrew, Scoop/winget for Windows
 - **Dashboard** — per-finding history ("first seen", "flapping"), fleet filter
   by tag, export to CSV

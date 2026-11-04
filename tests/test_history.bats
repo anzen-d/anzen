@@ -88,3 +88,29 @@ assert all(f['level'] != 'OK' for f in d[-1]['findings'])
     [ "$a" != "$b" ] && [ "$b" != "$c" ] && [ "$a" != "$c" ]
     [ -f "$a" ] && [ -f "$b" ] && [ -f "$c" ]
 }
+
+@test "generate_dashboard() skips a report that would inject script (fleet host)" {
+    mkdir -p "$HIST/evil" "$HIST/good"
+    cat > "$HIST/evil/20261104T000000Z.json" <<'JSON'
+{
+  "hostname": "evil",
+  "date": "2026-11-04T00:00:00Z",
+  "version": "0.16.0",
+  "summary": {"fail": 0, "warn": 0, "ok": 1, "info": 0, "score": 1},
+  "sections": [
+    {"name": "X", "fail": "<img src=x onerror=alert(1)>", "warn": 0, "ok": 1, "score": 100}
+  ],
+  "findings": [
+    {"id": "x", "level": "FAIL\"><img src=x onerror=alert(2)>", "section": "X", "message": "m", "remedy": ""}
+  ]
+}
+JSON
+    section "SSH"; fail 'quote " back\slash <b>'; history_store "$HIST" good <(generate_json_report /dev/stdout) >/dev/null
+    run generate_dashboard "$HIST" "$HIST/index.html"
+    [[ "$output" == *"skipping $HIST/evil/"* ]]
+    ! grep -q onerror "$HIST/index.html"
+    grep -q '"hostname": "' "$HIST/index.html"
+    # Reports of all three editions stay accepted
+    generate_dashboard "$ANZEN_DIR/docs/demo/history" "$HIST/demo.html" 2>"$HIST/err"
+    [ ! -s "$HIST/err" ]
+}

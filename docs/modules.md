@@ -255,7 +255,9 @@ run_backups_check() {
 
 They run with the other modules and can be selected with `--check=backups`.
 Ready-made modules (backup age, remote certificate expiry, Nginx Proxy
-Manager) are in the [plugin catalogue](../plugins/README.md).
+Manager) are in the [plugin catalogue](../plugins/README.md); enable them with
+`PLUGINS=` instead of copying them. A file named like a module that is already
+loaded (`ssh.sh`) is skipped with a warning.
 Custom checks run as root, so each file must be owned by you or root and not
 world-writable — otherwise it is skipped.
 

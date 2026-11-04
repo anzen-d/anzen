@@ -94,7 +94,7 @@ run_system_check() {
         used=$(echo "$line" | awk '{print $3}')
         if [ "$usage" -ge "${DISK_FAIL_PCT:-90}" ] 2>/dev/null; then
             fail "Disk $mount: ${usage}% used ($used / $size)"
-            remedy "du -sh $mount/* 2>/dev/null | sort -rh | head -20  # find large files"
+            remedy "du -sh $(_q "$mount")/* 2>/dev/null | sort -rh | head -20  # find large files"
         elif [ "$usage" -ge "${DISK_WARN_PCT:-75}" ] 2>/dev/null; then
             warn "Disk $mount: ${usage}% used ($used / $size)"
         else

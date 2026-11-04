@@ -39,3 +39,32 @@ _priv() {
         "$@"
     fi
 }
+
+# _svc_listen_addrs PORT — local addresses with a TCP listener on PORT
+_svc_listen_addrs() {
+    ss -tln 2>/dev/null | awk 'NR>1{print $4}' | grep -E ":$1\$" | sed -E "s/:$1\$//; s/^\[//; s/\]\$//; s/%.*//"
+}
+
+# _svc_public_tcp PORT — true if PORT listens on a non-loopback address
+_svc_public_tcp() {
+    _svc_listen_addrs "$1" | grep -qvE '^(127\.|::1$)'
+}
+
+# _svc_probe_addr PORT — address to connect to for a local probe of PORT
+_svc_probe_addr() {
+    local a
+    a=$(_svc_listen_addrs "$1" | head -1)
+    case "$a" in
+        "") ;;
+        0.0.0.0|\*|::) echo 127.0.0.1 ;;
+        *) echo "$a" ;;
+    esac
+}
+
+# _svc_probe ADDR PORT PAYLOAD — send PAYLOAD (printf format) and print the
+# first bytes of the reply; local connections only, 2 s timeout
+_svc_probe() {
+    command -v timeout &>/dev/null || return 1
+    # shellcheck disable=SC2016
+    timeout 2 bash -c 'exec 3<>"/dev/tcp/$1/$2" || exit 1; printf "$3" >&3; head -c 64 <&3' _ "$1" "$2" "$3" 2>/dev/null
+}

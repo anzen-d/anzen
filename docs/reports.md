@@ -153,6 +153,10 @@ less reports/remediate_*.sh
 sudo bash reports/remediate_*.sh
 ```
 
+Each command runs on its own: one that fails prints `FAILED: <finding>` and
+the rest still run; the script exits 1 at the end if any failed. Lines that
+are advice only (starting with `#`) are kept as comments.
+
 ---
 
 [← Back to README](../README.md)

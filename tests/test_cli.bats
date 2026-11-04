@@ -121,3 +121,25 @@ teardown() {
     run "$ANZEN_DIR/anzen.sh" --check=system --offline --no-color --json --output="$OUT_DIR/o.json"
     grep -q '"public_ip": "unavailable (--offline)"' "$OUT_DIR/o.json"
 }
+
+@test "PLUGINS enables catalogue plugins by name; unknown names warn" {
+    owner=$(stat -c %U "$ANZEN_DIR/plugins/backup_age.sh")
+    [ "$owner" = "$(id -un)" ] || [ "$owner" = root ] || skip "checkout owned by $owner: plugins are refused (by design)"
+    printf 'PLUGINS="backup_age nope"\nBACKUP_AGE_PATHS="%s:1"\n' "$OUT_DIR" > "$OUT_DIR/c.conf"
+    chmod 600 "$OUT_DIR/c.conf"
+    touch "$OUT_DIR/fresh"
+    run "$ANZEN_DIR/anzen.sh" --config="$OUT_DIR/c.conf" --check=backup_age --no-color
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Newest backup in $OUT_DIR is 0 hours old"* ]]
+    [[ "$output" == *"Unknown plugin 'nope'"*"backup_age"* ]]
+}
+
+@test "a custom check named like a loaded module is skipped, not run twice" {
+    mkdir -p "$OUT_DIR/cc"
+    printf 'run_ssh_check() { section "SSH Configuration"; fail "fake ssh check"; }\n' > "$OUT_DIR/cc/ssh.sh"
+    printf 'CUSTOM_CHECKS_DIR=%s\n' "$OUT_DIR/cc" > "$OUT_DIR/c.conf"
+    chmod 600 "$OUT_DIR/c.conf"
+    run "$ANZEN_DIR/anzen.sh" --config="$OUT_DIR/c.conf" --check=ssh --no-color
+    [[ "$output" == *"module 'ssh' is already loaded — skipping"* ]]
+    [[ "$output" != *"fake ssh check"* ]]
+}

@@ -6,6 +6,39 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-05
+
+### Added
+- **`PLUGINS=`**: enable catalogue plugins by name
+  (`PLUGINS="backup_age nginx_proxy_manager"`). They load from `plugins/`
+  next to `anzen.sh`, so updates need no copying into `CUSTOM_CHECKS_DIR`
+
+### Security
+- **Dashboard: a fleet host could inject script.** Remote reports were pasted
+  into the dashboard unchecked, and some fields were shown without escaping.
+  The dashboard now accepts only lines in the exact format anzen writes and
+  skips any other file with a warning
+- **`remediate.sh`: a mount point name could run a command as root.** The
+  disk-usage fix used the mount path unquoted; a USB stick labelled
+  `x$(reboot)` that is almost full got its command run. Now quoted
+- **ntfy token and heartbeat URL were visible in `ps`.** curl now reads them
+  from stdin instead of its command line
+
+### Fixed
+- **Redis and PostgreSQL bound to localhost were reported as exposed** (and
+  MySQL and rpcbind): the check missed the IPv6 loopback `[::1]`, which
+  Debian and Ubuntu listen on by default
+- **`remediate.sh` stopped at the first failing command.** Each command now
+  runs on its own; failures are listed and the script exits 1 at the end
+- The host CVE fix used `apt-get` on every distribution; it now uses the
+  host's package manager (dnf, yum, zypper, apk, pacman)
+- A custom check named like a loaded module (`ssh.sh`) replaced it and ran
+  twice; it is now skipped with a warning
+- TLS: one connection less per local HTTPS port
+
+### Changed
+- SSH tests run the real module instead of re-implementing its logic
+
 ## [0.16.0] - 2026-11-04
 
 ### Added
