@@ -6,6 +6,34 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-04
+
+### Added
+- **Plugin catalogue (`plugins/`)**: ready-made `CUSTOM_CHECKS_DIR` modules,
+  installed to `/usr/local/lib/anzen/plugins`. Copy the ones you want into
+  your checks directory:
+  - `backup_age` — the newest backup file per location must be younger than a
+    limit (`BACKUP_AGE_PATHS="/srv/restic/snapshots:2"`)
+  - `cert_expiry` — expiry of certificates served by other hosts, with SNI
+    (`CERT_EXPIRY_HOSTS`); skipped with `--offline`
+  - `nginx_proxy_manager` — proxy hosts without an access list or
+    authentication, without HTTPS or Force SSL, and the admin port 81 open on
+    all interfaces; reads NPM's generated nginx files, no API token
+- **ssh**: `AllowTcpForwarding` and `PermitTunnel` (WARN when enabled)
+- **kernel**: unprivileged eBPF (`kernel.unprivileged_bpf_disabled`) and Yama
+  `kernel.yama.ptrace_scope=0`
+- **services**: Redis that answers without a password (local probe; FAIL when
+  exposed), Memcached on a public interface (TCP, and UDP as a DDoS
+  amplifier), MongoDB on a public interface (FAIL unless `authorization:
+  enabled` is set)
+- **tls**: RSA keys shorter than 2048 bits (FAIL) and SHA-1/MD5 signatures
+  (WARN) on certificate files and live ports
+
+### Fixed
+- `NO_COLOR` set in the environment was ignored: `anzen.sh` reset it before
+  the colour setup. Any non-empty value other than `false` now disables colour,
+  as <https://no-color.org> asks
+
 ## [0.15.0] - 2026-10-29
 
 ### Added

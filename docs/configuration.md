@@ -43,6 +43,18 @@ cp anzen.conf.example anzen.conf
 | `HEARTBEAT_URL` | — | Fetched after every run (dead-man switch) |
 | `CUSTOM_CHECKS_DIR` | — | Directory of site-specific check modules |
 
+Settings of the [plugins](../plugins/README.md), used only when the plugin is
+in `CUSTOM_CHECKS_DIR`:
+
+| Variable | Default | Plugin | Description |
+|----------|---------|--------|-------------|
+| `BACKUP_AGE_PATHS` | — | `backup_age` | `PATH:MAX_DAYS ...` — newest file under each path must be younger |
+| `BACKUP_AGE_DEPTH` | `2` | `backup_age` | How deep to look for the newest file |
+| `CERT_EXPIRY_HOSTS` | — | `cert_expiry` | `host`, `host:port` or `[IPv6]:port` endpoints to check |
+| `CERT_EXPIRY_TIMEOUT` | `5` | `cert_expiry` | Seconds per endpoint |
+| `NPM_DATA_DIR` | — | `nginx_proxy_manager` | The directory NPM mounts at `/data` |
+| `NPM_PUBLIC_HOSTS` | — | `nginx_proxy_manager` | Globs of hosts meant to be public (no access control expected) |
+
 ---
 
 [← Back to README](../README.md)

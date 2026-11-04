@@ -59,6 +59,32 @@ run_kernel_check() {
         ok "Sending ICMP redirects disabled"
     fi
 
+    # Unprivileged eBPF is a recurring kernel exploit path; 1 (off for good)
+    # and 2 (off, root may re-enable) are both safe
+    local bpf
+    bpf=$(_sysctl kernel.unprivileged_bpf_disabled 2>/dev/null)
+    if [ -z "$bpf" ]; then
+        info "kernel.unprivileged_bpf_disabled: not available on this kernel"
+    elif [ "$bpf" = "1" ] || [ "$bpf" = "2" ]; then
+        ok "Unprivileged eBPF disabled ($bpf)"
+    else
+        warn "kernel.unprivileged_bpf_disabled=$bpf — any user can load eBPF programs"
+        remedy "sysctl -w kernel.unprivileged_bpf_disabled=1 && echo 'kernel.unprivileged_bpf_disabled=1' >> $_SYSCTL_CONF"
+    fi
+
+    # Yama ptrace_scope 0 lets a process read the memory of any other process
+    # of the same user (SSH agent keys, browser sessions)
+    local pt
+    pt=$(_sysctl kernel.yama.ptrace_scope 2>/dev/null)
+    if [ -z "$pt" ]; then
+        info "kernel.yama.ptrace_scope: Yama not available on this kernel"
+    elif [ "$pt" = "0" ]; then
+        warn "kernel.yama.ptrace_scope=0 — processes can attach to any process of the same user"
+        remedy "sysctl -w kernel.yama.ptrace_scope=1 && echo 'kernel.yama.ptrace_scope=1' >> $_SYSCTL_CONF"
+    else
+        ok "ptrace restricted (kernel.yama.ptrace_scope=$pt)"
+    fi
+
     local sd
     sd=$(_sysctl fs.suid_dumpable 2>/dev/null)
     if [ "$sd" = "0" ]; then

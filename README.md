@@ -166,6 +166,7 @@ mostly with a copy-paste fix. Full list in [docs/modules.md](docs/modules.md).
 | [Installation](docs/installation.md) | Requirements, installer, optional tools |
 | [Usage](docs/usage.md) | All flags, examples, the TUI, exit codes |
 | [Modules](docs/modules.md) | Every check, pentest modules, CVE scanning, custom checks |
+| [Plugins](plugins/README.md) | Optional modules: backup age, remote certificate expiry, Nginx Proxy Manager |
 | [Reports & history](docs/reports.md) | Report formats, finding IDs, baselines, accepted risks, dashboard, remediation |
 | [Configuration](docs/configuration.md) | Every `anzen.conf` setting |
 | [Fleet, scheduling & CI](docs/fleet.md) | `--remote`, cron schedules, CI pipelines |

@@ -6,7 +6,7 @@
 
 set -uo pipefail
 
-ANZEN_VERSION="0.15.0"
+ANZEN_VERSION="0.16.0"
 ANZEN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPORT_DIR="$ANZEN_DIR/reports"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -27,7 +27,8 @@ REMOTE_HOST=""
 SCHEDULE=""
 CHECKS=()
 QUIET=false
-NO_COLOR=false
+# NO_COLOR from the environment (https://no-color.org) counts like --no-color
+if [ -n "${NO_COLOR:-}" ] && [ "$NO_COLOR" != false ]; then NO_COLOR=true; else NO_COLOR=false; fi
 PENTEST_TARGET=""
 PENTEST_WAN=false
 PENTEST_RESOLVE_IP=""

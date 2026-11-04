@@ -15,10 +15,12 @@ Small, self-contained, no deep knowledge of the codebase needed.
 - **Improve a remedy** — many findings print a fix command; make them more
   precise for a distro family, or add one where it is missing.
 - **New single checks** in an existing module, for example:
-  - `ssh`: warn on `AllowTcpForwarding yes` / `PermitTunnel yes`
-  - `kernel`: `kernel.unprivileged_bpf_disabled`, `kernel.yama.ptrace_scope`
-  - `services`: Redis/Memcached/MongoDB bound to all interfaces without auth
-  - `tls`: certificates using SHA-1 or RSA < 2048
+  - `ssh`: `AllowAgentForwarding`, `PermitUserEnvironment`, `GatewayPorts`
+  - `kernel`: `kernel.kexec_load_disabled`, `dev.tty.ldisc_autoload`
+  - `services`: Elasticsearch/CouchDB/etcd answering without auth
+  - `tls`: certificates missing a SAN, wildcard certificates on many hosts
+- **New plugins** for the [plugin catalogue](plugins/README.md): Proxmox,
+  Home Assistant, Traefik/Caddy, NAS (Synology, TrueNAS)
 - **Windows checks** — `windows/anzen.ps1` is newer and smaller: e.g. LAPS,
   Windows Hello / PIN policy, Attack Surface Reduction rules, SMB null sessions,
   scheduled tasks running as SYSTEM from writable paths.
@@ -36,8 +38,8 @@ Small, self-contained, no deep knowledge of the codebase needed.
   checks (MDM profiles, XProtect version, Lockdown Mode, unsigned launch agents)
 - **Kubernetes depth** — RBAC, pod security, network policies (beyond the
   current runtime checks)
-- **Plugin catalogue** — shareable `CUSTOM_CHECKS_DIR` modules (NAS, Proxmox,
-  reverse proxies, Home Assistant…)
+- **Plugin catalogue** — started in `plugins/` (backup age, remote certificate
+  expiry, Nginx Proxy Manager); more plugins and a way to enable them by name
 - **Packaging** — `.deb`/`.rpm`/AUR packages, Homebrew, Scoop/winget for Windows
 - **Dashboard** — per-finding history ("first seen", "flapping"), fleet filter
   by tag, export to CSV

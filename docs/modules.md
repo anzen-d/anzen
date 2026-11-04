@@ -7,20 +7,20 @@
 |--------|----------|----------------|
 | System Info | `system` | Hostname, OS, kernel, arch, uptime, CPU/memory/disk usage, public IP, running service count |
 | Users & Accounts | `users` | Passwordless sudo (`NOPASSWD`), UID 0 accounts, empty passwords, world-writable home dirs, password aging policy, PAM lockout config, sudo logging |
-| SSH Hardening | `ssh` | `PermitRootLogin`, `PasswordAuthentication`, port, `MaxAuthTries`, `X11Forwarding`, `ClientAliveInterval`, `LoginGraceTime`, `AllowUsers`/`AllowGroups`, ciphers/MACs/KexAlgorithms, `authorized_keys` permissions |
+| SSH Hardening | `ssh` | `PermitRootLogin`, `PasswordAuthentication`, port, `MaxAuthTries`, `X11Forwarding`, `AllowTcpForwarding`, `PermitTunnel`, `ClientAliveInterval`, `LoginGraceTime`, `AllowUsers`/`AllowGroups`, ciphers/MACs/KexAlgorithms, `authorized_keys` permissions |
 | Firewall & Ports | `network` | UFW/firewalld/nftables/iptables status, high-risk open ports (IPv4 + IPv6), RPC portmapper |
 | Advanced Network | `network2` | Promiscuous interfaces, IPv6 privacy extensions, tunnel/VPN interfaces |
 | Package Updates | `packages` | Pending security/package updates, package list staleness, unattended-upgrades daemon |
 | File Permissions | `files` | Critical file permissions (`/etc/passwd`, `/etc/shadow`, etc.), world-writable files, unexpected SUID/SGID binaries |
 | Secrets & Credentials | `secrets` | Private key permissions, `.env` files, AWS credential files, `.netrc` files |
 | Systemd Hardening | `systemd_hardening` | Per-service hardening options (`PrivateTmp`, `NoNewPrivileges`, `ProtectSystem`, etc.), services running as root |
-| TLS Certificates | `tls` | Certificate expiry (files + live ports), expired/near-expiry certs |
+| TLS Certificates | `tls` | Certificate expiry (files + live ports), RSA keys < 2048 bits, SHA-1/MD5 signatures, TLSv1.0 on live ports |
 | Compilers & Tools | `compiler` | Compiler/build tools present, offensive security tools (nmap, metasploit, etc.), packet capture tools |
 | PATH Security | `path_check` | Empty/relative PATH entries, `.` in PATH, world-writable PATH dirs, `LD_PRELOAD` set, potential PATH injection in shell configs |
 | Kernel Modules | `modules` | `modules_disabled` sysctl, risky loaded modules, module blacklist entries, `usb-storage` |
-| Services | `services` | Docker group membership, privileged/host-network containers, fail2ban/CrowdSec, exposed databases, Samba/SMB |
+| Services | `services` | Docker group membership, privileged/host-network containers, fail2ban/CrowdSec, exposed databases, Redis without a password, Memcached (TCP and UDP amplification), MongoDB, Samba/SMB |
 | Login History | `logins` | Root crontab contents, cron file permissions, recent/failed login history, account password expiry |
-| Kernel Hardening | `kernel` | ASLR, SYN cookies, IP forwarding, ICMP redirects, source routing, martian packet logging, core dumps, AppArmor/SELinux status |
+| Kernel Hardening | `kernel` | ASLR, SYN cookies, IP forwarding, ICMP redirects, source routing, martian packet logging, core dumps, unprivileged eBPF, Yama `ptrace_scope`, AppArmor/SELinux status |
 | Audit Daemon | `auditd` | auditd running + rules loaded, NTP/time sync, TCP wrappers, rkhunter/chkrootkit |
 | Container Security | `docker_security` | Docker, Podman, nerdctl, LXD, LXC, Kubernetes: privileged containers, root user, host network/PID/IPC, dangerous added capabilities, seccomp/AppArmor disabled, sensitive mounts (Docker socket), memory limits, **secrets in environment variables** (names only), **ports published past ufw/firewalld** |
 | Container Images | `images` | Running images: age, `:latest`/untagged, containers not recreated after a pull, newer digest upstream |
@@ -254,6 +254,8 @@ run_backups_check() {
 ```
 
 They run with the other modules and can be selected with `--check=backups`.
+Ready-made modules (backup age, remote certificate expiry, Nginx Proxy
+Manager) are in the [plugin catalogue](../plugins/README.md).
 Custom checks run as root, so each file must be owned by you or root and not
 world-writable — otherwise it is skipped.
 

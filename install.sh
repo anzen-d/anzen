@@ -22,6 +22,7 @@ echo "Installing anzen to $INSTALL_DIR ..."
 mkdir -p "$INSTALL_DIR"
 cp -r "$SCRIPT_DIR/lib" "$INSTALL_DIR/"
 cp "$SCRIPT_DIR/anzen.sh" "$INSTALL_DIR/"
+[ -d "$SCRIPT_DIR/plugins" ] && cp -r "$SCRIPT_DIR/plugins" "$INSTALL_DIR/"
 [ -f "$SCRIPT_DIR/anzen.conf.example" ] && cp "$SCRIPT_DIR/anzen.conf.example" "$INSTALL_DIR/"
 
 # Create reports dir

@@ -3,6 +3,35 @@
 # Copyright (C) 2026 The Anzen contributors
 # checks/services.sh — Containers, databases, brute-force protection, SMB
 
+# _svc_listen_addrs PORT — local addresses with a TCP listener on PORT
+_svc_listen_addrs() {
+    ss -tln 2>/dev/null | awk 'NR>1{print $4}' | grep -E ":$1\$" | sed -E "s/:$1\$//; s/^\[//; s/\]\$//; s/%.*//"
+}
+
+# _svc_public_tcp PORT — true if PORT listens on a non-loopback address
+_svc_public_tcp() {
+    _svc_listen_addrs "$1" | grep -qvE '^(127\.|::1$)'
+}
+
+# _svc_probe_addr PORT — address to connect to for a local probe of PORT
+_svc_probe_addr() {
+    local a
+    a=$(_svc_listen_addrs "$1" | head -1)
+    case "$a" in
+        "") ;;
+        0.0.0.0|\*|::) echo 127.0.0.1 ;;
+        *) echo "$a" ;;
+    esac
+}
+
+# _svc_probe ADDR PORT PAYLOAD — send PAYLOAD (printf format) and print the
+# first bytes of the reply; local connections only, 2 s timeout
+_svc_probe() {
+    command -v timeout &>/dev/null || return 1
+    # shellcheck disable=SC2016
+    timeout 2 bash -c 'exec 3<>"/dev/tcp/$1/$2" || exit 1; printf "$3" >&3; head -c 64 <&3' _ "$1" "$2" "$3" 2>/dev/null
+}
+
 run_services_check() {
     section "Docker & Containers"
 
@@ -109,6 +138,43 @@ run_services_check() {
     if ss -tlnp 2>/dev/null | grep -v "127\." | grep -q ":6379[[:space:]]"; then
         fail "Redis (6379) exposed on public interface"
         remedy "sed -i 's/^bind .*/bind 127.0.0.1/' /etc/redis/redis.conf && systemctl restart redis"
+    fi
+    # Redis without requirepass answers PING with +PONG; with a password, -NOAUTH
+    local _ra
+    _ra=$(_svc_probe_addr 6379)
+    if [ -n "$_ra" ] && _svc_probe "$_ra" 6379 'PING\r\n' | grep -q '^+PONG'; then
+        if _svc_public_tcp 6379; then
+            fail "Redis on $_ra:6379 accepts commands without a password"
+        else
+            warn "Redis on $_ra:6379 accepts commands without a password (local only)"
+        fi
+        remedy "# set requirepass (or an ACL user) in redis.conf, then: systemctl restart redis"
+    fi
+
+    # Memcached has no authentication by default, and UDP 11211 is a
+    # well-known DDoS amplification vector
+    if _svc_public_tcp 11211; then
+        fail "Memcached (11211) exposed on public interface"
+        remedy "# set -l 127.0.0.1 in /etc/memcached.conf (OPTIONS= in /etc/sysconfig/memcached), then: systemctl restart memcached"
+    fi
+    if ss -ulnp 2>/dev/null | awk 'NR>1{print $4}' | grep -E ':11211$' | grep -qvE '^(127\.|\[::1\]|::1)'; then
+        fail "Memcached UDP (11211) listening on public interface — DDoS amplification risk"
+        remedy "# add -U 0 to the memcached options to disable UDP, then: systemctl restart memcached"
+    fi
+
+    # MongoDB: exposed instances without auth are mass-scanned and ransomed
+    if _svc_public_tcp 27017; then
+        local _mauth=""
+        for _mc in /etc/mongod.conf /etc/mongodb.conf; do
+            [ -f "$_mc" ] && _mauth=$(grep -E '^\s*authorization:\s*enabled' "$_mc" 2>/dev/null)
+            [ -n "$_mauth" ] && break
+        done
+        if [ -n "$_mauth" ]; then
+            warn "MongoDB (27017) exposed on public interface (authorization enabled)"
+        else
+            fail "MongoDB (27017) exposed on public interface — authorization not confirmed"
+        fi
+        remedy "# in mongod.conf: net.bindIp: 127.0.0.1 and security.authorization: enabled, then: systemctl restart mongod"
     fi
 
     if ss -tlnp 2>/dev/null | grep -v "127\." | grep -q ":3306[[:space:]]"; then

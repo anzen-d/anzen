@@ -81,6 +81,25 @@ run_ssh_check() {
         ok "X11Forwarding: $VAL"
     fi
 
+    # AllowTcpForwarding — port forwarding turns any SSH account into a tunnel
+    # past the firewall (to internal services, or back out with -R)
+    VAL=$(_ssh_val "AllowTcpForwarding"); VAL=${VAL:-yes}
+    if echo "$VAL" | grep -qiE "^(yes|all|remote)$"; then
+        warn "AllowTcpForwarding: $VAL — SSH users can tunnel past the firewall"
+        remedy "echo 'AllowTcpForwarding no' >> /etc/ssh/sshd_config && $(_sshd_reload)  # or Match User <admin> to keep it for one user"
+    else
+        ok "AllowTcpForwarding: $VAL"
+    fi
+
+    # PermitTunnel — tun/tap devices give a full layer-3/2 VPN over SSH
+    VAL=$(_ssh_val "PermitTunnel"); VAL=${VAL:-no}
+    if echo "$VAL" | grep -qi "^no$"; then
+        ok "PermitTunnel: no"
+    else
+        warn "PermitTunnel: $VAL — SSH users can create a VPN tunnel into this network"
+        remedy "sed -i 's/^#*PermitTunnel.*/PermitTunnel no/' /etc/ssh/sshd_config && $(_sshd_reload)"
+    fi
+
     # MaxAuthTries
     VAL=$(_ssh_val "MaxAuthTries"); VAL=${VAL:-6}
     if [ "$VAL" -gt 4 ] 2>/dev/null; then

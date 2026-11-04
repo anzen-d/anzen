@@ -3,6 +3,28 @@
 # Copyright (C) 2026 The Anzen contributors
 # checks/tls.sh — TLS certificate expiry and configuration checks
 
+# _tls_weak_cert LABEL — read one PEM certificate on stdin; report an RSA key
+# shorter than 2048 bits (FAIL) or a SHA-1/MD5 signature (WARN). Self-signed
+# certificates are not checked for SHA-1: nothing verifies their signature
+_tls_weak_cert() {
+    local label=$1 text bits sig subj iss
+    text=$(openssl x509 -noout -text -subject -issuer -nameopt RFC2253 2>/dev/null) || return 0
+    if echo "$text" | grep -q "Public Key Algorithm: rsaEncryption"; then
+        bits=$(echo "$text" | grep -oE "Public-Key: \(([0-9]+) bit\)" | grep -oE "[0-9]+" | head -1)
+        if [ -n "$bits" ] && [ "$bits" -lt 2048 ]; then
+            fail "TLS certificate with a ${bits}-bit RSA key: $label"
+            remedy "# reissue $label with an RSA 2048+ or ECDSA P-256 key"
+        fi
+    fi
+    sig=$(echo "$text" | grep -m1 "Signature Algorithm:" | awk '{print $3}')
+    subj=$(echo "$text" | sed -n 's/^subject=//p')
+    iss=$(echo "$text" | sed -n 's/^issuer=//p')
+    if [ "$subj" != "$iss" ] && echo "$sig" | grep -qiE "^(sha1|md5)"; then
+        warn "TLS certificate signed with $sig: $label"
+        remedy "# reissue $label: SHA-1 signatures are rejected by current clients"
+    fi
+}
+
 run_tls_check() {
     section "TLS Certificates"
 
@@ -46,6 +68,7 @@ run_tls_check() {
         local days_left=$(( (expiry_epoch - now_epoch) / 86400 ))
         local subject
         subject=$(openssl x509 -in "$cert" -noout -subject 2>/dev/null | sed 's/subject=//')
+        _tls_weak_cert "$cert" < "$cert"
 
         if [ "$days_left" -le 0 ]; then
             fail "Certificate EXPIRED: $cert ($subject)"
@@ -64,11 +87,12 @@ run_tls_check() {
 
     # Check live HTTPS ports on localhost
     for port in $https_ports; do
-        local expiry
-        expiry=$(echo Q | openssl s_client -connect "127.0.0.1:$port" \
-            -servername localhost 2>/dev/null \
-            | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2-) || continue
+        local expiry pem
+        pem=$(echo Q | openssl s_client -connect "127.0.0.1:$port" \
+            -servername localhost 2>/dev/null | openssl x509 2>/dev/null) || continue
+        expiry=$(echo "$pem" | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2-)
         [ -z "$expiry" ] && continue
+        echo "$pem" | _tls_weak_cert "port $port"
         local expiry_epoch
         expiry_epoch=$(date -d "$expiry" +%s 2>/dev/null) || continue
         local now_epoch
