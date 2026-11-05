@@ -222,7 +222,9 @@ SECTION
         section_fail=0; section_warn=0; section_ok=0
     }
 
-    while IFS=$'\t' read -r level sec msg id remedy; do
+    # Controls come on fd 3, one line per finding (lib/controls.sh)
+    local ctl ctl_html
+    while IFS=$'\t' read -r level sec msg id remedy && IFS= read -r ctl <&3; do
         if [ "$sec" != "$prev_section" ]; then
             _flush_section
             prev_section="$sec"
@@ -232,18 +234,20 @@ SECTION
         escaped_remedy=$(_html_escape "${remedy:-}")
 
         local remedy_html=""
+        ctl_html=""
+        [ -n "$ctl" ] && [ "$level" != "OK" ] && [ "$level" != "INFO" ] && ctl_html=" · $(_html_escape "$ctl")"
         if [ -n "$remedy" ] && [ "$level" != "OK" ] && [ "$level" != "INFO" ]; then
             remedy_html="<div class=\"remedy\"><span class=\"remedy-label\">Fix:</span><code class=\"remedy-cmd\" onclick=\"copyRemedyInline(this)\" title=\"Click to copy\">$escaped_remedy</code><span class=\"remedy-copied\">✓ copied</span></div>"
         fi
 
-        section_html+="      <div class=\"finding\" data-level=\"$level\"><span class=\"badge $level\">$level</span><div class=\"finding-body\"><div class=\"finding-msg\">$escaped_msg</div><div class=\"finding-id\">$id</div>$remedy_html</div></div>"$'\n'
+        section_html+="      <div class=\"finding\" data-level=\"$level\"><span class=\"badge $level\">$level</span><div class=\"finding-body\"><div class=\"finding-msg\">$escaped_msg</div><div class=\"finding-id\">$id$ctl_html</div>$remedy_html</div></div>"$'\n'
 
         case "$level" in
             FAIL) section_fail=$((section_fail+1)) ;;
             WARN) section_warn=$((section_warn+1)) ;;
             OK)   section_ok=$((section_ok+1)) ;;
         esac
-    done < "$FINDINGS_FILE"
+    done < "$FINDINGS_FILE" 3< <(_findings_controls)
 
     _flush_section
 

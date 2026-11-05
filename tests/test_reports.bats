@@ -20,6 +20,10 @@ setup() {
     source "$ANZEN_DIR/lib/report_html.sh"
     # shellcheck disable=SC1091
     source "$ANZEN_DIR/lib/report_sarif.sh"
+    # shellcheck disable=SC1091
+    source "$ANZEN_DIR/lib/report_csv.sh"
+    # shellcheck disable=SC1091
+    source "$ANZEN_DIR/lib/controls.sh"
     REPORT_OUT="$(mktemp)"
 }
 
@@ -207,4 +211,55 @@ assert r and all(x['partialFingerprints']['anzenFindingId/v1'] for x in r)
     generate_html_report "$REPORT_OUT"
     grep -qF 'path C:\new\table' "$REPORT_OUT"
     grep -qF 'printf &quot;a\tb&quot;' "$REPORT_OUT"
+}
+
+# ── Controls and CSV ──────────────────────────────────────────────────────────
+
+@test "controls: first matching mapping per finding, one line per finding" {
+    section "SSH Configuration"; fail "PermitRootLogin yes"; warn "X11Forwarding enabled"
+    section "Made Up Section"; warn "anything"
+    run _findings_controls
+    [ "${lines[0]}" = "NIST AC-6(2), IA-2; CIS 5.4" ]
+    [ "${lines[1]}" = "NIST AC-17, CM-6; CIS 4.1" ]
+    [ "${#lines[@]}" -eq 3 ] || [ -z "${lines[2]:-}" ]
+    [ "$(_findings_controls | wc -l)" -eq 3 ]
+}
+
+@test "controls: every section of every edition has a mapping" {
+    local secs s missing=""
+    secs=$( { grep -rhoE 'section "[^"$]+' "$ANZEN_DIR"/lib/checks/*.sh "$ANZEN_DIR"/macos/anzen-macos.sh | sed 's/^section "//'
+              grep -hoE "Section '[^']+'" "$ANZEN_DIR/windows/anzen.ps1" | sed "s/^Section '//; s/'\$//"; } | sort -u)
+    while IFS= read -r s; do
+        case $s in "System Information"|Inventory|"Pentest External — Port Scan: "|"Pentest External — Recon: "|"Pentest External — TLS/SSL: ") continue ;; esac
+        printf 'WARN\t%s\tx\tid\t\n' "$s" > "$FINDINGS_FILE"
+        [ -n "$(_findings_controls)" ] || missing="$missing [$s]"
+    done <<< "$secs"
+    [ -z "$missing" ] || { echo "no mapping for:$missing"; false; }
+}
+
+@test "TXT, HTML and SARIF reports carry the control references" {
+    section "SSH Configuration"; fail "PermitRootLogin yes"; remedy "fix"
+    generate_txt_report "$REPORT_OUT"
+    grep -q '         Ref: NIST AC-6(2), IA-2; CIS 5.4' "$REPORT_OUT"
+    generate_html_report "$REPORT_OUT"
+    grep -q 'ssh-configuration-[0-9a-f]* · NIST AC-6(2), IA-2; CIS 5.4' "$REPORT_OUT"
+    generate_sarif_report "$REPORT_OUT"
+    grep -q '"properties":{"controls":"NIST AC-6(2), IA-2; CIS 5.4"}' "$REPORT_OUT"
+    python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$REPORT_OUT"
+}
+
+@test "CSV report: quotes fields and defuses spreadsheet formulas" {
+    section "SSH Configuration"; fail 'say "hi", then go'; remedy "=HYPERLINK(\"x\")"
+    section "Made Up Section"; warn "-1 is fine"
+    generate_csv_report "$REPORT_OUT"
+    run python3 -c '
+import csv, sys
+rows = list(csv.reader(open(sys.argv[1], newline="")))
+assert rows[0] == ["host","date","level","section","id","message","remedy","controls"], rows[0]
+assert rows[1][2:4] == ["FAIL", "SSH Configuration"] and rows[1][5] == "say \"hi\", then go", rows[1]
+assert rows[1][6] == "\x27=HYPERLINK(\"x\")" and rows[1][7].startswith("NIST AC-17"), rows[1]
+assert rows[2][5] == "\x27-1 is fine" and rows[2][7] == "", rows[2]
+print(len(rows))' "$REPORT_OUT"
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "$output" = 3 ]
 }

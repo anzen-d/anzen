@@ -39,6 +39,7 @@ _fleet_formats() {
     ${GENERATE_HTML:-false}  && echo html
     ${GENERATE_TXT:-false}   && echo txt
     ${GENERATE_SARIF:-false} && echo sarif.json
+    ${GENERATE_CSV:-false}   && echo csv
 }
 
 # _fleet_run_host HOST WORKDIR ARGS... — run anzen on HOST; its reports land in
@@ -77,7 +78,8 @@ _fleet_run_host() {
     local ext fmt_flags=""
     for ext in $(_fleet_formats); do
         case $ext in json) fmt_flags+=" --json" ;; html) fmt_flags+=" --html" ;;
-                     txt) fmt_flags+=" --txt" ;; sarif.json) fmt_flags+=" --sarif" ;; esac
+                     txt) fmt_flags+=" --txt" ;; sarif.json) fmt_flags+=" --sarif" ;;
+                     csv) fmt_flags+=" --csv" ;; esac
     done
     # Several formats + --output=out.json → out.json, out.html, ... (extension swap)
     if [ "$os" = Darwin ]; then

@@ -21,6 +21,7 @@ checks were limited.
 | Module | Checks |
 |--------|--------|
 | `system` | macOS version, days since the last restart (installed updates waiting), disk usage of the Data volume (the sealed system volume `/` is skipped) |
+| `inventory` | INFO only: model, serial, CPU, memory, number of applications |
 | `updates` | Automatic update settings; security responses / XProtect data (`CriticalUpdateInstall`, `ConfigDataInstall`) disabled is a FAIL; pending recommended updates |
 | `xprotect` | XProtect version, and a WARN when its definitions are more than 60 days old |
 | `filevault` | Disk encryption |
@@ -35,7 +36,7 @@ checks were limited.
 | `profiles` | Inventory: MDM enrollment, configuration profiles (as root), Find My Mac, Lockdown Mode |
 | `truststore` | [Distrusted CA certificates](modules.md#trust-stores) (same list as Linux and Windows). **Keychains:** Apple blocks the compromised chain in TLS trust evaluation (Safari, `URLSession`, `nscurl`) while the root stays in `SystemRootCertificates.keychain`. No local command shows that block (`security verify-cert` still reports the root as trusted), so a match there is INFO. A listed certificate that someone added to the System or login keychain is a FAIL. **`/etc/ssl/cert.pem`**, used by `curl`, `git` and `openssl`, does not get Apple's block, so a listed root there is a FAIL. The same goes for Homebrew's bundles, Python `certifi` and Java `cacerts` |
 
-Options: `--check=MODULE`, `--json`, `--html`, `--txt`, `--sarif`, `--output=FILE`, `--history=DIR`,
+Options: `--check=MODULE`, `--json`, `--html`, `--txt`, `--sarif`, `--csv`, `--output=FILE`, `--history=DIR`,
 `--accept=FILE`, `--quiet`, `--no-color`, `--strict`, `--list`, `--version`.
 Exit codes match the other editions: 1 on FAIL, or on WARN with `--strict`.
 With several formats `--output` swaps the extension, as in `anzen.sh`. The

@@ -17,7 +17,7 @@
 
 set -u
 
-ANZEN_VERSION="0.19.0"
+ANZEN_VERSION="0.20.0"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 FAIL_PENALTY=10
@@ -34,7 +34,7 @@ XPROTECT_DIR="${ANZEN_XPROTECT_DIR:-/Library/Apple/System/Library/CoreServices}"
 LAUNCHD_DIRS="${ANZEN_LAUNCHD_DIRS:-/Library/LaunchDaemons /Library/LaunchAgents /Users/*/Library/LaunchAgents}"
 ROOT_UID="${ANZEN_ROOT_UID:-0}"   # tests run as a normal user
 
-MODULES="system updates xprotect filevault sip gatekeeper firewall sharing accounts ssh launchd extensions profiles truststore"
+MODULES="system inventory updates xprotect filevault sip gatekeeper firewall sharing accounts ssh launchd extensions profiles truststore"
 
 usage() {
     cat <<EOF
@@ -48,6 +48,7 @@ Usage: $0 [options]
   --html             Write an HTML report
   --txt              Write a plain-text report
   --sarif            Write a SARIF 2.1.0 report (GitHub/GitLab code scanning)
+  --csv              Write a CSV of the findings, with NIST / CIS control references
   --output=FILE      Report path; with several formats the extension is swapped
                      per format (out.json, out.html, ...). Alone it means --json
   --history=DIR      Save the run as DIR/<host>/<UTC timestamp>.json (anzen history layout)
@@ -62,7 +63,7 @@ EOF
 }
 
 # ── Arguments ────────────────────────────────────────────────────────────────
-CHECKS=""; JSON=false; HTML=false; TXT=false; SARIF=false; OUTPUT=""; HISTORY=""; ACCEPT_FILE="$ROOT_DIR/anzen.accept"
+CHECKS=""; JSON=false; HTML=false; TXT=false; SARIF=false; CSV=false; OUTPUT=""; HISTORY=""; ACCEPT_FILE="$ROOT_DIR/anzen.accept"
 QUIET=false; STRICT=false; COLOR=true
 [ -n "${NO_COLOR:-}" ] && COLOR=false
 for arg in "$@"; do
@@ -72,6 +73,7 @@ for arg in "$@"; do
         --html)      HTML=true ;;
         --txt)       TXT=true ;;
         --sarif)     SARIF=true ;;
+        --csv)       CSV=true ;;
         --output=*)  OUTPUT="${arg#*=}" ;;
         --history=*) HISTORY="${arg#*=}" ;;
         --accept=*)  ACCEPT_FILE="${arg#*=}" ;;
@@ -84,7 +86,7 @@ for arg in "$@"; do
         *)           echo "Unknown option: $arg  (try --help)" >&2; exit 1 ;;
     esac
 done
-if [ -n "$OUTPUT" ] && ! $HTML && ! $TXT && ! $SARIF; then JSON=true; fi
+if [ -n "$OUTPUT" ] && ! $HTML && ! $TXT && ! $SARIF && ! $CSV; then JSON=true; fi
 for c in $CHECKS; do
     case " $MODULES " in *" $c "*) ;; *) echo "Unknown module: $c  (valid: $MODULES)" >&2; exit 1 ;; esac
 done
@@ -204,6 +206,22 @@ check_system() {
     while IFS='|' read -r lvl msg; do
         case $lvl in FAIL) fail "$msg" "Storage settings → Manage, or: du -sh ~/* | sort -h" ;; WARN) warn "$msg" ;; OK) ok "$msg" ;; esac
     done < "$FINDINGS.tmp"
+}
+
+# Asset inventory (INFO only, no score)
+check_inventory() {
+    section "Inventory"
+    local v
+    v=$(sysctl -n hw.model 2>/dev/null); [ -n "$v" ] && info "Hardware: $v"
+    v=$(ioreg -rd1 -c IOPlatformExpertDevice 2>/dev/null | awk -F'"' '/IOPlatformSerialNumber/ { print $4; exit }')
+    [ -n "$v" ] && info "Serial number: $v"
+    v=$(sysctl -n machdep.cpu.brand_string 2>/dev/null); [ -n "$v" ] && info "CPU: $v ($(sysctl -n hw.logicalcpu 2>/dev/null) threads)"
+    v=$(sysctl -n hw.memsize 2>/dev/null)
+    [ -n "$v" ] && [ "$v" -gt 0 ] 2>/dev/null && info "Memory: $(awk -v b="$v" 'BEGIN { printf "%.1f", b / 1073741824 }') GiB"
+    local n=0 a
+    for a in /Applications/*.app; do [ -d "$a" ] && n=$((n + 1)); done
+    info "Applications in /Applications: $n"
+    return 0
 }
 
 check_updates() {
@@ -625,7 +643,7 @@ _overall_score() { echo "$SCORE"; }
 
 STAMP=$(date +%Y%m%d_%H%M%S)
 N_FORMATS=0
-for f in $JSON $HTML $TXT $SARIF; do $f && N_FORMATS=$((N_FORMATS + 1)); done
+for f in $JSON $HTML $TXT $SARIF $CSV; do $f && N_FORMATS=$((N_FORMATS + 1)); done
 # Same rule as anzen.sh _report_path
 _report_path() {
     local base
@@ -647,10 +665,13 @@ _write_report() {
     "$3" "$path"
     printf '%s  %-10s: %s%s\n' "$BOLD$CYAN" "$1" "$path" "$NC"
 }
+# shellcheck source=../lib/controls.sh
+. "$ROOT_DIR/lib/controls.sh"
 $HTML  && _write_report HTML html generate_html_report report_html.sh
 $TXT   && _write_report Text txt generate_txt_report report_txt.sh
 $JSON  && _write_report JSON json write_json ""
 $SARIF && _write_report SARIF sarif.json generate_sarif_report report_sarif.sh
+$CSV   && _write_report CSV csv generate_csv_report report_csv.sh
 if [ -n "$HISTORY" ]; then
     h=$(hostname -s 2>/dev/null || hostname | cut -d. -f1)
     h=$(printf '%s' "$h" | tr '[:upper:]' '[:lower:]')

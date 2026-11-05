@@ -6,6 +6,7 @@
 | Module | CLI name | What it checks |
 |--------|----------|----------------|
 | System Info | `system` | Hostname, OS, kernel, arch, uptime, CPU/memory/disk usage, public IP, running service count |
+| Inventory | `inventory` | INFO only: hardware vendor/model and serial (root), virtualization, CPU, memory, package database age and package count, sudo/wheel/admin members, dm-crypt/LUKS volumes, Secure Boot / firmware |
 | Users & Accounts | `users` | Passwordless sudo (`NOPASSWD`), UID 0 accounts, empty passwords, world-writable home dirs, password aging policy, PAM lockout config, sudo logging |
 | SSH Hardening | `ssh` | `PermitRootLogin`, `PasswordAuthentication`, port, `MaxAuthTries`, `X11Forwarding`, `AllowTcpForwarding`, `PermitTunnel`, `ClientAliveInterval`, `LoginGraceTime`, `AllowUsers`/`AllowGroups`, ciphers/MACs/KexAlgorithms, `authorized_keys` permissions |
 | Firewall & Ports | `network` | UFW/firewalld/nftables/iptables status, high-risk open ports (IPv4 + IPv6), RPC portmapper |

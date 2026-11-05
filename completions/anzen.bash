@@ -41,7 +41,7 @@ _anzen_complete() {
                 --baseline --diff --quiet -q --no-color
                 --version -v --help -h
                 --output= --config= --check= --remote= --schedule=
-                --sarif --strict --wan --target= --resolve-to= --remote-pentest=
+                --sarif --csv --strict --wan --target= --resolve-to= --remote-pentest=
                 --history= --dashboard="
 
     COMPREPLY=( $(compgen -W "$opts" -- "$cur") )

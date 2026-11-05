@@ -42,6 +42,8 @@ Small, self-contained, no deep knowledge of the codebase needed.
   expiry, Nginx Proxy Manager, enabled with `PLUGINS=`); more plugins welcome
 - **Packaging** — `.deb`/`.rpm`/AUR packages, Homebrew, Scoop/winget for Windows
 - **Dashboard** — per-finding history ("first seen", "flapping"), fleet filter
-  by tag, export to CSV
+  by tag
+- **Compliance** — finer control mapping (per message), CIS Benchmark section
+  numbers per distro
 
 Have an idea that's not here? Open an issue or start a discussion.

@@ -1,0 +1,43 @@
+# Indicative mapping of anzen findings to NIST SP 800-53 Rev. 5 controls and
+# CIS Controls v8 safeguards. It helps answer "which control is this?" in an
+# audit; it is not a compliance assessment.
+#
+# SECTION_REGEX<TAB>MESSAGE_REGEX<TAB>CONTROLS — POSIX extended regexes, case
+# insensitive, kept to the subset .NET also reads (Windows edition). The
+# section regex must match the whole section name; the message regex any part
+# of the message. The first matching line wins: specific lines go first.
+SSH Configuration	permitrootlogin|root login	NIST AC-6(2), IA-2; CIS 5.4
+SSH Configuration	password ?auth|permitemptypasswords	NIST IA-2, IA-5; CIS 5.2
+SSH Configuration	.	NIST AC-17, CM-6; CIS 4.1
+Users & Sudo	logging|logfile	NIST AU-2, AU-12; CIS 8.2
+Users & Sudo|Local Accounts|Accounts	guest|built-in administrator|default	NIST AC-2, CM-6; CIS 4.7
+Users & Sudo|Local Accounts|Accounts	.	NIST AC-2, AC-6; CIS 5.4
+Account Expiry|Password Policy|PAM Account Lockout	.	NIST AC-7, IA-5; CIS 5.2
+LAPS	.	NIST IA-5, AC-6; CIS 5.2, 4.7
+Credential Protection	.	NIST IA-5, SC-39; CIS 4.1
+Package Updates|Windows Update|Software Update	.	NIST SI-2; CIS 7.3, 7.4
+Exploited CVEs.*|Vulnerabilities.*	.	NIST RA-5, SI-2; CIS 7.7
+Container Images	.	NIST SI-2, CM-2; CIS 7.4
+Firewall|Windows Firewall|Application Firewall	.	NIST SC-7; CIS 4.4, 4.5
+Open Ports & Services|Listening Ports|Sharing Services|Database Exposure|Network \(Advanced\)|TCP Wrappers|Samba / SMB|SMB|Remote Desktop|Name Resolution	.	NIST CM-7, SC-7; CIS 4.8
+FileVault|BitLocker	.	NIST SC-28; CIS 3.11
+TLS Certificates|Trust Stores	.	NIST SC-8, SC-17; CIS 3.10
+Audit Daemon|Audit Policy	.	NIST AU-2, AU-12; CIS 8.2
+Time Synchronization	.	NIST AU-8; CIS 8.4
+PowerShell	logging	NIST AU-12; CIS 8.8
+PowerShell	.	NIST CM-7; CIS 4.8
+Attack Surface Reduction	.	NIST SI-3, SI-16; CIS 10.5
+Microsoft Defender|XProtect|Gatekeeper|Rootkit Scanners	.	NIST SI-3; CIS 10.1, 10.2
+Secure Boot|System Integrity Protection	.	NIST SI-7; CIS 4.1
+Kernel Hardening \(sysctl\)|Kernel Modules|Kernel & System Extensions|MAC Framework.*|Systemd Hardening	.	NIST CM-6, CM-7; CIS 4.1
+User Account Control|Privilege Escalation|SUID / SGID Binaries|PATH Security|World-Writable Files|File Permissions|Launch Agents & Daemons|Cron Jobs	.	NIST AC-3, AC-6; CIS 3.3, 4.1
+Secrets & Credentials	.	NIST IA-5(7); CIS 3.3
+Docker & Containers|Container Security	.	NIST CM-6, CM-7; CIS 4.1
+Intrusion Prevention	.	NIST AC-7, SI-4; CIS 13.7
+Indicators of Compromise	.	NIST SI-4, IR-4
+Recent Logins	.	NIST AC-7, AU-6
+Compilers & Dev Tools	.	NIST CM-7; CIS 4.8
+Pentest.*	.	NIST CA-8, SC-7
+Changes Since Last Run	.	NIST CM-3
+System Information	reboot|restart	NIST SI-2; CIS 7.3
+Management & Profiles	.	NIST CM-8; CIS 1.1

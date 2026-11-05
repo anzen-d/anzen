@@ -38,7 +38,9 @@ generate_txt_report() {
         echo ""
 
         local cur_section=""
-        while IFS=$'\t' read -r level sec msg id remedy; do
+        # Controls come on fd 3, one line per finding (lib/controls.sh)
+        local ctl
+        while IFS=$'\t' read -r level sec msg id remedy && IFS= read -r ctl <&3; do
             if [ "$sec" != "$cur_section" ]; then
                 echo ""
                 echo "--- $sec ---"
@@ -48,7 +50,9 @@ generate_txt_report() {
             [ "$level" != "OK" ] && printf "         ID:  %s\n" "$id"
             [ -n "$remedy" ] && [ "$level" != "OK" ] && [ "$level" != "INFO" ] && \
                 printf "         Fix: %s\n" "$remedy"
-        done < "$FINDINGS_FILE"
+            [ -n "$ctl" ] && [ "$level" != "OK" ] && [ "$level" != "INFO" ] && \
+                printf "         Ref: %s\n" "$ctl"
+        done < "$FINDINGS_FILE" 3< <(_findings_controls)
 
         echo ""
         echo "============================================================"

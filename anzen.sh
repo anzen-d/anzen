@@ -6,7 +6,7 @@
 
 set -uo pipefail
 
-ANZEN_VERSION="0.19.0"
+ANZEN_VERSION="0.20.0"
 ANZEN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPORT_DIR="$ANZEN_DIR/reports"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -16,6 +16,7 @@ GENERATE_HTML=false
 GENERATE_TXT=false
 GENERATE_JSON=false
 GENERATE_SARIF=false
+GENERATE_CSV=false
 GENERATE_REMEDIATE=false
 PARALLEL=false
 BASELINE=false
@@ -44,6 +45,7 @@ for arg in "$@"; do
         --txt)           GENERATE_TXT=true ;;
         --json)          GENERATE_JSON=true ;;
         --sarif)         GENERATE_SARIF=true ;;
+        --csv)           GENERATE_CSV=true ;;
         --remediate)     GENERATE_REMEDIATE=true ;;
         --parallel|-p)   PARALLEL=true ;;
         --baseline)      BASELINE=true ;;
@@ -76,6 +78,7 @@ Output:
   --txt                Plain text report (reports/anzen_TIMESTAMP.txt)
   --json               JSON report (reports/anzen_TIMESTAMP.json)
   --sarif              SARIF 2.1.0 report for GitHub/GitLab code scanning
+  --csv                CSV of the findings, with NIST / CIS control references
   --remediate          Generate remediate.sh from current findings
   --output=FILE        Override output path; with several formats, the extension
                        is replaced per format (out.html, out.txt, out.json, ...)
@@ -141,7 +144,7 @@ done
 
 export QUIET NO_COLOR PENTEST_TARGET PENTEST_WAN PENTEST_RESOLVE_IP OFFLINE
 
-ALL_MODULES=(system users ssh network network2 packages files secrets
+ALL_MODULES=(system inventory users ssh network network2 packages files secrets
              systemd_hardening tls compiler path_check modules
              services docker_security images logins kernel auditd cve truststore
              drift compromise pentest pentest_external)
@@ -242,6 +245,8 @@ source "$ANZEN_DIR/lib/report_html.sh"
 source "$ANZEN_DIR/lib/report_txt.sh"
 source "$ANZEN_DIR/lib/report_json.sh"
 source "$ANZEN_DIR/lib/report_sarif.sh"
+source "$ANZEN_DIR/lib/report_csv.sh"
+source "$ANZEN_DIR/lib/controls.sh"
 source "$ANZEN_DIR/lib/baseline.sh"
 source "$ANZEN_DIR/lib/remediate.sh"
 source "$ANZEN_DIR/lib/notify.sh"
@@ -452,7 +457,7 @@ mkdir -p "$REPORT_DIR"
 
 # Count enabled formats so --output= can be split across several of them
 _n_formats=0
-for _f in $GENERATE_HTML $GENERATE_TXT $GENERATE_JSON $GENERATE_SARIF; do
+for _f in $GENERATE_HTML $GENERATE_TXT $GENERATE_JSON $GENERATE_SARIF $GENERATE_CSV; do
     $_f && _n_formats=$((_n_formats + 1))
 done
 
@@ -498,6 +503,13 @@ if $GENERATE_SARIF; then
     SARIF_FILE=$(_report_path sarif.json)
     generate_sarif_report "$SARIF_FILE"
     echo -e "${BOLD}${CYAN}  SARIF     : $SARIF_FILE${NC}"
+fi
+
+# ── CSV ───────────────────────────────────────────────────────────────────────
+if $GENERATE_CSV; then
+    CSV_FILE=$(_report_path csv)
+    generate_csv_report "$CSV_FILE"
+    echo -e "${BOLD}${CYAN}  CSV       : $CSV_FILE${NC}"
 fi
 
 # ── Remediate ─────────────────────────────────────────────────────────────────

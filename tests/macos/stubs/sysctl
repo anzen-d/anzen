@@ -1,3 +1,10 @@
 #!/bin/sh
-# kern.boottime, 50 days ago — macOS prints "{ sec = N, usec = M } <date>"
-now=$(date +%s); echo "{ sec = $((now - 50*86400)), usec = 482113 } Thu Sep  8 10:00:00 2026"
+# sysctl -n KEY — kern.boottime 50 days ago ("{ sec = N, usec = M } <date>" as macOS prints it)
+case "$2" in
+  kern.boottime) now=$(date +%s); echo "{ sec = $((now - 50*86400)), usec = 482113 } Thu Sep  8 10:00:00 2026" ;;
+  hw.model) echo "Mac15,3" ;;
+  machdep.cpu.brand_string) echo "Apple M3" ;;
+  hw.logicalcpu) echo 8 ;;
+  hw.memsize) echo 17179869184 ;;
+  *) exit 1 ;;
+esac

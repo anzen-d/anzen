@@ -6,6 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-05
+
+### Added
+- **Compliance references:** FAIL and WARN findings in the HTML, TXT, SARIF
+  (`properties.controls`) and CSV reports name the NIST SP 800-53 Rev. 5
+  controls and CIS Controls v8 safeguards they relate to. One mapping file,
+  `lib/data/controls.tsv`, serves all three editions; a test fails when a
+  check section has no mapping. JSON and finding IDs are unchanged.
+- **CSV report** (`--csv`, Windows `-Csv`): one row per finding with the
+  control references; quoted, with spreadsheet formulas defused. Fleet runs
+  return it too.
+- **Dashboard: Export CSV** of every host's latest findings.
+- **`inventory` module** in all three editions (INFO only): hardware, serial
+  number, CPU, memory, and per platform the package database age and count,
+  administrators, disk encryption and firmware (Linux), domain, build,
+  installed programs and TPM (Windows), applications (macOS).
+
 ## [0.19.0] - 2026-11-05
 
 ### Added

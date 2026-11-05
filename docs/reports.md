@@ -64,7 +64,25 @@ Machine-readable output:
 
 ### SARIF
 SARIF 2.1.0 for GitHub/GitLab code scanning. Each result carries the finding ID
-in `partialFingerprints.anzenFindingId/v1`, so alerts track across runs.
+in `partialFingerprints.anzenFindingId/v1`, so alerts track across runs, and
+its control references in `properties.controls`.
+
+### CSV
+`--csv` (Windows: `-Csv`) writes one row per finding for spreadsheets and
+ticket imports: `host,date,level,section,id,message,remedy,controls`. Fields
+are quoted (RFC 4180), and a value starting with `=`, `+`, `-` or `@` gets a
+leading `'` so a spreadsheet does not run it as a formula.
+
+## Compliance references
+
+FAIL and WARN findings in the HTML, TXT, SARIF and CSV reports carry the
+NIST SP 800-53 Rev. 5 controls and CIS Controls v8 safeguards they relate to,
+for example `NIST AC-6(2), IA-2; CIS 5.4` for `PermitRootLogin yes`. The
+mapping lives in [`lib/data/controls.tsv`](../lib/data/controls.tsv), shared
+by all three editions: a section pattern, a message pattern and the controls,
+first match wins. It is an indicative mapping to help answer "which control is
+this?" in an audit, not a compliance assessment. The JSON report and the
+finding IDs do not change.
 
 ## Baseline & Diff
 
@@ -116,7 +134,8 @@ sudo ./anzen.sh --history=/var/lib/anzen/history
 
 Runs land in `HISTORY_DIR/<host>/<timestamp>.json`; the newest `HISTORY_KEEP`
 (default 52) are kept. Point several hosts at a shared directory for a fleet view.
-Set `DASHBOARD_FILE` to rebuild the dashboard after every run.
+Set `DASHBOARD_FILE` to rebuild the dashboard after every run. **Export CSV**
+in the dashboard downloads the findings of every host's latest run as one CSV.
 
 The dashboard shows each host's score and change, a stale marker when the last
 run is older than 8 days, the score trend, FAILs that are new or fixed since the

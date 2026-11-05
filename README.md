@@ -46,7 +46,7 @@ tool: know the whole state of your machines and stop worrying about them.
 - **Alerts only when something new breaks**, via ntfy or any command, plus a dead-man switch.
 - **Accepted risks with expiry dates**, so known exceptions stay quiet but never forever.
 - **Fleet mode:** `--remote=host1,host2` audits hosts over SSH without installing anything there.
-- **HTML, TXT, JSON and SARIF reports**, plus a generated `remediate.sh` with the fix commands.
+- **HTML, TXT, JSON, SARIF and CSV reports** with NIST SP 800-53 / CIS Controls references, a per-host inventory, plus a generated `remediate.sh` with the fix commands.
 - **No dependencies:** plain Bash and standard tools; Trivy, curl and Docker only unlock extra checks.
 
 <p align="center">
@@ -142,7 +142,7 @@ sudo ./anzen.sh --config=/etc/anzen/anzen.conf --parallel --schedule=weekly:04:3
 
 | Area | Modules |
 |------|---------|
-| System and accounts | `system`, `users`, `logins`, `packages`, `services`, `auditd` |
+| System and accounts | `system`, `inventory`, `users`, `logins`, `packages`, `services`, `auditd` |
 | Access and network | `ssh`, `network`, `network2`, `tls` |
 | Kernel and filesystem | `kernel`, `modules`, `files`, `path_check`, `compiler`, `systemd_hardening` |
 | Secrets and certificates | `secrets`, `truststore` |
@@ -150,8 +150,8 @@ sudo ./anzen.sh --config=/etc/anzen/anzen.conf --parallel --schedule=weekly:04:3
 | Vulnerabilities | `cve` (Trivy, CISA KEV) |
 | Compromise detection | `drift`, `compromise` |
 | Active testing | `pentest`, `pentest_external` |
-| Windows | `system`, `updates`, `defender`, `firewall`, `accounts`, `passwords`, `uac`, `bitlocker`, `smb`, `rdp`, `credentials`, `laps`, `asr`, `nameres`, `privesc`, `auditpol`, `powershell`, `secureboot`, `network`, `truststore` |
-| macOS | `system`, `updates`, `xprotect`, `filevault`, `sip`, `gatekeeper`, `firewall`, `sharing`, `accounts`, `ssh`, `launchd`, `extensions`, `profiles`, `truststore` |
+| Windows | `system`, `inventory`, `updates`, `defender`, `firewall`, `accounts`, `passwords`, `uac`, `bitlocker`, `smb`, `rdp`, `credentials`, `laps`, `asr`, `nameres`, `privesc`, `auditpol`, `powershell`, `secureboot`, `network`, `truststore` |
+| macOS | `system`, `inventory`, `updates`, `xprotect`, `filevault`, `sip`, `gatekeeper`, `firewall`, `sharing`, `accounts`, `ssh`, `launchd`, `extensions`, `profiles`, `truststore` |
 
 Every finding is **FAIL** (fix it), **WARN** (review it), **OK** or **INFO**,
 mostly with a copy-paste fix. Full list in [docs/modules.md](docs/modules.md).

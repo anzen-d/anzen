@@ -21,6 +21,8 @@
     Write a plain-text report.
 .PARAMETER Sarif
     Write a SARIF 2.1.0 report (GitHub/GitLab code scanning).
+.PARAMETER Csv
+    Write the findings as CSV, with NIST SP 800-53 / CIS Controls references.
 .PARAMETER Output
     Report path. With several formats the extension is swapped per format
     (out.json -> out.html, out.txt, out.sarif.json). Alone it means -Json.
@@ -61,6 +63,7 @@ param(
     [switch]$Html,
     [switch]$Txt,
     [switch]$Sarif,
+    [switch]$Csv,
     [string]$Output = "",
     [string]$History = "",
     [string]$AcceptFile = "",
@@ -78,7 +81,7 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Continue'
 
-$AnzenVersion = '0.19.0'
+$AnzenVersion = '0.20.0'
 $ScriptPath   = $MyInvocation.MyCommand.Path
 $ScriptDir    = Split-Path -Parent $ScriptPath
 $FailPenalty  = 10
@@ -90,6 +93,7 @@ $script:Findings = New-Object System.Collections.Generic.List[object]
 $script:Section  = 'General'
 $script:Accepted = @{}
 $script:OsInfo   = $null
+$script:Controls = $null
 
 # Same scheme as lib/output.sh _finding_id: section slug + first 8 hex of the MD5
 # of the lower-cased message with volatile numbers (percent, sizes, durations,
@@ -241,6 +245,35 @@ function Invoke-SystemCheck {
         if ($pct -ge 90)     { Fail "Disk $($d.DeviceID) $pct% used" 'cleanmgr /sageset:1 ; cleanmgr /sagerun:1' }
         elseif ($pct -ge 75) { Warn "Disk $($d.DeviceID) $pct% used" }
         else                 { Ok   "Disk $($d.DeviceID) $pct% used" }
+    }
+}
+
+# Asset inventory (INFO only, no score)
+function Invoke-InventoryCheck {
+    Section 'Inventory'
+    $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+    if ($cs) {
+        Info "Hardware: $($cs.Manufacturer) $($cs.Model)"
+        Info ("Memory: {0:N1} GiB" -f ($cs.TotalPhysicalMemory / 1GB))
+        if ($cs.PartOfDomain) { Info "Domain: $($cs.Domain)" } else { Info "Workgroup: $($cs.Workgroup)" }
+    }
+    $bios = Get-CimInstance Win32_BIOS -ErrorAction SilentlyContinue
+    if ($bios -and $bios.SerialNumber) { Info "Serial number: $($bios.SerialNumber)" }
+    $cpu = @(Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue) | Select-Object -First 1
+    if ($cpu) { Info "CPU: $("$($cpu.Name)".Trim()) ($($cpu.NumberOfLogicalProcessors) threads)" }
+    $nt = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+    $dv = Get-RegValue $nt 'DisplayVersion'
+    if ($dv) { Info "Windows version: $dv (build $(Get-RegValue $nt 'CurrentBuild').$(Get-RegValue $nt 'UBR'))" }
+    $apps = @(foreach ($k in 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+                             'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*') {
+        Get-ItemProperty $k -ErrorAction SilentlyContinue | Where-Object { $_.PSObject.Properties['DisplayName'] -and $_.DisplayName }
+    })
+    if ($apps.Count) { Info "Installed programs: $(@($apps.DisplayName | Select-Object -Unique).Count)" }
+    if (Get-Command Get-Tpm -ErrorAction SilentlyContinue) {
+        try {
+            $t = Get-Tpm -ErrorAction Stop
+            Info "TPM: present=$($t.TpmPresent) ready=$($t.TpmReady)"
+        } catch { Info 'TPM state unavailable (needs elevation)' }
     }
 }
 
@@ -706,6 +739,7 @@ function Invoke-AuditPolicyCheck {
 
 $Modules = [ordered]@{
     system      = 'Invoke-SystemCheck'
+    inventory   = 'Invoke-InventoryCheck'
     updates     = 'Invoke-UpdatesCheck'
     defender    = 'Invoke-DefenderCheck'
     firewall    = 'Invoke-FirewallCheck'
@@ -769,6 +803,27 @@ function Save-Text([string]$Path, [string]$Text) {
     [System.IO.File]::WriteAllText($Path, $Text, (New-Object System.Text.UTF8Encoding $false))
 }
 
+# NIST / CIS references from lib/data/controls.tsv (shared with the Linux and
+# macOS editions): first line whose section regex matches the whole section and
+# whose message regex matches the message
+function Get-Controls([string]$Section, [string]$Message) {
+    if ($null -eq $script:Controls) {
+        $script:Controls = @()
+        $path = [IO.Path]::Combine((Split-Path -Parent $ScriptDir), 'lib', 'data', 'controls.tsv')
+        if (Test-Path -LiteralPath $path) {
+            $script:Controls = @(foreach ($line in Get-Content -LiteralPath $path -Encoding UTF8) {
+                if ($line -match '^\s*(#|$)') { continue }
+                $f = $line -split "`t"
+                if ($f.Count -ge 3) { [pscustomobject]@{ Section = "^($($f[0]))`$"; Message = $f[1]; Controls = $f[2] } }
+            })
+        }
+    }
+    foreach ($c in $script:Controls) {
+        if ($Section -match $c.Section -and $Message -match $c.Message) { return $c.Controls }
+    }
+    return ''
+}
+
 function Get-LevelCount([string]$Level) { return @($script:Findings | Where-Object level -eq $Level).Count }
 
 function Write-JsonReport([string]$Path, $Sections, [int]$Score) {
@@ -824,6 +879,8 @@ function Write-TxtReport([string]$Path, $Sections, [int]$Score) {
         $L.Add(('  [{0,-4}] {1}' -f $f.level, $f.message))
         if ($f.level -ne 'OK') { $L.Add("         ID:  $($f.id)") }
         if ($f.remedy -and $f.level -in @('FAIL', 'WARN')) { $L.Add("         Fix: $($f.remedy)") }
+        $ctl = Get-Controls $f.section $f.message
+        if ($ctl -and $f.level -in @('FAIL', 'WARN')) { $L.Add("         Ref: $ctl") }
     }
     $L.Add(''); $L.Add($bar); $L.Add("  END OF REPORT — $(Get-Date)"); $L.Add($bar)
     Save-Text $Path (($L -join "`n") + "`n")
@@ -927,8 +984,10 @@ code { display:inline-block; margin-top:.35rem; font-size:.78rem; color:#38bdf8;
         [void]$sb.Append("<details$open><summary><span>$(ConvertTo-HtmlText $sec)</span><span>$badges</span></summary>`n")
         foreach ($f in $items) {
             $fix = ''
+            $ctl = Get-Controls $f.section $f.message
+            $ref = if ($ctl -and $f.level -in @('FAIL', 'WARN')) { " · $(ConvertTo-HtmlText $ctl)" } else { '' }
             if ($f.remedy -and $f.level -in @('FAIL', 'WARN')) { $fix = "<br><code title=""Click to copy"" onclick=""navigator.clipboard.writeText(this.textContent)"">$(ConvertTo-HtmlText $f.remedy)</code>" }
-            [void]$sb.Append("<div class=""finding"" data-level=""$($f.level)""><span class=""badge $($f.level)"">$($f.level)</span><div><div class=""msg"">$(ConvertTo-HtmlText $f.message)</div><div class=""id"">$($f.id)</div>$fix</div></div>`n")
+            [void]$sb.Append("<div class=""finding"" data-level=""$($f.level)""><span class=""badge $($f.level)"">$($f.level)</span><div><div class=""msg"">$(ConvertTo-HtmlText $f.message)</div><div class=""id"">$($f.id)$ref</div>$fix</div></div>`n")
         }
         [void]$sb.Append("</details>`n")
     }
@@ -961,11 +1020,14 @@ function Write-SarifReport([string]$Path) {
         if (-not $rules.Contains($rid)) {
             $rules[$rid] = [ordered]@{ id = $rid; name = $f.section; defaultConfiguration = @{ level = $lvl }; help = @{ text = "Anzen check: $($f.section)" } }
         }
-        $results.Add([ordered]@{
+        $res = [ordered]@{
             ruleId = $rid; level = $lvl; message = @{ text = $f.message }
             partialFingerprints = @{ 'anzenFindingId/v1' = $f.id }
             locations = @(@{ physicalLocation = @{ artifactLocation = @{ uri = "///$(Get-HostName)" } } })
-        })
+        }
+        $ctl = Get-Controls $f.section $f.message
+        if ($ctl) { $res['properties'] = @{ controls = $ctl } }
+        $results.Add($res)
     }
     $doc = [ordered]@{
         '$schema' = 'https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json'
@@ -973,6 +1035,24 @@ function Write-SarifReport([string]$Path) {
         runs      = @(@{ tool = @{ driver = @{ name = 'anzen'; version = $AnzenVersion; rules = @($rules.Values | ForEach-Object { $_ }) } }; results = $results.ToArray() })
     }
     Save-Text $Path ((ConvertTo-Json $doc -Depth 12) -replace "`r`n", "`n")
+}
+
+# CSV (RFC 4180), same columns as lib/report_csv.sh. A leading = + - @ gets an
+# apostrophe so spreadsheets do not run it as a formula (CSV injection)
+function ConvertTo-CsvField([string]$v) {
+    if ($v -match '^[=+@-]') { $v = "'" + $v }
+    return '"' + ($v -replace '"', '""') + '"'
+}
+
+function Write-CsvReport([string]$Path) {
+    $h = Get-HostName; $d = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    $rows = New-Object System.Collections.Generic.List[string]
+    $rows.Add('host,date,level,section,id,message,remedy,controls')
+    foreach ($f in $script:Findings) {
+        $rows.Add((@($h, $d, $f.level, $f.section, $f.id, $f.message, $f.remedy, (Get-Controls $f.section $f.message)) |
+            ForEach-Object { ConvertTo-CsvField $_ }) -join ',')
+    }
+    Save-Text $Path (($rows -join "`r`n") + "`r`n")
 }
 
 # Report path for EXT: -Output (extension swapped when several formats), else
@@ -992,6 +1072,7 @@ function Write-Report([string]$Ext, [string]$Path, $Sections, [int]$Score) {
         'html'       { Write-HtmlReport $Path $Sections $Score }
         'txt'        { Write-TxtReport $Path $Sections $Score }
         'sarif.json' { Write-SarifReport $Path }
+        'csv'        { Write-CsvReport $Path }
     }
 }
 
@@ -1067,7 +1148,7 @@ function Send-Heartbeat {
 # Runs on the remote host: write this script, the distrusted list and the accept
 # file to a temp dir, audit with the requested formats, return the reports, clean up
 $script:RemoteAudit = {
-    param($Src, $Tsv, $Accept, $Checks, $Formats)
+    param($Src, $Tsv, $Accept, $Checks, $Formats, $ControlsTsv)
     $d = Join-Path ([IO.Path]::GetTempPath()) ('anzen.' + [guid]::NewGuid().ToString('N').Substring(0, 12))
     New-Item -ItemType Directory -Force -Path (Join-Path $d 'windows'), (Join-Path $d 'lib\data') | Out-Null
     $noBom = New-Object Text.UTF8Encoding $false
@@ -1075,10 +1156,11 @@ $script:RemoteAudit = {
     [IO.File]::WriteAllText((Join-Path $d 'windows\anzen.ps1'), $Src, (New-Object Text.UTF8Encoding $true))
     if ($Tsv)    { [IO.File]::WriteAllText((Join-Path $d 'lib\data\distrusted-certs.tsv'), $Tsv, $noBom) }
     if ($Accept) { [IO.File]::WriteAllText((Join-Path $d 'windows\anzen.accept'), $Accept, $noBom) }
+    if ($ControlsTsv) { [IO.File]::WriteAllText((Join-Path $d 'lib\data\controls.tsv'), $ControlsTsv, $noBom) }
     $a = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $d 'windows\anzen.ps1'),
            '-Quiet', '-Offline', '-Output', (Join-Path $d 'out.json'))
     foreach ($fmt in $Formats -split ',') {
-        switch ($fmt) { 'json' { $a += '-Json' } 'html' { $a += '-Html' } 'txt' { $a += '-Txt' } 'sarif.json' { $a += '-Sarif' } }
+        switch ($fmt) { 'json' { $a += '-Json' } 'html' { $a += '-Html' } 'txt' { $a += '-Txt' } 'sarif.json' { $a += '-Sarif' } 'csv' { $a += '-Csv' } }
     }
     if ($Checks) { $a += '-Check'; $a += $Checks }
     & powershell.exe @a *> $null
@@ -1108,6 +1190,8 @@ function Invoke-Fleet([string[]]$Hosts, [string[]]$Formats, [string[]]$Checks) {
     $tsvPath = Join-Path $ScriptDir '..\lib\data\distrusted-certs.tsv'
     $tsv = if (Test-Path -LiteralPath $tsvPath) { [IO.File]::ReadAllText($tsvPath) } else { '' }
     $acc = if ($AcceptFile -and (Test-Path -LiteralPath $AcceptFile)) { [IO.File]::ReadAllText($AcceptFile) } else { '' }
+    $ctlPath = [IO.Path]::Combine((Split-Path -Parent $ScriptDir), 'lib', 'data', 'controls.tsv')
+    $ctl = if (Test-Path -LiteralPath $ctlPath) { [IO.File]::ReadAllText($ctlPath) } else { '' }
     $wanted = @('json') + @($Formats | Where-Object { $_ -ne 'json' })
     $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
     $worst = 0
@@ -1115,7 +1199,7 @@ function Invoke-Fleet([string[]]$Hosts, [string[]]$Formats, [string[]]$Checks) {
         Write-Host ''
         Write-Host "━━━ $h ━━━" -ForegroundColor Cyan
         $ic = @{ ComputerName = $h; ScriptBlock = $script:RemoteAudit; ErrorAction = 'Stop'
-                 ArgumentList = @($src, $tsv, $acc, ($Checks -join ','), ($wanted -join ',')) }
+                 ArgumentList = @($src, $tsv, $acc, ($Checks -join ','), ($wanted -join ','), $ctl) }
         if ($Credential) { $ic['Credential'] = $Credential }
         try { $r = Invoke-Command @ic } catch { Write-Warning "${h}: $($_.Exception.Message)"; $worst = 255; continue }
         if (-not $r -or -not $r['json']) { Write-Warning "${h}: no JSON report produced"; $worst = 255; continue }
@@ -1161,10 +1245,11 @@ if (-not $AcceptFile) { $AcceptFile = Join-Path $ScriptDir 'anzen.accept' }
 
 # -Output alone keeps meaning -Json
 $formats = @()
-if ($Json -or ($Output -and -not ($Html -or $Txt -or $Sarif))) { $formats += 'json' }
+if ($Json -or ($Output -and -not ($Html -or $Txt -or $Sarif -or $Csv))) { $formats += 'json' }
 if ($Html)  { $formats += 'html' }
 if ($Txt)   { $formats += 'txt' }
 if ($Sarif) { $formats += 'sarif.json' }
+if ($Csv)   { $formats += 'csv' }
 
 # Windows PowerShell 5.1 on older .NET may not offer TLS 1.2 by default
 if ($PSVersionTable.PSVersion.Major -lt 6) {
@@ -1210,7 +1295,7 @@ Write-Host "  FAIL: $nFail   WARN: $nWarn   OK: $nOk   Score: $overall%"
 Write-Host ('━' * 42)
 
 $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
-$labels = @{ json = 'JSON'; html = 'HTML'; txt = 'Text'; 'sarif.json' = 'SARIF' }
+$labels = @{ json = 'JSON'; html = 'HTML'; txt = 'Text'; 'sarif.json' = 'SARIF'; csv = 'CSV' }
 foreach ($ext in $formats) {
     $path = Get-ReportPath $ext $formats.Count $stamp
     Write-Report $ext $path $sections $overall

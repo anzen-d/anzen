@@ -18,6 +18,7 @@ powershell -ExecutionPolicy Bypass -File .\windows\anzen.ps1 -Json
 | Module | Checks |
 |--------|--------|
 | `system` | Pending reboot, uptime, disk usage |
+| `inventory` | INFO only: manufacturer, model, serial, CPU, memory, domain/workgroup, Windows version and build, installed program count, TPM |
 | `updates` | Days since last installed update, Windows Update service |
 | `defender` | Antivirus and real-time protection, signature age, tamper protection |
 | `firewall` | Every profile enabled and blocking inbound by default |
@@ -38,7 +39,7 @@ powershell -ExecutionPolicy Bypass -File .\windows\anzen.ps1 -Json
 | `network` | Risky ports (SMB, RDP, WinRM, Telnet…) listening on all interfaces |
 | `truststore` | Distrusted CA certificates (same list as Linux) in machine and user stores, unless blocked by the Disallowed store |
 
-Options: `-Check`, `-Json`, `-Html`, `-Txt`, `-Sarif`, `-Output`, `-History`,
+Options: `-Check`, `-Json`, `-Html`, `-Txt`, `-Sarif`, `-Csv`, `-Output`, `-History`,
 `-AcceptFile`, `-Quiet`, `-Strict`, `-Remote`, `-Credential`, `-NtfyUrl`,
 `-NotifyOn`, `-HeartbeatUrl`, `-Offline`, `-List`. Exit codes match the Linux
 edition (1 on FAIL, or on WARN with `-Strict`). `-Check` runs are partial: no

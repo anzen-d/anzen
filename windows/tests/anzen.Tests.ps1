@@ -240,3 +240,21 @@ Describe 'Fleet (-Remote)' {
         Invoke-Fleet @('bad host') @('json') @() 2>$null 6>$null | Should -Be 255
     }
 }
+
+Describe 'Controls and CSV' {
+    BeforeEach { Reset-Findings }
+    It 'maps findings with the shared controls.tsv' {
+        Get-Controls 'SSH Configuration' 'PermitRootLogin yes' | Should -Be 'NIST AC-6(2), IA-2; CIS 5.4'
+        Get-Controls 'BitLocker' 'System drive C: not protected by BitLocker' | Should -Be 'NIST SC-28; CIS 3.11'
+        Get-Controls 'Made Up' 'x' | Should -Be ''
+    }
+    It 'writes CSV with quoting and formula defusing' {
+        $script:Section = 'SMB'; Fail 'say "hi", go' '=cmd' 6>$null
+        $out = Join-Path ([IO.Path]::GetTempPath()) 'anzen-test.csv'
+        Write-CsvReport $out
+        $rows = @(Import-Csv $out)
+        $rows[0].message | Should -Be 'say "hi", go'
+        $rows[0].remedy | Should -Be "'=cmd"
+        $rows[0].controls | Should -Be 'NIST CM-7, SC-7; CIS 4.8'
+    }
+}

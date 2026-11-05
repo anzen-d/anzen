@@ -35,6 +35,7 @@ _anzen() {
         '--json[Generate JSON report]' \
         '--remediate[Generate remediation script]' \
         '--sarif[Generate SARIF 2.1.0 report]' \
+        '--csv[Generate CSV report with control references]' \
         '--strict[Exit non-zero on WARN too]' \
         '--wan[Also scan WAN/public IP]' \
         '--target=[Endpoint for pentest_external]:target:' \

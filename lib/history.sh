@@ -202,7 +202,7 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
 <body>
 <header>
   <div><h1>安全 Anzen</h1><span class="meta" id="meta"></span></div>
-  <button class="theme" id="theme" type="button">Theme</button>
+  <div><button class="theme" id="csv" type="button">Export CSV</button> <button class="theme" id="theme" type="button">Theme</button></div>
 </header>
 <main>
   <section><h2>Hosts</h2><div class="hosts" id="hosts"></div></section>
@@ -346,6 +346,21 @@ $("#theme").onclick = () => {
   try { localStorage.setItem("anzen-theme", root.dataset.theme); } catch (e) {}
 };
 $("#meta").textContent = `${hosts.length} host${hosts.length === 1 ? "" : "s"} · ${RUNS.length} runs · generated ${fmt(new Date())}`;
+// Latest run of every host as CSV; a leading = + - @ gets an apostrophe so
+// spreadsheets do not run it as a formula (CSV injection)
+$("#csv").onclick = () => {
+  const q = v => { v = String(v ?? ""); if (/^[=+@-]/.test(v)) v = "'" + v; return '"' + v.replace(/"/g, '""') + '"'; };
+  const rows = [["host", "date", "os", "score", "level", "section", "id", "message", "remedy"]];
+  for (const h of hosts) {
+    const r = byHost[h].at(-1);
+    for (const f of r.findings || []) rows.push([h, r.date, r.os, r.summary.score, f.level, f.section, f.id, f.message, f.remedy]);
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([rows.map(r => r.map(q).join(",")).join("\r\n") + "\r\n"], {type: "text/csv"}));
+  a.download = "anzen-fleet-" + new Date().toISOString().slice(0, 10) + ".csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
 render();
 </script>
 </body>

@@ -14,7 +14,9 @@ generate_sarif_report() {
     local rules_json="" results_json=""
     local first_rule=true first_result=true
 
-    while IFS=$'\t' read -r level sec msg id _remedy; do
+    # Controls come on fd 3, one line per finding (lib/controls.sh)
+    local ctl props
+    while IFS=$'\t' read -r level sec msg id _remedy && IFS= read -r ctl <&3; do
         [ "$level" = "OK"   ] && continue
         [ "$level" = "INFO" ] && continue
 
@@ -36,11 +38,13 @@ generate_sarif_report() {
             first_rule=false
         fi
 
+        props=""
+        [ -n "$ctl" ] && props=$(printf ',"properties":{"controls":"%s"}' "$(_sarif_escape "$ctl")")
         $first_result || results_json+=','
-        results_json+=$(printf '{"ruleId":"%s","level":"%s","message":{"text":"%s"},"partialFingerprints":{"anzenFindingId/v1":"%s"},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"///%s"}}}]}' \
-            "$rule_id" "$sarif_level" "$(_sarif_escape "$msg")" "$id" "$(_sarif_escape "$(_hostname)")")
+        results_json+=$(printf '{"ruleId":"%s","level":"%s","message":{"text":"%s"},"partialFingerprints":{"anzenFindingId/v1":"%s"},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"///%s"}}}]%s}' \
+            "$rule_id" "$sarif_level" "$(_sarif_escape "$msg")" "$id" "$(_sarif_escape "$(_hostname)")" "$props")
         first_result=false
-    done < "$FINDINGS_FILE"
+    done < "$FINDINGS_FILE" 3< <(_findings_controls)
 
     {
         printf '{\n'

@@ -193,3 +193,13 @@ ts_env() {
     mac --check=filevault --output="$BATS_TEST_TMPDIR/only.json"
     grep -q '^  "summary": {"fail": 1,' "$BATS_TEST_TMPDIR/only.json"
 }
+
+@test "macos: inventory and CSV report" {
+    mac --check=inventory --check=filevault --csv --output="$BATS_TEST_TMPDIR/inv.csv"
+    [[ "$output" == *"Hardware: Mac15,3"* ]]
+    [[ "$output" == *"Serial number: C02TEST0000"* ]]
+    [[ "$output" == *"CPU: Apple M3 (8 threads)"* ]]
+    [[ "$output" == *"Memory: 16.0 GiB"* ]]
+    grep -q '^host,date,level,section,id,message,remedy,controls' "$BATS_TEST_TMPDIR/inv.csv"
+    grep -q '"FileVault is off — the disk is readable by anyone with physical access","sudo fdesetup enable","NIST SC-28; CIS 3.11"' "$BATS_TEST_TMPDIR/inv.csv"
+}
