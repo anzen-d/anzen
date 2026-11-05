@@ -15,8 +15,15 @@
     Run only these modules (repeatable / comma-separated).
 .PARAMETER Json
     Write a JSON report (reports\anzen_<timestamp>.json, or -Output).
+.PARAMETER Html
+    Write an HTML report (reports\anzen_<timestamp>.html, or -Output).
+.PARAMETER Txt
+    Write a plain-text report.
+.PARAMETER Sarif
+    Write a SARIF 2.1.0 report (GitHub/GitLab code scanning).
 .PARAMETER Output
-    Path for the JSON report.
+    Report path. With several formats the extension is swapped per format
+    (out.json -> out.html, out.txt, out.sarif.json). Alone it means -Json.
 .PARAMETER History
     Save the run as <History>\<host>\<UTC timestamp>.json (the anzen history layout).
 .PARAMETER AcceptFile
@@ -25,28 +32,55 @@
     Hide INFO lines and section banners.
 .PARAMETER Strict
     Exit 1 on WARN as well as FAIL.
+.PARAMETER Remote
+    Audit these Windows hosts over PowerShell remoting (WinRM) instead of this
+    one: host names, comma-separated. Reports and -History stay on this machine.
+.PARAMETER Credential
+    Credential for -Remote (default: the current user, e.g. Kerberos in a domain).
+.PARAMETER NtfyUrl
+    ntfy topic URL for a notification after the audit (default: $env:NOTIFY_NTFY_URL).
+    The access token is read only from $env:NOTIFY_NTFY_TOKEN.
+.PARAMETER NotifyOn
+    always (default), fail (only with FAIL findings) or regression (only with
+    FAIL findings that were not in the previous -History run). Default: $env:NOTIFY_ON.
+.PARAMETER HeartbeatUrl
+    URL fetched after every full run, for a dead-man switch (default: $env:HEARTBEAT_URL).
+.PARAMETER Offline
+    No network connections (no notification, no heartbeat).
 .PARAMETER List
     List modules and exit.
 #>
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 The Anzen contributors
 [CmdletBinding()]
+# Several parameters are read by functions in script scope, which the analyzer does not follow
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '')]
 param(
     [string[]]$Check = @(),
     [switch]$Json,
+    [switch]$Html,
+    [switch]$Txt,
+    [switch]$Sarif,
     [string]$Output = "",
     [string]$History = "",
     [string]$AcceptFile = "",
     [switch]$Quiet,
     [switch]$Strict,
+    [string[]]$Remote = @(),
+    [pscredential]$Credential = $null,
+    [string]$NtfyUrl = $env:NOTIFY_NTFY_URL,
+    [string]$NotifyOn = $(if ($env:NOTIFY_ON) { $env:NOTIFY_ON } else { 'always' }),
+    [string]$HeartbeatUrl = $env:HEARTBEAT_URL,
+    [switch]$Offline,
     [switch]$List
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Continue'
 
-$AnzenVersion = '0.17.1'
-$ScriptDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
+$AnzenVersion = '0.18.0'
+$ScriptPath   = $MyInvocation.MyCommand.Path
+$ScriptDir    = Split-Path -Parent $ScriptPath
 $FailPenalty  = 10
 $WarnPenalty  = 3
 
@@ -55,6 +89,7 @@ $WarnPenalty  = 3
 $script:Findings = New-Object System.Collections.Generic.List[object]
 $script:Section  = 'General'
 $script:Accepted = @{}
+$script:OsInfo   = $null
 
 # Same scheme as lib/output.sh _finding_id: section slug + first 8 hex of the MD5
 # of the lower-cased message with volatile numbers (percent, sizes, durations,
@@ -139,6 +174,47 @@ function Test-Admin {
     $id = [Security.Principal.WindowsIdentity]::GetCurrent()
     return (New-Object Security.Principal.WindowsPrincipal $id).IsInRole(
         [Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+# Single-quoted PowerShell literal for a system value put into a remedy
+# (PowerShell also treats curly single quotes as quotes, so double those too)
+function ConvertTo-PsLiteral([string]$s) {
+    return "'" + ($s -replace "(['\u2018\u2019\u201A\u201B])", '$1$1') + "'"
+}
+
+# Executable from a service or task command line: quoted part, or up to the
+# first .exe/.com/.bat/.cmd, or the first word
+function Get-ExePath([string]$CommandLine) {
+    $c = [Environment]::ExpandEnvironmentVariables($CommandLine.Trim()) -replace '^\\\?\?\\', ''
+    if ($c.StartsWith('"')) {
+        $end = $c.IndexOf('"', 1)
+        if ($end -gt 1) { return $c.Substring(1, $end - 1) }
+        return $null
+    }
+    $m = [regex]::Match($c, '^(.+?\.(exe|com|bat|cmd))(\s|$)', 'IgnoreCase')
+    if ($m.Success) { return $m.Groups[1].Value }
+    return ($c -split '\s+')[0]
+}
+
+# Everyone, Authenticated Users, Users, INTERACTIVE
+$script:LowPrivSids = @('S-1-1-0', 'S-1-5-11', 'S-1-5-32-545', 'S-1-5-4')
+
+# True when a non-admin group may change the file (or create files in the folder)
+function Test-UserWritable([string]$Path, [switch]$Folder) {
+    try { $acl = Get-Acl -LiteralPath $Path -ErrorAction Stop } catch { return $false }
+    $fsr = [Security.AccessControl.FileSystemRights]
+    $mask = if ($Folder) { [int64]$fsr::CreateFiles } else {
+        [int64]($fsr::WriteData -bor $fsr::AppendData -bor $fsr::ChangePermissions -bor $fsr::TakeOwnership) }
+    foreach ($r in $acl.Access) {
+        if ("$($r.AccessControlType)" -ne 'Allow') { continue }
+        if ($r.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) { continue }
+        try { $sid = $r.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value } catch { continue }
+        if ($sid -notin $script:LowPrivSids) { continue }
+        $rights = [int64]$r.FileSystemRights
+        # 0x50000000 = GENERIC_ALL | GENERIC_WRITE
+        if (($rights -band $mask) -or ($rights -band 0x50000000)) { return $true }
+    }
+    return $false
 }
 
 # ── Checks ───────────────────────────────────────────────────────────────────
@@ -293,6 +369,11 @@ function Invoke-BitLockerCheck {
 
 function Invoke-SmbCheck {
     Section 'SMB'
+    try {
+        $cc = Get-SmbClientConfiguration -ErrorAction Stop
+        if ($cc.RequireSecuritySignature) { Ok 'SMB client requires signing' }
+        else { Warn 'SMB client does not require signing' 'Set-SmbClientConfiguration -RequireSecuritySignature $true -Force' }
+    } catch { Info 'SMB client configuration unavailable' }
     $cfg = $null
     try { $cfg = Get-SmbServerConfiguration -ErrorAction Stop } catch { $cfg = $null }
     if (-not $cfg) { Info 'SMB server configuration unavailable'; return }
@@ -327,6 +408,14 @@ function Invoke-CredentialProtectionCheck {
     $wd = Get-RegValue 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest' 'UseLogonCredential'
     if ($wd -eq 1) { Fail 'WDigest stores plain-text credentials in memory' "Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest' UseLogonCredential 0" }
     else           { Ok 'WDigest plain-text credential caching off' }
+
+    $dg = Get-CimInstance -Namespace 'root\Microsoft\Windows\DeviceGuard' -ClassName Win32_DeviceGuard -ErrorAction SilentlyContinue
+    if (-not $dg) { Info 'Credential Guard state unavailable'; return }
+    $caption = "$((Get-OsInfo).Name)"
+    if (@($dg.SecurityServicesRunning) -contains 1) { Ok 'Credential Guard running' }
+    elseif (@($dg.AvailableSecurityProperties) -notcontains 1) { Info 'Credential Guard unavailable: no virtualization-based security support (hardware or VM)' }
+    elseif ($caption -notmatch 'Enterprise|Education|Server') { Info 'Credential Guard needs the Enterprise, Education or Server edition' }
+    else { Warn 'Credential Guard not running' '# GPO: Computer Configuration > Administrative Templates > System > Device Guard > Turn On Virtualization Based Security (Credential Guard: Enabled with UEFI lock)' }
 }
 
 function Invoke-PowerShellCheck {
@@ -426,6 +515,195 @@ function Invoke-TrustStoreCheck {
     if (-not $found) { Ok "No distrusted CA certificates trusted ($checked certificates checked)" }
 }
 
+# Windows LAPS (built in since April 2023) or legacy Microsoft LAPS on joined machines
+function Invoke-LapsCheck {
+    Section 'LAPS'
+    $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+    $joined = [bool]($cs -and $cs.PartOfDomain)
+    if (-not $joined -and (Get-Command dsregcmd -ErrorAction SilentlyContinue)) {
+        $joined = [bool]((dsregcmd /status 2>$null) -match 'AzureAdJoined\s*:\s*YES')
+    }
+    if (-not $joined) {
+        Info 'Not joined to a domain or Entra ID: LAPS does not apply (keep the built-in Administrator disabled)'
+        return
+    }
+    foreach ($k in 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\LAPS',
+                   'HKLM:\SOFTWARE\Policies\Microsoft\Windows\LAPS',
+                   'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\LAPS\Config') {
+        $v = Get-RegValue $k 'BackupDirectory'
+        if ($v -eq 1) { Ok 'Windows LAPS backs up the local admin password to Entra ID'; return }
+        if ($v -eq 2) { Ok 'Windows LAPS backs up the local admin password to Active Directory'; return }
+    }
+    if ((Get-RegValue 'HKLM:\SOFTWARE\Policies\Microsoft Services\AdmPwd' 'AdmPwdEnabled') -eq 1) {
+        Ok 'Legacy Microsoft LAPS enabled'; return
+    }
+    Warn 'LAPS not configured: the local admin password is not rotated' '# enable Windows LAPS by GPO or Intune (BackupDirectory: 1 = Entra ID, 2 = Active Directory)'
+}
+
+# Attack Surface Reduction rules Microsoft recommends for most organisations
+$script:AsrRules = [ordered]@{
+    '9e6c4e1f-7d60-472f-ba1a-a39ef669e4b2' = 'Block credential stealing from LSASS'
+    '56a863a9-875e-4185-98a7-b882c64b5ce5' = 'Block abuse of exploited vulnerable signed drivers'
+    'd4f940ab-401b-4efc-aadc-ad5f3c50688a' = 'Block Office apps from creating child processes'
+    'be9ba2d9-53ea-4cdc-84e5-9b1eeee46550' = 'Block executable content from email and webmail'
+    'd3e037e1-3eb8-44c8-a917-57927947596d' = 'Block JavaScript/VBScript from launching downloaded executables'
+    '5beb7efe-fd9a-4556-801d-275e5ffc04cc' = 'Block execution of potentially obfuscated scripts'
+    '92e97fa1-2edf-4476-bdd6-9dd0b4dddc7b' = 'Block Win32 API calls from Office macros'
+}
+
+function Invoke-AsrCheck {
+    Section 'Attack Surface Reduction'
+    if (-not (Get-Command Get-MpPreference -ErrorAction SilentlyContinue)) {
+        Info 'Defender cmdlets not available: ASR rules need Microsoft Defender'; return
+    }
+    try { $st = Get-MpComputerStatus -ErrorAction Stop } catch { $st = $null }
+    if ($st -and $st.PSObject.Properties['AMRunningMode'] -and $st.AMRunningMode -and $st.AMRunningMode -ne 'Normal') {
+        Info "Defender runs in $($st.AMRunningMode): ASR rules need Defender as the primary antivirus"; return
+    }
+    try { $p = Get-MpPreference -ErrorAction Stop } catch { Info "Defender preferences unavailable: $($_.Exception.Message)"; return }
+    $ids = @($p.AttackSurfaceReductionRules_Ids); $acts = @($p.AttackSurfaceReductionRules_Actions)
+    $mode = @{}
+    for ($i = 0; $i -lt $ids.Count; $i++) { if ($ids[$i]) { $mode["$($ids[$i])".ToLowerInvariant()] = [int]$acts[$i] } }
+    # 1 = block, 2 = audit, 6 = warn
+    $missing = @($script:AsrRules.Keys | Where-Object { $mode[$_] -ne 1 })
+    if (-not $missing.Count) { Ok "All recommended Attack Surface Reduction rules in block mode ($($script:AsrRules.Count) rules)"; return }
+    $fix = 'Add-MpPreference -AttackSurfaceReductionRules_Ids {0} -AttackSurfaceReductionRules_Actions {1}' -f
+        ($missing -join ','), ((@('Enabled') * $missing.Count) -join ',')
+    Warn "Recommended Attack Surface Reduction rules not in block mode ($($missing.Count) rules)" $fix
+    foreach ($g in $missing) {
+        $state = switch ($mode[$g]) { 2 { 'audit' } 6 { 'warn' } default { 'off' } }
+        Info "ASR rule $state`: $($script:AsrRules[$g]) ($g)"
+    }
+}
+
+# LLMNR and NetBIOS name resolution let anyone on the LAN answer name lookups
+# and capture NTLM hashes (Responder)
+function Invoke-NameResolutionCheck {
+    Section 'Name Resolution'
+    $dns = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient'
+    if ((Get-RegValue $dns 'EnableMulticast') -eq 0) { Ok 'LLMNR disabled' }
+    else { Warn 'LLMNR enabled (name spoofing on the local network)' "New-Item -Force '$dns' | Out-Null; Set-ItemProperty '$dns' EnableMulticast 0" }
+    $ad = @(Get-CimInstance Win32_NetworkAdapterConfiguration -Filter 'IPEnabled=TRUE' -ErrorAction SilentlyContinue)
+    if (-not $ad.Count) { Info 'No network adapters with IP found'; return }
+    $on = @($ad | Where-Object { $_.TcpipNetbiosOptions -ne 2 })
+    if ($on.Count) {
+        Warn "NetBIOS over TCP/IP enabled ($($on.Count) adapters)" "Get-CimInstance Win32_NetworkAdapterConfiguration -Filter 'IPEnabled=TRUE' | Invoke-CimMethod -MethodName SetTcpipNetbios -Arguments @{TcpipNetbiosOptions = 2}"
+    } else { Ok 'NetBIOS over TCP/IP disabled on every adapter' }
+}
+
+# Services and scheduled tasks a normal user could swap for their own program,
+# unquoted service paths, and AlwaysInstallElevated
+function Test-PrivilegedBinary([string]$What, [string]$Exe) {
+    if (-not $Exe -or -not (Test-Path -LiteralPath $Exe -PathType Leaf)) { return 0 }
+    if (Test-UserWritable $Exe) {
+        Fail "$What from a user-writable file: $Exe" "icacls $(ConvertTo-PsLiteral $Exe)   # then remove the write grants of Users, Authenticated Users, Everyone"
+        return 1
+    }
+    $dir = Split-Path -Parent $Exe
+    if ($dir -and (Test-UserWritable $dir -Folder)) {
+        Warn "$What from a user-writable folder: $dir" "icacls $(ConvertTo-PsLiteral $dir)   # users can plant DLLs here: remove their create-files grant"
+        return 1
+    }
+    return 0
+}
+
+function Invoke-PrivEscCheck {
+    Section 'Privilege Escalation'
+    $bad = 0; $checked = 0
+    foreach ($s in @(Get-CimInstance Win32_Service -ErrorAction SilentlyContinue)) {
+        if (-not $s.PathName) { continue }
+        $checked++
+        $exe = Get-ExePath $s.PathName
+        $account = if ($s.StartName) { "$($s.StartName)" } else { 'LocalSystem' }
+        $raw = $s.PathName.Trim()
+        $m = [regex]::Match($raw, '^(.+?\.(exe|com|bat|cmd))(\s|$)', 'IgnoreCase')
+        if (-not $raw.StartsWith('"') -and $m.Success -and $m.Groups[1].Value -match ' ') {
+            $bad++
+            $quoted = '"' + $m.Groups[1].Value + '"' + $raw.Substring($m.Groups[1].Length)
+            Warn "Service $($s.Name) has an unquoted path with spaces: $exe" ("Set-ItemProperty {0} ImagePath {1}" -f
+                (ConvertTo-PsLiteral "HKLM:\SYSTEM\CurrentControlSet\Services\$($s.Name)"), (ConvertTo-PsLiteral $quoted))
+        }
+        $bad += Test-PrivilegedBinary "Service $($s.Name) runs as $account" $exe
+    }
+    if (Get-Command Get-ScheduledTask -ErrorAction SilentlyContinue) {
+        foreach ($t in @(Get-ScheduledTask -ErrorAction SilentlyContinue)) {
+            $uid = "$($t.Principal.UserId)"
+            $as = if ($uid -match '^(SYSTEM|NT AUTHORITY\\SYSTEM|S-1-5-18|LocalSystem)$') { 'as SYSTEM' }
+                  elseif ("$($t.Principal.RunLevel)" -eq 'Highest') { 'elevated' } else { '' }
+            if (-not $as) { continue }
+            foreach ($a in @($t.Actions)) {
+                if (-not $a -or -not $a.PSObject.Properties['Execute'] -or -not $a.Execute) { continue }
+                $exe = [Environment]::ExpandEnvironmentVariables("$($a.Execute)".Trim().Trim('"'))
+                if (-not [IO.Path]::IsPathRooted($exe)) { continue }
+                $checked++
+                $bad += Test-PrivilegedBinary "Scheduled task $($t.TaskPath)$($t.TaskName) runs $as" $exe
+            }
+        }
+    }
+    if (-not $bad) { Ok "No service or scheduled task binaries writable by users ($checked entries)" }
+
+    $inst = 'SOFTWARE\Policies\Microsoft\Windows\Installer'
+    $m = Get-RegValue "HKLM:\$inst" 'AlwaysInstallElevated'
+    $u = Get-RegValue "HKCU:\$inst" 'AlwaysInstallElevated'
+    if ($m -eq 1 -and $u -eq 1) {
+        Fail 'AlwaysInstallElevated on: any user can install MSI packages as SYSTEM' "Remove-ItemProperty 'HKLM:\$inst' AlwaysInstallElevated; Remove-ItemProperty 'HKCU:\$inst' AlwaysInstallElevated"
+    } elseif ($m -eq 1) {
+        Warn 'AlwaysInstallElevated set for the machine (users who set it too install MSI packages as SYSTEM)' "Remove-ItemProperty 'HKLM:\$inst' AlwaysInstallElevated"
+    } else { Ok 'AlwaysInstallElevated off' }
+}
+
+# Advanced audit policy subcategories (GUIDs are language-independent) and the
+# bits they need: 1 = success, 2 = failure
+$script:AuditSubcategories = [ordered]@{
+    '{0CCE923F-69AE-11D9-BED3-505054503030}' = @('Credential Validation', 3)
+    '{0CCE9215-69AE-11D9-BED3-505054503030}' = @('Logon', 3)
+    '{0CCE9217-69AE-11D9-BED3-505054503030}' = @('Account Lockout', 2)
+    '{0CCE921B-69AE-11D9-BED3-505054503030}' = @('Special Logon', 1)
+    '{0CCE9235-69AE-11D9-BED3-505054503030}' = @('User Account Management', 1)
+    '{0CCE9237-69AE-11D9-BED3-505054503030}' = @('Security Group Management', 1)
+    '{0CCE922B-69AE-11D9-BED3-505054503030}' = @('Process Creation', 1)
+    '{0CCE922F-69AE-11D9-BED3-505054503030}' = @('Audit Policy Change', 1)
+}
+
+# Audit policy rows from "auditpol /backup" CSV: GUID -> setting value
+function Read-AuditPolicy([string]$CsvPath) {
+    $map = @{}
+    foreach ($r in @(Import-Csv -LiteralPath $CsvPath)) {
+        $v = @($r.PSObject.Properties | ForEach-Object { "$($_.Value)" })
+        if ($v.Count -ge 7 -and $v[3] -match '^\{[0-9A-Fa-f-]{36}\}$' -and $v[6] -match '^\d+$') {
+            $map[$v[3].ToUpperInvariant()] = [int]$v[6]
+        }
+    }
+    return $map
+}
+
+function Invoke-AuditPolicyCheck {
+    Section 'Audit Policy'
+    if (-not (Test-Admin)) { Info 'Audit policy needs an elevated prompt' }
+    elseif (Get-Command auditpol -ErrorAction SilentlyContinue) {
+        $csv = Join-Path ([IO.Path]::GetTempPath()) ("anzen-auditpol-{0}.csv" -f [guid]::NewGuid().ToString('N'))
+        auditpol /backup /file:$csv 2>$null | Out-Null
+        if (Test-Path -LiteralPath $csv) {
+            $map = Read-AuditPolicy $csv
+            Remove-Item -LiteralPath $csv -Force -ErrorAction SilentlyContinue
+            foreach ($g in $script:AuditSubcategories.Keys) {
+                $name, $need = $script:AuditSubcategories[$g]
+                $have = 0; if ($map.ContainsKey($g)) { $have = $map[$g] }
+                if (($have -band $need) -eq $need) { Ok "Audit policy records $name"; continue }
+                $flags = @(); if ($need -band 1) { $flags += '/success:enable' }; if ($need -band 2) { $flags += '/failure:enable' }
+                $what = @(); if (($need -band 1) -and -not ($have -band 1)) { $what += 'success' }; if (($need -band 2) -and -not ($have -band 2)) { $what += 'failure' }
+                Warn "Audit policy does not record $name ($($what -join ' and '))" "auditpol /set /subcategory:`"$g`" $($flags -join ' ')"
+            }
+        } else { Info 'auditpol /backup failed' }
+    }
+    try {
+        $log = Get-WinEvent -ListLog Security -ErrorAction Stop
+        $mb = [int]($log.MaximumSizeInBytes / 1MB)
+        if ($mb -lt 192) { Warn "Security event log max size $mb MB (192 MB+ recommended)" 'wevtutil sl Security /ms:201326592' }
+        else             { Ok   "Security event log max size $mb MB" }
+    } catch { Info 'Security event log size unavailable (needs elevation)' }
+}
+
 $Modules = [ordered]@{
     system      = 'Invoke-SystemCheck'
     updates     = 'Invoke-UpdatesCheck'
@@ -438,6 +716,11 @@ $Modules = [ordered]@{
     smb         = 'Invoke-SmbCheck'
     rdp         = 'Invoke-RdpCheck'
     credentials = 'Invoke-CredentialProtectionCheck'
+    laps        = 'Invoke-LapsCheck'
+    asr         = 'Invoke-AsrCheck'
+    nameres     = 'Invoke-NameResolutionCheck'
+    privesc     = 'Invoke-PrivEscCheck'
+    auditpol    = 'Invoke-AuditPolicyCheck'
     powershell  = 'Invoke-PowerShellCheck'
     secureboot  = 'Invoke-SecureBootCheck'
     network     = 'Invoke-NetworkCheck'
@@ -466,14 +749,30 @@ function ConvertTo-JsonString([string]$s) {
     return $s
 }
 
-function Write-JsonReport([string]$Path, $Sections, [int]$Score) {
-    $os = $null
-    if (Get-Command Get-CimInstance -ErrorAction SilentlyContinue) {
-        $os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+# OS caption and version, read once (Get-CimInstance is Windows-only)
+function Get-OsInfo {
+    if (-not $script:OsInfo) {
+        $n = ''; $v = ''
+        if (Get-Command Get-CimInstance -ErrorAction SilentlyContinue) {
+            $os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+            if ($os) { $n = "$($os.Caption)"; $v = "$($os.Version)" }
+        }
+        $script:OsInfo = @{ Name = $n; Version = $v }
     }
-    $osName = ''; $osVer = ''
-    if ($os) { $osName = "$($os.Caption)"; $osVer = "$($os.Version)" }
-    $count = { param($l) @($script:Findings | Where-Object level -eq $l).Count }
+    return $script:OsInfo
+}
+
+# UTF-8 without BOM, LF line endings — same bytes as the Linux edition
+function Save-Text([string]$Path, [string]$Text) {
+    $dir = Split-Path -Parent $Path
+    if ($dir -and -not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+    [System.IO.File]::WriteAllText($Path, $Text, (New-Object System.Text.UTF8Encoding $false))
+}
+
+function Get-LevelCount([string]$Level) { return @($script:Findings | Where-Object level -eq $Level).Count }
+
+function Write-JsonReport([string]$Path, $Sections, [int]$Score) {
+    $osName = (Get-OsInfo).Name; $osVer = (Get-OsInfo).Version
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.Append("{`n")
     [void]$sb.Append("  `"hostname`": `"$(ConvertTo-JsonString (Get-HostName))`",`n")
@@ -485,7 +784,7 @@ function Write-JsonReport([string]$Path, $Sections, [int]$Score) {
     [void]$sb.Append("  `"version`": `"$AnzenVersion`",`n")
     [void]$sb.Append("  `"date`": `"$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'))`",`n")
     [void]$sb.Append(("  `"summary`": {{`"fail`": {0}, `"warn`": {1}, `"ok`": {2}, `"info`": {3}, `"score`": {4}}},`n" -f
-        (& $count 'FAIL'), (& $count 'WARN'), (& $count 'OK'), (& $count 'INFO'), $Score))
+        (Get-LevelCount 'FAIL'), (Get-LevelCount 'WARN'), (Get-LevelCount 'OK'), (Get-LevelCount 'INFO'), $Score))
     [void]$sb.Append('  "sections": [')
     $first = $true
     foreach ($s in $Sections) {
@@ -501,12 +800,350 @@ function Write-JsonReport([string]$Path, $Sections, [int]$Score) {
     }
     [void]$sb.Append(($lines -join ",`n"))
     [void]$sb.Append("`n  ]`n}`n")
-    $dir = Split-Path -Parent $Path
-    if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
-    # UTF-8 without BOM, LF line endings — same bytes as the Linux edition
-    [System.IO.File]::WriteAllText($Path, $sb.ToString(), (New-Object System.Text.UTF8Encoding $false))
+    Save-Text $Path $sb.ToString()
 }
 
+# Plain-text report, same layout as lib/report_txt.sh
+function Write-TxtReport([string]$Path, $Sections, [int]$Score) {
+    $os = Get-OsInfo
+    $bar = '=' * 60
+    $L = New-Object System.Collections.Generic.List[string]
+    $L.Add($bar); $L.Add('  ANZEN (安全) — Windows Security Audit Report'); $L.Add("  Anzen $AnzenVersion"); $L.Add($bar); $L.Add('')
+    $L.Add("  Hostname   : $(Get-HostName)")
+    $L.Add("  OS         : $($os.Name)")
+    $L.Add("  Version    : $($os.Version)")
+    $L.Add("  Audited by : $([Environment]::UserName)")
+    $L.Add("  Date       : $(Get-Date)"); $L.Add(''); $L.Add($bar)
+    $L.Add(('  SUMMARY:  FAIL={0,-3}  WARN={1,-3}  OK={2,-3}  SCORE={3}%' -f (Get-LevelCount 'FAIL'), (Get-LevelCount 'WARN'), (Get-LevelCount 'OK'), $Score))
+    $L.Add($bar); $L.Add(''); $L.Add('  Section scores:')
+    foreach ($s in $Sections) { $L.Add(('    {0,-36} {1,3}%  FAIL={2,-3} WARN={3}' -f $s.name, $s.score, $s.fail, $s.warn)) }
+    $L.Add('')
+    $cur = $null
+    foreach ($f in $script:Findings) {
+        if ($f.section -ne $cur) { $L.Add(''); $L.Add("--- $($f.section) ---"); $cur = $f.section }
+        $L.Add(('  [{0,-4}] {1}' -f $f.level, $f.message))
+        if ($f.level -ne 'OK') { $L.Add("         ID:  $($f.id)") }
+        if ($f.remedy -and $f.level -in @('FAIL', 'WARN')) { $L.Add("         Fix: $($f.remedy)") }
+    }
+    $L.Add(''); $L.Add($bar); $L.Add("  END OF REPORT — $(Get-Date)"); $L.Add($bar)
+    Save-Text $Path (($L -join "`n") + "`n")
+}
+
+function ConvertTo-HtmlText([string]$s) { return [System.Net.WebUtility]::HtmlEncode($s) }
+
+# Self-contained HTML report in the Linux edition's look (lib/report_html.sh)
+function Write-HtmlReport([string]$Path, $Sections, [int]$Score) {
+    $os = Get-OsInfo
+    $n = @{}; foreach ($l in 'FAIL', 'WARN', 'OK', 'INFO') { $n[$l] = Get-LevelCount $l }
+    $scoreColor = if ($Score -lt 50) { '#dc2626' } elseif ($Score -lt 80) { '#d97706' } else { '#059669' }
+    $hostName = ConvertTo-HtmlText (Get-HostName)
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.Append(@"
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anzen — $hostName — $(Get-Date -Format 'yyyy-MM-dd')</title>
+<style>
+:root { --bg:#0f172a; --surface:#1e293b; --surface2:#263548; --border:#334155; --text:#e2e8f0; --muted:#64748b;
+  --FAIL:#ef4444; --FAIL-bg:#7f1d1d; --WARN:#f59e0b; --WARN-bg:#78350f; --OK:#10b981; --OK-bg:#14532d; --INFO:#93c5fd; --INFO-bg:#1e3a5f; }
+body.light { --bg:#f1f5f9; --surface:#fff; --surface2:#f8fafc; --border:#e2e8f0; --text:#0f172a;
+  --FAIL:#dc2626; --FAIL-bg:#fee2e2; --WARN:#d97706; --WARN-bg:#fef3c7; --OK:#16a34a; --OK-bg:#dcfce7; --INFO:#2563eb; --INFO-bg:#dbeafe; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }
+.header { background:var(--surface); border-bottom:1px solid var(--border); padding:1.5rem 2rem; }
+.top { display:flex; justify-content:space-between; margin-bottom:1.25rem; }
+.logo { font-size:1.75rem; font-weight:800; color:#38bdf8; } .logo span { color:var(--text); }
+.tagline { color:var(--muted); font-size:.8rem; }
+.btn { padding:.4rem .9rem; border-radius:6px; font-size:.8rem; font-weight:600; cursor:pointer; border:1px solid var(--border); background:var(--surface2); color:var(--text); }
+.meta { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:.75rem; }
+.meta div { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:.6rem 1rem; font-family:monospace; font-size:.85rem; }
+.meta b { display:block; font-family:sans-serif; font-size:.65rem; text-transform:uppercase; color:var(--muted); font-weight:400; }
+.summary { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; padding:1.25rem 2rem; border-bottom:1px solid var(--border); }
+.card { border-radius:10px; padding:1rem; text-align:center; border:1px solid var(--border); background:var(--surface); }
+.card b { display:block; font-size:.7rem; text-transform:uppercase; color:var(--muted); }
+.card span { font-size:2.5rem; font-weight:800; }
+.filters { display:flex; gap:.5rem; padding:1rem 2rem 0; flex-wrap:wrap; }
+.filter { padding:.3rem .8rem; border-radius:999px; font-size:.75rem; font-weight:600; cursor:pointer; border:1px solid var(--border); background:var(--surface2); color:var(--muted); }
+.filter.active { background:#475569; color:#fff; }
+.content { padding:1rem 2rem 2rem; }
+details { background:var(--surface); border:1px solid var(--border); border-radius:10px; margin-bottom:.75rem; overflow:hidden; }
+summary { padding:.9rem 1.25rem; cursor:pointer; display:flex; justify-content:space-between; font-weight:600; font-size:.9rem; }
+.mini { font-size:.65rem; font-weight:700; padding:2px 7px; border-radius:999px; margin-left:.35rem; background:var(--border); }
+.finding { padding:.6rem 1.25rem; border-top:1px solid var(--surface2); display:flex; gap:.75rem; font-size:.85rem; }
+.badge { padding:2px 8px; border-radius:4px; font-size:.68rem; font-weight:700; height:fit-content; }
+.FAIL { background:var(--FAIL-bg); color:var(--FAIL); } .WARN { background:var(--WARN-bg); color:var(--WARN); }
+.OK { background:var(--OK-bg); color:var(--OK); } .INFO { background:var(--INFO-bg); color:var(--INFO); }
+.msg, .id, code { font-family:"Cascadia Code",Consolas,monospace; word-break:break-word; }
+.id { font-size:.68rem; color:var(--muted); }
+code { display:inline-block; margin-top:.35rem; font-size:.78rem; color:#38bdf8; background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:2px 6px; cursor:pointer; }
+.footer { text-align:center; padding:1.5rem; color:var(--muted); font-size:.75rem; border-top:1px solid var(--border); }
+@media print { .btn, .filters { display:none; } details:not([open]) { display:none; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="top">
+    <div><div class="logo">安<span>zen</span></div><div class="tagline">Windows Security Audit</div></div>
+    <div><button class="btn" onclick="theme()">☀ / ☾</button> <button class="btn" onclick="window.print()">⎙ Print</button></div>
+  </div>
+  <div class="meta">
+    <div><b>Hostname</b>$hostName</div>
+    <div><b>OS</b>$(ConvertTo-HtmlText $os.Name)</div>
+    <div><b>Version</b>$(ConvertTo-HtmlText $os.Version)</div>
+    <div><b>Audited By</b>$(ConvertTo-HtmlText ([Environment]::UserName))</div>
+    <div><b>Date</b>$(Get-Date -Format 'yyyy-MM-dd HH:mm')</div>
+  </div>
+</div>
+<div class="summary">
+  <div class="card"><b>Failed</b><span style="color:var(--FAIL)">$($n.FAIL)</span></div>
+  <div class="card"><b>Warnings</b><span style="color:var(--WARN)">$($n.WARN)</span></div>
+  <div class="card"><b>Passed</b><span style="color:var(--OK)">$($n.OK)</span></div>
+  <div class="card"><b>Score</b><span style="color:$scoreColor">$Score%</span></div>
+</div>
+<div class="filters">
+  <button class="filter active" data-f="ALL" onclick="filt('ALL')">All</button>
+  <button class="filter" data-f="FAIL" onclick="filt('FAIL')">FAIL ($($n.FAIL))</button>
+  <button class="filter" data-f="WARN" onclick="filt('WARN')">WARN ($($n.WARN))</button>
+  <button class="filter" data-f="OK" onclick="filt('OK')">OK ($($n.OK))</button>
+  <button class="filter" data-f="INFO" onclick="filt('INFO')">INFO ($($n.INFO))</button>
+</div>
+<div class="content">
+
+"@)
+    $scores = @{}; foreach ($s in $Sections) { $scores[$s.name] = $s }
+    $order = New-Object System.Collections.Generic.List[string]
+    foreach ($f in $script:Findings) { if (-not $order.Contains($f.section)) { $order.Add($f.section) } }
+    foreach ($sec in $order) {
+        $items = @($script:Findings | Where-Object section -eq $sec)
+        $nf = @($items | Where-Object level -eq 'FAIL').Count
+        $nw = @($items | Where-Object level -eq 'WARN').Count
+        $badges = ''
+        if ($nf) { $badges += "<span class=""mini FAIL"">$nf FAIL</span>" }
+        if ($nw) { $badges += "<span class=""mini WARN"">$nw WARN</span>" }
+        if ($scores.ContainsKey($sec)) { $badges += "<span class=""mini"">$($scores[$sec].score)%</span>" }
+        $open = if ($nf) { ' open' } else { '' }
+        [void]$sb.Append("<details$open><summary><span>$(ConvertTo-HtmlText $sec)</span><span>$badges</span></summary>`n")
+        foreach ($f in $items) {
+            $fix = ''
+            if ($f.remedy -and $f.level -in @('FAIL', 'WARN')) { $fix = "<br><code title=""Click to copy"" onclick=""navigator.clipboard.writeText(this.textContent)"">$(ConvertTo-HtmlText $f.remedy)</code>" }
+            [void]$sb.Append("<div class=""finding"" data-level=""$($f.level)""><span class=""badge $($f.level)"">$($f.level)</span><div><div class=""msg"">$(ConvertTo-HtmlText $f.message)</div><div class=""id"">$($f.id)</div>$fix</div></div>`n")
+        }
+        [void]$sb.Append("</details>`n")
+    }
+    [void]$sb.Append(@"
+</div>
+<div class="footer">Generated by <strong>Anzen $AnzenVersion</strong> &mdash; $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')</div>
+<script>
+function theme() { document.body.classList.toggle('light'); localStorage.setItem('anzen-theme', document.body.classList.contains('light') ? 'light' : 'dark'); }
+if (localStorage.getItem('anzen-theme') === 'light') document.body.classList.add('light');
+function filt(l) {
+  document.querySelectorAll('.finding').forEach(e => e.style.display = (l === 'ALL' || e.dataset.level === l) ? '' : 'none');
+  document.querySelectorAll('details').forEach(d => d.style.display = [...d.querySelectorAll('.finding')].some(e => e.style.display !== 'none') ? '' : 'none');
+  document.querySelectorAll('.filter').forEach(b => b.classList.toggle('active', b.dataset.f === l));
+}
+</script>
+</body>
+</html>
+
+"@)
+    Save-Text $Path ($sb.ToString() -replace "`r`n", "`n")
+}
+
+# SARIF 2.1.0, same rules/results/fingerprints as lib/report_sarif.sh
+function Write-SarifReport([string]$Path) {
+    $rules = [ordered]@{}; $results = New-Object System.Collections.Generic.List[object]
+    foreach ($f in $script:Findings) {
+        if ($f.level -notin @('FAIL', 'WARN')) { continue }
+        $lvl = if ($f.level -eq 'FAIL') { 'error' } else { 'warning' }
+        $rid = ($f.section.ToLowerInvariant() -replace '[ /]', '-') -replace '[^a-z0-9-]', ''
+        if (-not $rules.Contains($rid)) {
+            $rules[$rid] = [ordered]@{ id = $rid; name = $f.section; defaultConfiguration = @{ level = $lvl }; help = @{ text = "Anzen check: $($f.section)" } }
+        }
+        $results.Add([ordered]@{
+            ruleId = $rid; level = $lvl; message = @{ text = $f.message }
+            partialFingerprints = @{ 'anzenFindingId/v1' = $f.id }
+            locations = @(@{ physicalLocation = @{ artifactLocation = @{ uri = "///$(Get-HostName)" } } })
+        })
+    }
+    $doc = [ordered]@{
+        '$schema' = 'https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json'
+        version   = '2.1.0'
+        runs      = @(@{ tool = @{ driver = @{ name = 'anzen'; version = $AnzenVersion; rules = @($rules.Values | ForEach-Object { $_ }) } }; results = $results.ToArray() })
+    }
+    Save-Text $Path ((ConvertTo-Json $doc -Depth 12) -replace "`r`n", "`n")
+}
+
+# Report path for EXT: -Output (extension swapped when several formats), else
+# reports\<Prefix>_<Stamp>.<ext> next to the script — same rule as anzen.sh
+function Get-ReportPath([string]$Ext, [int]$Count, [string]$Stamp, [string]$Prefix = 'anzen') {
+    if (-not $Output) { return Join-Path (Join-Path $ScriptDir 'reports') "${Prefix}_$Stamp.$Ext" }
+    if ($Count -le 1) { return $Output }
+    $base = $Output
+    if ([IO.Path]::GetFileName($base) -match '\.') { $base = $base.Substring(0, $base.LastIndexOf('.')) }
+    if ($base.EndsWith('.sarif')) { $base = $base.Substring(0, $base.Length - 6) }
+    return "$base.$Ext"
+}
+
+function Write-Report([string]$Ext, [string]$Path, $Sections, [int]$Score) {
+    switch ($Ext) {
+        'json'       { Write-JsonReport $Path $Sections $Score }
+        'html'       { Write-HtmlReport $Path $Sections $Score }
+        'txt'        { Write-TxtReport $Path $Sections $Score }
+        'sarif.json' { Write-SarifReport $Path }
+    }
+}
+
+# ── History, notifications, heartbeat ────────────────────────────────────────
+
+# Newest run in a host's history dir, or $null
+function Get-LatestHistory([string]$HostDir) {
+    if (-not (Test-Path -LiteralPath $HostDir)) { return $null }
+    $f = Get-ChildItem -LiteralPath $HostDir -Filter '*.json' -File -ErrorAction SilentlyContinue | Sort-Object Name | Select-Object -Last 1
+    if ($f) { return $f.FullName }
+    return $null
+}
+
+# Store a JSON report as <HostDir>\<UTC timestamp>.json (never overwrite), print the path
+function Save-History([string]$HostDir, [string]$JsonText) {
+    $base = Join-Path $HostDir ((Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ'))
+    $file = "$base.json"; $i = 1
+    while (Test-Path -LiteralPath $file) { $file = "$base-$i.json"; $i++ }
+    Save-Text $file $JsonText
+    return $file
+}
+
+# Messages of FAIL findings in $Current whose IDs were not FAIL in the $Previous report file
+function Get-NewFails([string]$Previous, $Current) {
+    $seen = @{}
+    if ($Previous -and (Test-Path -LiteralPath $Previous)) {
+        try {
+            foreach ($f in @((Get-Content -LiteralPath $Previous -Raw | ConvertFrom-Json).findings)) {
+                if ($f.level -eq 'FAIL') { $seen[$f.id] = $true }
+            }
+        } catch { Write-Verbose "unreadable history file $Previous" }
+    }
+    return @($Current | Where-Object { $_.level -eq 'FAIL' -and -not $seen.ContainsKey($_.id) } | ForEach-Object { $_.message })
+}
+
+# ntfy notification (same title/priority/body as lib/notify.sh); -NotifyOn applies
+function Send-Notification([int]$Fails, [int]$Score, [string[]]$NewFails, [string]$HostName) {
+    if ($Offline -or -not $NtfyUrl) { return }
+    $nNew = @($NewFails | Where-Object { $_ }).Count
+    switch ($NotifyOn) {
+        'always'     { }
+        'fail'       { if (-not $Fails) { return } }
+        'regression' { if (-not $nNew) { return } }
+        default      { Write-Warning "Unknown -NotifyOn '$NotifyOn' (always|fail|regression)"; return }
+    }
+    $body = "Score: $Score% | $((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'))"
+    if ($nNew) {
+        $title = "Anzen: $nNew new FAIL(s) on $HostName"; $prio = 'high'
+        $body += "`n" + ((@($NewFails | Where-Object { $_ }) | Select-Object -First 5 | ForEach-Object { "+ $_" }) -join "`n")
+        if ($nNew -gt 5) { $body += "`n… and $($nNew - 5) more" }
+    } elseif ($Fails) {
+        $title = "Anzen: $Fails FAIL(s) on $HostName"; $prio = 'high'
+    } else {
+        $title = "Anzen: Clean audit on $HostName"; $prio = 'default'
+    }
+    $headers = @{ Title = $title; Priority = $prio }
+    # Token only from the environment: parameters show up in process listings
+    if ($env:NOTIFY_NTFY_TOKEN) { $headers['Authorization'] = "Bearer $env:NOTIFY_NTFY_TOKEN" }
+    try {
+        Invoke-RestMethod -Method Post -Uri $NtfyUrl -Headers $headers -TimeoutSec 15 `
+            -Body ([Text.Encoding]::UTF8.GetBytes($body)) -ContentType 'text/plain; charset=utf-8' | Out-Null
+    } catch { Write-Warning "Notification to ntfy failed: $($_.Exception.Message)" }
+}
+
+function Send-Heartbeat {
+    if ($Offline -or -not $HeartbeatUrl) { return }
+    try { Invoke-WebRequest -Uri $HeartbeatUrl -UseBasicParsing -TimeoutSec 10 | Out-Null }
+    catch { Write-Warning 'Heartbeat to HeartbeatUrl failed' }
+}
+
+# ── Fleet (-Remote) ──────────────────────────────────────────────────────────
+
+# Runs on the remote host: write this script, the distrusted list and the accept
+# file to a temp dir, audit with the requested formats, return the reports, clean up
+$script:RemoteAudit = {
+    param($Src, $Tsv, $Accept, $Checks, $Formats)
+    $d = Join-Path ([IO.Path]::GetTempPath()) ('anzen.' + [guid]::NewGuid().ToString('N').Substring(0, 12))
+    New-Item -ItemType Directory -Force -Path (Join-Path $d 'windows'), (Join-Path $d 'lib\data') | Out-Null
+    $noBom = New-Object Text.UTF8Encoding $false
+    # BOM: Windows PowerShell 5.1 reads BOM-less scripts as ANSI
+    [IO.File]::WriteAllText((Join-Path $d 'windows\anzen.ps1'), $Src, (New-Object Text.UTF8Encoding $true))
+    if ($Tsv)    { [IO.File]::WriteAllText((Join-Path $d 'lib\data\distrusted-certs.tsv'), $Tsv, $noBom) }
+    if ($Accept) { [IO.File]::WriteAllText((Join-Path $d 'windows\anzen.accept'), $Accept, $noBom) }
+    $a = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $d 'windows\anzen.ps1'),
+           '-Quiet', '-Offline', '-Output', (Join-Path $d 'out.json'))
+    foreach ($fmt in $Formats -split ',') {
+        switch ($fmt) { 'json' { $a += '-Json' } 'html' { $a += '-Html' } 'txt' { $a += '-Txt' } 'sarif.json' { $a += '-Sarif' } }
+    }
+    if ($Checks) { $a += '-Check'; $a += $Checks }
+    & powershell.exe @a *> $null
+    $out = @{ rc = $LASTEXITCODE }
+    foreach ($ext in $Formats -split ',') {
+        $p = Join-Path $d "out.$ext"
+        if (Test-Path -LiteralPath $p) { $out[$ext] = [IO.File]::ReadAllText($p) }
+    }
+    Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue
+    $out
+}
+
+# Host name safe for a history directory: the report's own name if it is a
+# plain host name, else the name we connected to
+function Get-SafeHostName([string]$Reported, [string]$Connected) {
+    $r = "$Reported".ToLowerInvariant()
+    if ($r -match '^[a-z0-9][a-z0-9._-]{0,252}$' -and $r -notmatch '\.\.') { return $r }
+    return $Connected.ToLowerInvariant()
+}
+
+# Audit each host over remoting; returns the worst exit code (255 > 2 > 1 > 0)
+function Invoke-Fleet([string[]]$Hosts, [string[]]$Formats, [string[]]$Checks) {
+    foreach ($h in $Hosts) {
+        if ($h -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$') { Write-Error "Invalid -Remote host '$h'"; return 255 }
+    }
+    $src = [IO.File]::ReadAllText($ScriptPath)
+    $tsvPath = Join-Path $ScriptDir '..\lib\data\distrusted-certs.tsv'
+    $tsv = if (Test-Path -LiteralPath $tsvPath) { [IO.File]::ReadAllText($tsvPath) } else { '' }
+    $acc = if ($AcceptFile -and (Test-Path -LiteralPath $AcceptFile)) { [IO.File]::ReadAllText($AcceptFile) } else { '' }
+    $wanted = @('json') + @($Formats | Where-Object { $_ -ne 'json' })
+    $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+    $worst = 0
+    foreach ($h in $Hosts) {
+        Write-Host ''
+        Write-Host "━━━ $h ━━━" -ForegroundColor Cyan
+        $ic = @{ ComputerName = $h; ScriptBlock = $script:RemoteAudit; ErrorAction = 'Stop'
+                 ArgumentList = @($src, $tsv, $acc, ($Checks -join ','), ($wanted -join ',')) }
+        if ($Credential) { $ic['Credential'] = $Credential }
+        try { $r = Invoke-Command @ic } catch { Write-Warning "${h}: $($_.Exception.Message)"; $worst = 255; continue }
+        if (-not $r -or -not $r['json']) { Write-Warning "${h}: no JSON report produced"; $worst = 255; continue }
+        try { $rep = $r['json'] | ConvertFrom-Json } catch { Write-Warning "${h}: unreadable JSON report"; $worst = 255; continue }
+        $name = Get-SafeHostName $rep.hostname $h
+        Write-Host ("  FAIL: {0}   WARN: {1}   OK: {2}   Score: {3}%" -f $rep.summary.fail, $rep.summary.warn, $rep.summary.ok, $rep.summary.score)
+        $new = @()
+        if ($History -and -not $Checks.Count) {
+            $hostDir = Join-Path $History $name
+            $prev = Get-LatestHistory $hostDir
+            $new = Get-NewFails $prev @($rep.findings)
+            Write-Host "  History   : $(Save-History $hostDir $r['json'])" -ForegroundColor Cyan
+        }
+        foreach ($ext in $Formats) {
+            if (-not $r[$ext]) { continue }
+            $dest = if ($Hosts.Count -eq 1 -and $Output) { Get-ReportPath $ext $Formats.Count $stamp }
+                    else { Join-Path (Join-Path $ScriptDir 'reports') "anzen_$(($name -split '\.')[0])_$stamp.$ext" }
+            Save-Text $dest $r[$ext]
+            Write-Host "  Report    : $dest" -ForegroundColor Cyan
+        }
+        if (-not $Checks.Count) { Send-Notification ([int]$rep.summary.fail) ([int]$rep.summary.score) $new $name }
+        $rc = [int]$r['rc']
+        if ($rc -notin 0, 1, 2) { $rc = 255 }
+        if ($rc -gt $worst) { $worst = $rc }
+    }
+    if (-not $Checks.Count) { Send-Heartbeat }
+    return $worst
+}
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 # Dot-sourcing (". .\anzen.ps1", as the Pester tests do) loads the functions only
@@ -521,6 +1158,22 @@ foreach ($m in $selected) {
     }
 }
 if (-not $AcceptFile) { $AcceptFile = Join-Path $ScriptDir 'anzen.accept' }
+
+# -Output alone keeps meaning -Json
+$formats = @()
+if ($Json -or ($Output -and -not ($Html -or $Txt -or $Sarif))) { $formats += 'json' }
+if ($Html)  { $formats += 'html' }
+if ($Txt)   { $formats += 'txt' }
+if ($Sarif) { $formats += 'sarif.json' }
+
+# Windows PowerShell 5.1 on older .NET may not offer TLS 1.2 by default
+if ($PSVersionTable.PSVersion.Major -lt 6) {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+}
+
+$remoteHosts = @($Remote | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
+if ($remoteHosts.Count) { exit (Invoke-Fleet $remoteHosts $formats $selected) }
+
 Import-AcceptFile $AcceptFile
 
 if (-not $Quiet) {
@@ -541,9 +1194,9 @@ foreach ($m in $Modules.Keys) {
 $sections = @(Get-SectionScores)
 $overall = 100
 if ($sections.Count) { $overall = [int][Math]::Round(($sections | Measure-Object score -Average).Average) }
-$nFail = @($script:Findings | Where-Object level -eq 'FAIL').Count
-$nWarn = @($script:Findings | Where-Object level -eq 'WARN').Count
-$nOk   = @($script:Findings | Where-Object level -eq 'OK').Count
+$nFail = Get-LevelCount 'FAIL'
+$nWarn = Get-LevelCount 'WARN'
+$nOk   = Get-LevelCount 'OK'
 
 Write-Host ''
 Write-Host ('━' * 42)
@@ -556,16 +1209,26 @@ Write-Host ('━' * 42)
 Write-Host "  FAIL: $nFail   WARN: $nWarn   OK: $nOk   Score: $overall%"
 Write-Host ('━' * 42)
 
-if ($Json -or $Output) {
-    if (-not $Output) { $Output = Join-Path $ScriptDir ("reports\anzen_{0}.json" -f (Get-Date -Format 'yyyyMMdd_HHmmss')) }
-    Write-JsonReport $Output $sections $overall
-    Write-Host "  JSON      : $Output" -ForegroundColor Cyan
+$stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+$labels = @{ json = 'JSON'; html = 'HTML'; txt = 'Text'; 'sarif.json' = 'SARIF' }
+foreach ($ext in $formats) {
+    $path = Get-ReportPath $ext $formats.Count $stamp
+    Write-Report $ext $path $sections $overall
+    Write-Host ('  {0,-10}: {1}' -f $labels[$ext], $path) -ForegroundColor Cyan
 }
+$newFails = @()
 if ($History) {
     $hostDir = Join-Path $History (Get-HostName)
-    $file = Join-Path $hostDir ((Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ') + '.json')
+    $prev = Get-LatestHistory $hostDir
+    $newFails = Get-NewFails $prev $script:Findings
+    $file = Save-History $hostDir ''
     Write-JsonReport $file $sections $overall
     Write-Host "  History   : $file" -ForegroundColor Cyan
+}
+# -Check runs are partial: no alerts, no heartbeat (same as anzen.sh)
+if (-not $selected.Count) {
+    Send-Notification $nFail $overall $newFails (Get-HostName)
+    Send-Heartbeat
 }
 
 if ($nFail -gt 0) { exit 1 }

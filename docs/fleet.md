@@ -28,6 +28,11 @@ Schedule a fleet next to the local audit — each keeps its own cron line:
 sudo ./anzen.sh --config=/etc/anzen/anzen.conf --remote=root@pve,root@nas --schedule=weekly:05:30
 ```
 
+Windows hosts: run `windows\anzen.ps1 -Remote pc1,pc2 -History <dir>` from a
+Windows machine (PowerShell remoting, see [Windows edition](windows.md#fleet--remote)).
+Point `-History` at the Linux `HISTORY_DIR` (for example an SMB share) and the
+dashboard shows both.
+
 ## Scheduling
 
 Install a cron job to run Anzen automatically:

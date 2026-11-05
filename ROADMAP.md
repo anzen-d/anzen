@@ -21,9 +21,9 @@ Small, self-contained, no deep knowledge of the codebase needed.
   - `tls`: certificates missing a SAN, wildcard certificates on many hosts
 - **New plugins** for the [plugin catalogue](plugins/README.md): Proxmox,
   Home Assistant, Traefik/Caddy, NAS (Synology, TrueNAS)
-- **Windows checks** — `windows/anzen.ps1` is newer and smaller: e.g. LAPS,
-  Windows Hello / PIN policy, Attack Surface Reduction rules, SMB null sessions,
-  scheduled tasks running as SYSTEM from writable paths.
+- **Windows checks** — `windows/anzen.ps1` is newer and smaller: e.g. Windows
+  Hello / PIN policy, SMB null sessions, WSUS over HTTP, scripts (not only
+  binaries) run by SYSTEM tasks, process command-line auditing.
 - **Distrusted certificates** — when a CA is compromised or distrusted, add its
   fingerprints to `lib/data/distrusted-certs.tsv` (one line per certificate,
   with a reference link).
@@ -32,8 +32,8 @@ Small, self-contained, no deep knowledge of the codebase needed.
 
 ## Bigger features
 
-- **Windows parity** — HTML/TXT/SARIF reports, notifications and `-Remote`
-  (WinRM/SSH) in the PowerShell edition
+- **Windows parity** — CVE checks, `-Remote` over SSH (WinRM is done), and
+  auditing Windows hosts from the Linux `--remote` fleet
 - **macOS parity** — HTML/TXT/SARIF reports, notifications, `--remote`, more
   checks (MDM profiles, XProtect version, Lockdown Mode, unsigned launch agents)
 - **Kubernetes depth** — RBAC, pod security, network policies (beyond the

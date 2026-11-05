@@ -6,6 +6,30 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-05
+
+### Added
+- **Windows: HTML, TXT and SARIF reports** (`-Html`, `-Txt`, `-Sarif`), with
+  the same layout, rule IDs and fingerprints as the Linux edition. With
+  several formats `-Output` swaps the extension, as in `anzen.sh`.
+- **Windows: `-Remote`** audits other Windows hosts over PowerShell remoting
+  (WinRM, optional `-Credential`). Reports, `-History`, notifications and the
+  heartbeat stay on the machine running it; the exit code is the worst host.
+- **Windows: ntfy notifications and heartbeat** (`-NtfyUrl`, `-NotifyOn
+  always|fail|regression`, `-HeartbeatUrl`, `-Offline`), defaulting to the
+  Linux variable names in the environment. The token is read only from
+  `NOTIFY_NTFY_TOKEN`.
+- **Windows checks:** `laps` (Windows or legacy LAPS on joined machines),
+  `asr` (seven recommended Attack Surface Reduction rules in block mode),
+  `nameres` (LLMNR, NetBIOS over TCP/IP), `privesc` (service and SYSTEM or
+  elevated scheduled-task binaries and folders writable by users, unquoted
+  service paths, AlwaysInstallElevated), `auditpol` (advanced audit policy by
+  subcategory GUID, Security log size); Credential Guard in `credentials`;
+  SMB client signing in `smb`.
+
+### Changed
+- Windows: `-Check` runs send no notification and no heartbeat (as `anzen.sh`).
+
 ## [0.17.1] - 2026-11-05
 
 ### Fixed

@@ -36,7 +36,7 @@ SHA-256 checksum and a signed build provenance attestation (Sigstore, created
 by the release workflow from the tagged commit):
 
 ```bash
-v=0.17.1
+v=0.18.0
 curl -LO https://github.com/anzen-d/anzen/releases/download/v$v/anzen-$v.tar.gz
 curl -LO https://github.com/anzen-d/anzen/releases/download/v$v/anzen-$v.tar.gz.sha256
 sha256sum -c anzen-$v.tar.gz.sha256

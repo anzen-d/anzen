@@ -77,12 +77,30 @@ jobs:
       - name: Full run on Windows PowerShell 5.1
         shell: powershell
         run: |
-          .\windows\anzen.ps1 -Output "$env:RUNNER_TEMP\anzen.json"
+          .\windows\anzen.ps1 -Json -Html -Txt -Sarif -Output "$env:RUNNER_TEMP\anzen.json"
           # 0 = clean, 1 = FAIL findings (expected on a stock runner); anything else is a crash
           if ($LASTEXITCODE -gt 1) { exit $LASTEXITCODE }
           $report = Get-Content "$env:RUNNER_TEMP\anzen.json" -Raw | ConvertFrom-Json
           $report.summary | Format-List
           if (-not $report.findings.Count) { Write-Error 'empty report'; exit 1 }
+          $sarif = Get-Content "$env:RUNNER_TEMP\anzen.sarif.json" -Raw | ConvertFrom-Json
+          if ($sarif.version -ne '2.1.0') { Write-Error 'bad SARIF'; exit 1 }
+          foreach ($f in 'anzen.html', 'anzen.txt') {
+            if (-not (Test-Path "$env:RUNNER_TEMP\$f")) { Write-Error "$f missing"; exit 1 }
+          }
+          exit 0
+      - name: Fleet run over WinRM (-Remote localhost)
+        shell: powershell
+        run: |
+          Enable-PSRemoting -Force -SkipNetworkProfileCheck | Out-Null
+          .\windows\anzen.ps1 -Remote localhost -Html -History "$env:RUNNER_TEMP\history" -Output "$env:RUNNER_TEMP\fleet.html"
+          if ($LASTEXITCODE -gt 1) { exit $LASTEXITCODE }
+          $runs = @(Get-ChildItem "$env:RUNNER_TEMP\history" -Recurse -Filter *.json)
+          if ($runs.Count -ne 1) { Write-Error "expected 1 history run, got $($runs.Count)"; exit 1 }
+          $report = Get-Content $runs[0].FullName -Raw | ConvertFrom-Json
+          $report.summary | Format-List
+          if (-not $report.findings.Count) { Write-Error 'empty remote report'; exit 1 }
+          if (-not (Test-Path "$env:RUNNER_TEMP\fleet.html")) { Write-Error 'remote HTML missing'; exit 1 }
           exit 0
 
   macos:
