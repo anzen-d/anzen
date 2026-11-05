@@ -61,6 +61,20 @@ _svc_probe_addr() {
     esac
 }
 
+# _svc_http ADDR PORT PATH [JSON_BODY] — "STATUS<TAB>first 2 KB of body" of a
+# plain-HTTP request to a local service (GET, or POST with a JSON body); 3 s timeout
+_svc_http() {
+    command -v curl &>/dev/null || return 1
+    local host=$1 out
+    case $host in *:*) host="[$host]" ;; esac
+    if [ -n "${4:-}" ]; then
+        out=$(curl -s -m 3 -H 'Content-Type: application/json' -d "$4" -w '\n%{http_code}' "http://$host:$2$3" 2>/dev/null) || return 1
+    else
+        out=$(curl -s -m 3 -w '\n%{http_code}' "http://$host:$2$3" 2>/dev/null) || return 1
+    fi
+    printf '%s\t%s\n' "${out##*$'\n'}" "$(printf '%s' "${out%$'\n'*}" | head -c 2048 | tr '\n\t' '  ')"
+}
+
 # _svc_probe ADDR PORT PAYLOAD — send PAYLOAD (printf format) and print the
 # first bytes of the reply; local connections only, 2 s timeout
 _svc_probe() {

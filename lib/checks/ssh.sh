@@ -100,6 +100,35 @@ run_ssh_check() {
         remedy "sed -i 's/^#*PermitTunnel.*/PermitTunnel no/' /etc/ssh/sshd_config && $(_sshd_reload)"
     fi
 
+    # GatewayPorts — remote forwards bound to all interfaces publish services
+    # from the SSH client's side to the whole network
+    VAL=$(_ssh_val "GatewayPorts"); VAL=${VAL:-no}
+    if echo "$VAL" | grep -qiE "^(yes|clientspecified)$"; then
+        warn "GatewayPorts: $VAL — remote port forwards can listen on all interfaces"
+        remedy "sed -i 's/^#*GatewayPorts.*/GatewayPorts no/' /etc/ssh/sshd_config && $(_sshd_reload)"
+    else
+        ok "GatewayPorts: $VAL"
+    fi
+
+    # PermitUserEnvironment — ~/.ssh/environment can set LD_PRELOAD and get
+    # around ForceCommand and restricted shells
+    VAL=$(_ssh_val "PermitUserEnvironment"); VAL=${VAL:-no}
+    if echo "$VAL" | grep -qi "^no$"; then
+        ok "PermitUserEnvironment: no"
+    else
+        warn "PermitUserEnvironment: $VAL — users can set LD_PRELOAD and other variables for sshd sessions"
+        remedy "sed -i 's/^#*PermitUserEnvironment.*/PermitUserEnvironment no/' /etc/ssh/sshd_config && $(_sshd_reload)"
+    fi
+
+    # AllowAgentForwarding — root (or an attacker as root) on this host can use
+    # every forwarded agent while its session is open. A policy choice: INFO
+    VAL=$(_ssh_val "AllowAgentForwarding"); VAL=${VAL:-yes}
+    if echo "$VAL" | grep -qi "^no$"; then
+        ok "AllowAgentForwarding: no"
+    else
+        info "AllowAgentForwarding: $VAL — forwarded agents of logged-in users are usable by root here"
+    fi
+
     # MaxAuthTries
     VAL=$(_ssh_val "MaxAuthTries"); VAL=${VAL:-6}
     if [ "$VAL" -gt 4 ] 2>/dev/null; then

@@ -163,3 +163,79 @@ _services() {
     grep -q 'header = "Authorization: Bearer tk_secret"' "$T/curl"
     grep -q 'url = "https://kuma.example/api/push/pushsecret"' "$T/curl"
 }
+
+@test "ssh: GatewayPorts and PermitUserEnvironment are WARNs, agent forwarding INFO" {
+    SSHD_T=$'port 2222\ngatewayports clientspecified\npermituserenvironment yes\nallowagentforwarding yes'
+    _sshd_t
+    grep -q "^WARN	SSH Configuration	GatewayPorts: clientspecified" "$FINDINGS_FILE"
+    grep -q "^WARN	SSH Configuration	PermitUserEnvironment: yes" "$FINDINGS_FILE"
+    grep -q "^INFO	SSH Configuration	AllowAgentForwarding: yes" "$FINDINGS_FILE"
+    : > "$FINDINGS_FILE"
+    SSHD_T=$'port 2222\ngatewayports no\npermituserenvironment no\nallowagentforwarding no'
+    _sshd_t
+    grep -q "^OK	SSH Configuration	GatewayPorts: no" "$FINDINGS_FILE"
+    grep -q "^OK	SSH Configuration	PermitUserEnvironment: no" "$FINDINGS_FILE"
+    grep -q "^OK	SSH Configuration	AllowAgentForwarding: no" "$FINDINGS_FILE"
+}
+
+@test "kernel: ldisc autoload is a WARN, kexec loading INFO" {
+    # shellcheck disable=SC1091
+    source "$ANZEN_DIR/lib/checks/kernel.sh"
+    _sysctl() { case $1 in dev.tty.ldisc_autoload) echo "$LD" ;; kernel.kexec_load_disabled) echo "$KX" ;; esac; }
+    LD=1 KX=0 run_kernel_check > /dev/null
+    grep -q "^WARN	.*dev.tty.ldisc_autoload=1" "$FINDINGS_FILE"
+    grep -q "^INFO	.*kernel.kexec_load_disabled=0" "$FINDINGS_FILE"
+    : > "$FINDINGS_FILE"
+    LD=0 KX=1 run_kernel_check > /dev/null
+    grep -q "^OK	.*TTY line-discipline autoload disabled" "$FINDINGS_FILE"
+    grep -q "^OK	.*kexec loading disabled" "$FINDINGS_FILE"
+}
+
+@test "services: Elasticsearch, CouchDB and etcd without authentication" {
+    SS_TCP=("LISTEN 0 0 0.0.0.0:9200 0.0.0.0:*" "LISTEN 0 0 127.0.0.1:5984 0.0.0.0:*" "LISTEN 0 0 [::1]:2379 [::]:*")
+    SS_UDP=()
+    # shellcheck disable=SC1091
+    source "$ANZEN_DIR/lib/checks/services.sh"
+    _svc_probe() { :; }
+    _svc_http() {
+        echo "$1 $2 $3 ${4:-}" >> "$T/http.log"
+        case $2 in
+            9200) printf '200\t{ "name" : "n1", "cluster_name" : "prod" }\n' ;;
+            5984) printf '200\t["_users","orders"]\n' ;;
+            2379) printf '200\t{"header":{"cluster_id":"1"},"count":"0"}\n' ;;
+        esac
+    }
+    _services
+    grep -q "^FAIL	.*Elasticsearch on 127.0.0.1:9200 answers without authentication" "$FINDINGS_FILE"
+    grep -q "^WARN	.*CouchDB on 127.0.0.1:5984 answers without authentication (local only)" "$FINDINGS_FILE"
+    grep -q "^WARN	.*etcd on ::1:2379 answers without authentication (local only)" "$FINDINGS_FILE"
+    grep -q '^::1 2379 /v3/kv/range {"key":"AA==","limit":1}$' "$T/http.log"
+    # With authentication: 401, or 200 with an error body
+    : > "$FINDINGS_FILE"
+    _svc_http() { case $2 in 9200) printf '401\t{"error":"security_exception"}\n' ;; 5984) printf '401\t{"error":"unauthorized"}\n' ;; 2379) printf '200\t{"error":"etcdserver: user name is empty"}\n' ;; esac; }
+    _services
+    ! grep -qE "Elasticsearch|CouchDB|etcd" "$FINDINGS_FILE"
+}
+
+@test "_svc_http returns status and body, brackets IPv6" {
+    curl() { echo "$*" > "$T/curl.args"; printf 'line1\nline2\n404'; }
+    run _svc_http ::1 2379 /version
+    [ "$output" = "404	line1 line2" ]
+    grep -q 'http://\[::1\]:2379/version' "$T/curl.args"
+}
+
+@test "tls: CA-issued leaf without SAN is a WARN, with SAN quiet" {
+    command -v openssl >/dev/null || skip "openssl not installed"
+    # shellcheck disable=SC1091
+    source "$ANZEN_DIR/lib/checks/tls.sh"
+    openssl req -x509 -newkey rsa:2048 -nodes -keyout "$T/ca.key" -out "$T/ca.pem" -subj /CN=ca -days 30 2>/dev/null
+    openssl req -newkey rsa:2048 -nodes -keyout "$T/l.key" -out "$T/l.csr" -subj /CN=leaf.example.com 2>/dev/null
+    openssl x509 -req -in "$T/l.csr" -CA "$T/ca.pem" -CAkey "$T/ca.key" -CAcreateserial -days 30 -out "$T/nosan.pem" 2>/dev/null
+    printf 'subjectAltName=DNS:leaf.example.com\n' > "$T/ext"
+    openssl x509 -req -in "$T/l.csr" -CA "$T/ca.pem" -CAkey "$T/ca.key" -CAcreateserial -days 30 -extfile "$T/ext" -out "$T/san.pem" 2>/dev/null
+    _tls_weak_cert nosan < "$T/nosan.pem"
+    _tls_weak_cert withsan < "$T/san.pem"
+    _tls_weak_cert theca < "$T/ca.pem"
+    grep -q "^WARN	.*without a Subject Alternative Name: nosan" "$FINDINGS_FILE"
+    ! grep -qE "withsan|theca" "$FINDINGS_FILE"
+}

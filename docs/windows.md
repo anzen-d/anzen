@@ -19,21 +19,21 @@ powershell -ExecutionPolicy Bypass -File .\windows\anzen.ps1 -Json
 |--------|--------|
 | `system` | Pending reboot, uptime, disk usage |
 | `inventory` | INFO only: manufacturer, model, serial, CPU, memory, domain/workgroup, Windows version and build, installed program count, TPM |
-| `updates` | Days since last installed update, Windows Update service |
+| `updates` | Days since last installed update, Windows Update service, WSUS over plain HTTP (FAIL) |
 | `defender` | Antivirus and real-time protection, signature age, tamper protection |
 | `firewall` | Every profile enabled and blocking inbound by default |
 | `accounts` | Guest and built-in Administrator, accounts without passwords, local admins, auto-logon with stored password |
 | `passwords` | Minimum length, lockout threshold |
 | `uac` | UAC on, admin consent prompt, secure desktop |
 | `bitlocker` | System drive protection |
-| `smb` | SMBv1, signing required on server and client |
+| `smb` | SMBv1, signing required on server and client, null sessions (`RestrictNullSessAccess`, `RestrictAnonymous`, `RestrictAnonymousSAM`, `EveryoneIncludesAnonymous`, null-session shares) |
 | `rdp` | Remote Desktop with Network Level Authentication |
 | `credentials` | LSA protection, LM/NTLMv1, stored LM hashes, WDigest, Credential Guard (Enterprise/Education/Server) |
 | `laps` | Windows LAPS or legacy LAPS on domain- or Entra-joined machines |
 | `asr` | Seven recommended Attack Surface Reduction rules in block mode (Defender as primary antivirus) |
 | `nameres` | LLMNR and NetBIOS over TCP/IP (name spoofing, NTLM hash capture) |
-| `privesc` | Service and SYSTEM/elevated scheduled-task binaries or folders writable by users, unquoted service paths, AlwaysInstallElevated |
-| `auditpol` | Advanced audit policy for logons, lockouts, account and group changes, process creation, policy changes; Security log size |
+| `privesc` | Service and SYSTEM/elevated scheduled-task binaries, the scripts those tasks run, or their folders writable by users, unquoted service paths, AlwaysInstallElevated |
+| `auditpol` | Advanced audit policy for logons, lockouts, account and group changes, process creation, policy changes; command line in process creation events; Security log size |
 | `powershell` | Script block logging, PowerShell 2.0 |
 | `secureboot` | Secure Boot |
 | `network` | Risky ports (SMB, RDP, WinRM, Telnet…) listening on all interfaces |

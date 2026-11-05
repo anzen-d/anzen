@@ -134,7 +134,9 @@ sudo ./anzen.sh --history=/var/lib/anzen/history
 
 Runs land in `HISTORY_DIR/<host>/<timestamp>.json`; the newest `HISTORY_KEEP`
 (default 52) are kept. Point several hosts at a shared directory for a fleet view.
-Set `DASHBOARD_FILE` to rebuild the dashboard after every run. **Export CSV**
+Set `DASHBOARD_FILE` to rebuild the dashboard after every run. Each finding
+of the latest run shows **since** when it has been there without a break, and
+**flapping ×N** when it was fixed and came back N times. **Export CSV**
 in the dashboard downloads the findings of every host's latest run as one CSV.
 
 The dashboard shows each host's score and change, a stale marker when the last

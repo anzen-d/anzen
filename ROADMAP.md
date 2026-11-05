@@ -15,15 +15,14 @@ Small, self-contained, no deep knowledge of the codebase needed.
 - **Improve a remedy** — many findings print a fix command; make them more
   precise for a distro family, or add one where it is missing.
 - **New single checks** in an existing module, for example:
-  - `ssh`: `AllowAgentForwarding`, `PermitUserEnvironment`, `GatewayPorts`
-  - `kernel`: `kernel.kexec_load_disabled`, `dev.tty.ldisc_autoload`
-  - `services`: Elasticsearch/CouchDB/etcd answering without auth
-  - `tls`: certificates missing a SAN, wildcard certificates on many hosts
+  - `ssh`: `DisableForwarding`, `HostbasedAuthentication`, `IgnoreRhosts`
+  - `services`: RabbitMQ/Kafka/Solr answering without auth
+  - `tls`: wildcard certificates reused on many hosts
 - **New plugins** for the [plugin catalogue](plugins/README.md): Proxmox,
   Home Assistant, Traefik/Caddy, NAS (Synology, TrueNAS)
 - **Windows checks** — `windows/anzen.ps1` is newer and smaller: e.g. Windows
-  Hello / PIN policy, SMB null sessions, WSUS over HTTP, scripts (not only
-  binaries) run by SYSTEM tasks, process command-line auditing.
+  Hello / PIN policy, Print Spooler on servers, AppLocker / WDAC policy,
+  Windows Firewall rules allowing any inbound.
 - **Distrusted certificates** — when a CA is compromised or distrusted, add its
   fingerprints to `lib/data/distrusted-certs.tsv` (one line per certificate,
   with a reference link).
@@ -41,8 +40,7 @@ Small, self-contained, no deep knowledge of the codebase needed.
 - **Plugin catalogue** — started in `plugins/` (backup age, remote certificate
   expiry, Nginx Proxy Manager, enabled with `PLUGINS=`); more plugins welcome
 - **Packaging** — an apt/dnf repository, AUR, winget (`.deb`/`.rpm`, Homebrew and Scoop are done)
-- **Dashboard** — per-finding history ("first seen", "flapping"), fleet filter
-  by tag
+- **Dashboard** — fleet filter by tag, per-finding history view across hosts
 - **Compliance** — finer control mapping (per message), CIS Benchmark section
   numbers per distro
 

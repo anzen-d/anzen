@@ -122,6 +122,29 @@ run_services_check() {
         remedy "# set requirepass (or an ACL user) in redis.conf, then: systemctl restart redis"
     fi
 
+    # Elasticsearch, CouchDB and etcd answering over plain HTTP without
+    # credentials: anyone who reaches the port reads (and usually writes) all data
+    local _spec _port _name _path _body _match _a _r
+    for _spec in "9200|Elasticsearch|/||\"cluster_name\"" \
+                 "5984|CouchDB|/_all_dbs||^\\[" \
+                 "2379|etcd|/v3/kv/range|{\"key\":\"AA==\",\"limit\":1}|\"header\""; do
+        IFS='|' read -r _port _name _path _body _match <<< "$_spec"
+        _a=$(_svc_probe_addr "$_port")
+        [ -n "$_a" ] || continue
+        _r=$(_svc_http "$_a" "$_port" "$_path" "$_body") || continue
+        [ "${_r%%	*}" = 200 ] && printf '%s' "${_r#*	}" | grep -qE "$_match" || continue
+        if _svc_public_tcp "$_port"; then
+            fail "$_name on $_a:$_port answers without authentication"
+        else
+            warn "$_name on $_a:$_port answers without authentication (local only)"
+        fi
+        case $_name in
+            Elasticsearch) remedy "# enable security: xpack.security.enabled: true in elasticsearch.yml, then set passwords (elasticsearch-reset-password)" ;;
+            CouchDB)       remedy "# create an admin in local.ini [admins] and set [chttpd] require_valid_user = true, then restart couchdb" ;;
+            etcd)          remedy "# enable client TLS auth (--client-cert-auth, --trusted-ca-file) or etcdctl auth enable; bind --listen-client-urls to localhost" ;;
+        esac
+    done
+
     # Memcached has no authentication by default, and UDP 11211 is a
     # well-known DDoS amplification vector
     if _svc_public_tcp 11211; then

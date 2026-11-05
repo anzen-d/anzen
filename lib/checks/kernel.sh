@@ -85,6 +85,27 @@ run_kernel_check() {
         ok "ptrace restricted (kernel.yama.ptrace_scope=$pt)"
     fi
 
+    # Line-discipline autoload lets any user load old TTY line-discipline
+    # modules (a source of local root exploits) by opening a TTY with them
+    local ld
+    ld=$(_sysctl dev.tty.ldisc_autoload 2>/dev/null)
+    if [ "$ld" = "1" ]; then
+        warn "dev.tty.ldisc_autoload=1 — unprivileged users can load TTY line-discipline modules"
+        remedy "sysctl -w dev.tty.ldisc_autoload=0 && echo 'dev.tty.ldisc_autoload=0' >> $_SYSCTL_CONF"
+    elif [ "$ld" = "0" ]; then
+        ok "TTY line-discipline autoload disabled"
+    fi
+
+    # kexec replaces the running kernel (bypassing Secure Boot and module
+    # signing). Disabling it is one-way until reboot and breaks kdump: INFO
+    local kx
+    kx=$(_sysctl kernel.kexec_load_disabled 2>/dev/null)
+    if [ "$kx" = "1" ]; then
+        ok "kexec loading disabled"
+    elif [ "$kx" = "0" ]; then
+        info "kernel.kexec_load_disabled=0 — root can boot another kernel with kexec (set 1 if you do not use kdump)"
+    fi
+
     local sd
     sd=$(_sysctl fs.suid_dumpable 2>/dev/null)
     if [ "$sd" = "0" ]; then

@@ -23,6 +23,13 @@ _tls_weak_cert() {
         warn "TLS certificate signed with $sig: $label"
         remedy "# reissue $label: SHA-1 signatures are rejected by current clients"
     fi
+    # Browsers and most TLS clients ignore the CN: a CA-issued server
+    # certificate without a SAN fails name checks. CA certificates have none
+    if [ "$subj" != "$iss" ] && ! echo "$text" | grep -q "CA:TRUE" && \
+       ! echo "$text" | grep -q "X509v3 Subject Alternative Name"; then
+        warn "TLS certificate without a Subject Alternative Name: $label"
+        remedy "# reissue $label with the host names in subjectAltName (clients ignore the CN)"
+    fi
 }
 
 run_tls_check() {

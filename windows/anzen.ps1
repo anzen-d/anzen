@@ -81,7 +81,7 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Continue'
 
-$AnzenVersion = '0.21.0'
+$AnzenVersion = '0.22.0'
 $ScriptPath   = $MyInvocation.MyCommand.Path
 $ScriptDir    = Split-Path -Parent $ScriptPath
 $FailPenalty  = 10
@@ -293,6 +293,14 @@ function Invoke-UpdatesCheck {
     if ($wu -and $wu.StartType -eq 'Disabled') {
         Fail 'Windows Update service is disabled' 'Set-Service wuauserv -StartupType Manual'
     }
+    # WSUS over plain HTTP: anyone on the path can inject an "update" that runs as SYSTEM
+    $wsus = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate'
+    $server = "$(Get-RegValue $wsus 'WUServer')"
+    if ($server -and (Get-RegValue "$wsus\AU" 'UseWUServer') -eq 1) {
+        if ($server -match '^http://') {
+            Fail "Updates come from WSUS over plain HTTP ($server)" '# GPO: Specify intranet Microsoft update service location = https://<server>:8531 (WSUS with TLS)'
+        } else { Ok "Updates come from WSUS over HTTPS ($server)" }
+    }
 }
 
 function Invoke-DefenderCheck {
@@ -415,6 +423,23 @@ function Invoke-SmbCheck {
     if (-not $cfg.RequireSecuritySignature) {
         Warn 'SMB server does not require signing' 'Set-SmbServerConfiguration -RequireSecuritySignature $true -Force'
     } else { Ok 'SMB signing required' }
+
+    # Anonymous (null session) access: share and account enumeration, named pipes
+    $lsa = 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa'
+    $srv = 'HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters'
+    if ((Get-RegValue $srv 'RestrictNullSessAccess') -eq 0) {
+        Fail 'SMB server allows null-session access to shares and named pipes' "Set-ItemProperty '$srv' RestrictNullSessAccess 1"
+    }
+    if ((Get-RegValue $lsa 'RestrictAnonymousSAM') -eq 0) {
+        Fail 'Anonymous users can enumerate local accounts (RestrictAnonymousSAM=0)' "Set-ItemProperty '$lsa' RestrictAnonymousSAM 1"
+    }
+    if ((Get-RegValue $lsa 'EveryoneIncludesAnonymous') -eq 1) {
+        Fail 'Anonymous users get Everyone permissions (EveryoneIncludesAnonymous=1)' "Set-ItemProperty '$lsa' EveryoneIncludesAnonymous 0"
+    }
+    if ((Get-RegValue $lsa 'RestrictAnonymous') -ge 1) { Ok 'Anonymous enumeration of shares restricted' }
+    else { Warn 'Anonymous users can enumerate shares (RestrictAnonymous=0)' "Set-ItemProperty '$lsa' RestrictAnonymous 1" }
+    $nss = @(Get-RegValue $srv 'NullSessionShares' | Where-Object { $_ })
+    if ($nss.Count) { Warn "Shares open to null sessions: $($nss -join ', ')" "Set-ItemProperty '$srv' NullSessionShares ([string[]]@())" }
 }
 
 function Invoke-RdpCheck {
@@ -640,6 +665,16 @@ function Test-PrivilegedBinary([string]$What, [string]$Exe) {
     return 0
 }
 
+# Script file a task's script host (PowerShell, cmd, Windows Script Host) runs, or $null
+function Get-TaskScriptPath([string]$Exe, [string]$Arguments) {
+    # Split on both separators: GetFileName only knows "/" when tests run on Linux
+    if (($Exe -split '[\\/]')[-1] -notmatch '^(powershell|pwsh|cmd|wscript|cscript)\.exe$') { return $null }
+    $m = [regex]::Match([Environment]::ExpandEnvironmentVariables($Arguments),
+        '(?i)"?([a-z]:\\[^"]*?\.(ps1|bat|cmd|vbs|js))(?="|\s|$)')
+    if ($m.Success) { return $m.Groups[1].Value }
+    return $null
+}
+
 function Invoke-PrivEscCheck {
     Section 'Privilege Escalation'
     $bad = 0; $checked = 0
@@ -670,6 +705,9 @@ function Invoke-PrivEscCheck {
                 if (-not [IO.Path]::IsPathRooted($exe)) { continue }
                 $checked++
                 $bad += Test-PrivilegedBinary "Scheduled task $($t.TaskPath)$($t.TaskName) runs $as" $exe
+                # A script host runs a script file: that file is what a user would swap
+                $script = Get-TaskScriptPath $exe "$($a.Arguments)"
+                if ($script) { $checked++; $bad += Test-PrivilegedBinary "Scheduled task $($t.TaskPath)$($t.TaskName) runs $as a script" $script }
             }
         }
     }
@@ -729,6 +767,10 @@ function Invoke-AuditPolicyCheck {
             }
         } else { Info 'auditpol /backup failed' }
     }
+    # Process creation events (4688) are of little use without the command line
+    $pa = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit'
+    if ((Get-RegValue $pa 'ProcessCreationIncludeCmdLine_Enabled') -eq 1) { Ok 'Process creation events include the command line' }
+    else { Warn 'Process creation events do not include the command line' "New-Item -Force '$pa' | Out-Null; Set-ItemProperty '$pa' ProcessCreationIncludeCmdLine_Enabled 1" }
     try {
         $log = Get-WinEvent -ListLog Security -ErrorAction Stop
         $mb = [int]($log.MaximumSizeInBytes / 1MB)

@@ -295,6 +295,16 @@ function renderDetail() {
   if (!current) { $("#detail").innerHTML = ""; return; }
   const runs = byHost[current], last = runs.at(-1), prev = runs.at(-2);
   const issues = (last.findings || []).filter(f => f.level === "FAIL" || f.level === "WARN");
+  // Per finding across this host's runs: start of the current unbroken streak
+  // ("since") and how often it came back after going away ("flapping")
+  const seen = runs.map(r => new Set((r.findings || []).filter(f => f.level === "FAIL" || f.level === "WARN").map(f => f.id)));
+  const hist = id => {
+    let i = runs.length - 1;
+    while (i > 0 && seen[i - 1].has(id)) i--;
+    let back = 0, was = false;
+    seen.forEach(s => { if (s.has(id) && was === "gone") back++; if (s.has(id)) was = true; else if (was) was = "gone"; });
+    return {since: runs[i].date, first: i === 0, back};
+  };
   const prevSec = Object.fromEntries((prev?.sections || []).map(s => [s.name, s.score]));
   $("#detail").innerHTML = `
     <h2>${esc(current)} — score trend</h2><div class="panel" id="trend"></div>
@@ -313,7 +323,7 @@ function renderDetail() {
         <input id="q" type="search" placeholder="Filter by text, section or ID" aria-label="Filter findings">
         <select id="lvl" aria-label="Level"><option value="">FAIL + WARN</option><option>FAIL</option><option>WARN</option></select>
       </div>
-      <table><thead><tr><th>Level</th><th>Section</th><th>Finding</th></tr></thead><tbody id="rows"></tbody></table>
+      <table><thead><tr><th>Level</th><th>Section</th><th>Finding</th><th>Since</th></tr></thead><tbody id="rows"></tbody></table>
     </div></section>`;
 
   const rows = () => {
@@ -321,9 +331,14 @@ function renderDetail() {
     $("#rows").innerHTML = issues
       .filter(f => (!l || f.level === l) && (!q || `${f.message} ${f.section} ${f.id}`.toLowerCase().includes(q)))
       .sort((a, b) => (a.level === b.level ? 0 : a.level === "FAIL" ? -1 : 1))
-      .map(f => `<tr><td class="lvl ${esc(f.level)}">${esc(f.level)}</td><td>${esc(f.section)}</td>
-        <td class="msg">${esc(f.message)}<div class="id">${esc(f.id)}</div></td></tr>`).join("")
-      || '<tr><td colspan="3" class="empty">No matching findings.</td></tr>';
+      .map(f => {
+        const h = hist(f.id);
+        const since = (h.first && runs.length > 1 ? "≤ " : "") + esc(fmt(h.since));
+        const flap = h.back >= 2 ? `<div class="id" title="Fixed and back ${h.back} times">flapping ×${h.back}</div>` : "";
+        return `<tr><td class="lvl ${esc(f.level)}">${esc(f.level)}</td><td>${esc(f.section)}</td>
+        <td class="msg">${esc(f.message)}<div class="id">${esc(f.id)}</div></td><td>${since}${flap}</td></tr>`;
+      }).join("")
+      || '<tr><td colspan="4" class="empty">No matching findings.</td></tr>';
   };
   drawTrend();
   $("#q").oninput = rows; $("#lvl").onchange = rows; rows();

@@ -258,3 +258,35 @@ Describe 'Controls and CSV' {
         $rows[0].controls | Should -Be 'NIST CM-7, SC-7; CIS 4.8'
     }
 }
+
+Describe 'Null sessions, WSUS and task scripts' {
+    BeforeEach { Reset-Findings }
+    It 'finds the script a task script host runs' {
+        Get-TaskScriptPath 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' '-NoProfile -File "C:\Ops\My Scripts\backup.ps1" -x' |
+            Should -Be 'C:\Ops\My Scripts\backup.ps1'
+        Get-TaskScriptPath 'C:\Windows\System32\cmd.exe' '/c C:\Ops\run.bat' | Should -Be 'C:\Ops\run.bat'
+        Get-TaskScriptPath 'C:\Apps\tool.exe' '-f C:\Ops\x.ps1' | Should -BeNullOrEmpty
+    }
+    It 'flags null-session settings' {
+        if (-not (Get-Command Get-SmbServerConfiguration -ErrorAction SilentlyContinue)) { New-Item -Path function:global:Get-SmbServerConfiguration -Value { } | Out-Null }
+        if (-not (Get-Command Get-SmbClientConfiguration -ErrorAction SilentlyContinue)) { New-Item -Path function:global:Get-SmbClientConfiguration -Value { } | Out-Null }
+        Mock Get-SmbClientConfiguration { [pscustomobject]@{ RequireSecuritySignature = $true } }
+        Mock Get-SmbServerConfiguration { [pscustomobject]@{ EnableSMB1Protocol = $false; RequireSecuritySignature = $true } }
+        Mock Get-RegValue { switch ($Name) { 'RestrictNullSessAccess' { 0 } 'RestrictAnonymousSAM' { 1 } 'EveryoneIncludesAnonymous' { 0 } 'RestrictAnonymous' { 0 } 'NullSessionShares' { @('PUBLIC') } default { $null } } }
+        Invoke-SmbCheck 6>$null
+        $f = $script:Findings
+        ($f | Where-Object message -eq 'SMB server allows null-session access to shares and named pipes').level | Should -Be 'FAIL'
+        ($f | Where-Object message -eq 'Anonymous users can enumerate shares (RestrictAnonymous=0)').level | Should -Be 'WARN'
+        ($f | Where-Object message -eq 'Shares open to null sessions: PUBLIC').level | Should -Be 'WARN'
+        @($f | Where-Object message -like '*RestrictAnonymousSAM*').Count | Should -Be 0
+    }
+    It 'fails WSUS over plain HTTP' {
+        if (-not (Get-Command Get-HotFix -ErrorAction SilentlyContinue)) { New-Item -Path function:global:Get-HotFix -Value { } | Out-Null }
+        if (-not (Get-Command Get-Service -ErrorAction SilentlyContinue)) { New-Item -Path function:global:Get-Service -Value { } | Out-Null }
+        Mock Get-HotFix { }
+        Mock Get-Service { }
+        Mock Get-RegValue { switch ($Name) { 'WUServer' { 'http://wsus.corp.example:8530' } 'UseWUServer' { 1 } default { $null } } }
+        Invoke-UpdatesCheck 6>$null
+        ($script:Findings | Where-Object message -like 'Updates come from WSUS over plain HTTP*').level | Should -Be 'FAIL'
+    }
+}

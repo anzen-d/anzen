@@ -6,6 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-05
+
+### Added
+- `ssh`: `GatewayPorts yes|clientspecified` and `PermitUserEnvironment` other
+  than `no` are WARNs; `AllowAgentForwarding` is reported as INFO.
+- `kernel`: `dev.tty.ldisc_autoload=1` is a WARN; `kernel.kexec_load_disabled`
+  is reported as INFO (disabling breaks kdump).
+- `services`: Elasticsearch (9200), CouchDB (5984) and etcd (2379) answering
+  over plain HTTP without authentication — local probe, FAIL when the port is
+  public, WARN when local only. New helper `_svc_http`.
+- `tls`: CA-issued server certificates without a Subject Alternative Name.
+- Windows: WSUS over plain HTTP (FAIL); SMB null sessions
+  (`RestrictNullSessAccess`, `RestrictAnonymous`, `RestrictAnonymousSAM`,
+  `EveryoneIncludesAnonymous`, null-session shares); scripts run by SYSTEM or
+  elevated scheduled tasks writable by users; command line in process
+  creation events.
+- Dashboard: each finding of the latest run shows since when it has been
+  present without a break, and "flapping ×N" when it was fixed and came back.
+
 ## [0.21.0] - 2026-11-05
 
 ### Added
