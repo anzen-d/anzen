@@ -136,3 +136,58 @@ ts_env() {
     [[ "$output" == *"[ OK ] No distrusted CA certificates trusted ("*" certificates checked)"* ]]
     [[ "$output" != *"No certificate stores found to check"* ]]
 }
+
+@test "macos: stale XProtect definitions are a WARN" {
+    local x="$BATS_TEST_TMPDIR/cs" old
+    mkdir -p "$x/XProtect.bundle/Contents"
+    touch "$x/XProtect.bundle/Contents/Info.plist"
+    ANZEN_XPROTECT_DIR="$x" mac --check=xprotect
+    [[ "$output" == *"[ OK ] XProtect definitions last updated 0 days ago"* ]]
+    old=$(date -d '-90 days' +%Y%m%d%H%M 2>/dev/null || date -v-90d +%Y%m%d%H%M)
+    touch -t "$old" "$x/XProtect.bundle/Contents/Info.plist"
+    ANZEN_XPROTECT_DIR="$x" mac --check=xprotect
+    [[ "$output" == *"[WARN] XProtect definitions last updated 90 days ago"* ]]
+}
+
+@test "macos: launch daemons writable by users or unsigned are flagged" {
+    local t="$BATS_TEST_TMPDIR" d="$BATS_TEST_TMPDIR/LaunchDaemons"
+    mkdir -p "$d" "$t/bin"
+    printf '#!/bin/sh\n' > "$t/bin/good"; printf '#!/bin/sh\n' > "$t/bin/unsigned-tool"; printf '#!/bin/sh\n' > "$t/bin/open"
+    chmod 755 "$t/bin/good" "$t/bin/unsigned-tool"; chmod 777 "$t/bin/open"
+    echo "Program=$t/bin/good" > "$d/com.example.good.plist"
+    echo "ProgramArguments.0=$t/bin/unsigned-tool" > "$d/com.example.unsigned.plist"
+    echo "Program=$t/bin/open" > "$d/com.example.open.plist"
+    echo "Program=$t/bin/good" > "$d/com.example.loose.plist"
+    chmod 644 "$d"/*.plist; chmod 666 "$d/com.example.loose.plist"
+    ANZEN_LAUNCHD_DIRS="$d" ANZEN_ROOT_UID="$(id -u)" mac --check=launchd
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"[WARN] Launch daemon com.example.unsigned runs an unsigned program: $t/bin/unsigned-tool"* ]]
+    [[ "$output" == *"[FAIL] Launch daemon com.example.open runs a program non-root users can change: $t/bin/open"* ]]
+    [[ "$output" == *"[FAIL] Launch daemon plist writable by non-root users: $d/com.example.loose.plist"* ]]
+    [[ "$output" != *"com.example.good"* ]]
+    ANZEN_LAUNCHD_DIRS="$t/none" mac --check=launchd
+    [[ "$output" == *"[ OK ] No unsigned or user-writable launch agents and daemons (0 files)"* ]]
+}
+
+@test "macos: third-party kexts, system extensions and profiles" {
+    mac --check=extensions --check=profiles
+    [[ "$output" == *"[WARN] Third-party kernel extensions loaded (1 kexts)"* ]]
+    [[ "$output" == *"Kernel extensions: com.example.vpn.driver"* ]]
+    [[ "$output" != *"com.apple.kpi"* ]]
+    [[ "$output" == *"System extensions: com.example.filter"* ]]
+    [[ "$output" == *"Not enrolled in MDM"* ]]
+}
+
+@test "macos: HTML, TXT and SARIF reports from the shared generators" {
+    local o="$BATS_TEST_TMPDIR/out.json"
+    mac --check=filevault --check=accounts --json --html --txt --sarif --output="$o"
+    [ "$status" -eq 1 ]
+    [ -s "$BATS_TEST_TMPDIR/out.json" ]
+    grep -q 'macOS Security Audit' "$BATS_TEST_TMPDIR/out.html"
+    grep -q 'FileVault is off' "$BATS_TEST_TMPDIR/out.html"
+    grep -q 'macOS Security Audit Report' "$BATS_TEST_TMPDIR/out.txt"
+    python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); r=d["runs"][0]["results"]; assert r and r[0]["ruleId"]=="filevault", r' "$BATS_TEST_TMPDIR/out.sarif.json"
+    # --output alone still means JSON
+    mac --check=filevault --output="$BATS_TEST_TMPDIR/only.json"
+    python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$BATS_TEST_TMPDIR/only.json"
+}

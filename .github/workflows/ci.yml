@@ -117,5 +117,7 @@ jobs:
           PATH="/bin:$PATH" bats tests/test_macos.bats
       - name: Full run as root on a real Mac
         run: |
-          sudo /bin/bash macos/anzen-macos.sh --output="$RUNNER_TEMP/anzen.json" || [ $? -eq 1 ]
+          sudo /bin/bash macos/anzen-macos.sh --json --html --txt --sarif --output="$RUNNER_TEMP/anzen.json" || [ $? -eq 1 ]
           python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d['summary']); assert d['findings']" "$RUNNER_TEMP/anzen.json"
+          python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert d['version'] == '2.1.0'" "$RUNNER_TEMP/anzen.sarif.json"
+          grep -q 'macOS Security Audit' "$RUNNER_TEMP/anzen.html" "$RUNNER_TEMP/anzen.txt"

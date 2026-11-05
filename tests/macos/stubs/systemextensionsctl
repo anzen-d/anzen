@@ -1,0 +1,2 @@
+#!/bin/sh
+printf '1 extension(s)\n--- com.apple.system_extension.network_extension\nenabled\tactive\tteamID\tbundleID (version)\tname\t[state]\n*\t*\tABCDE12345\tcom.example.filter (1.0/1)\tExample Filter\t[activated enabled]\n'

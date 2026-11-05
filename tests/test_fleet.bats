@@ -68,3 +68,23 @@ SH
         --html --output="$T/remote.html"
     grep -qi '<!DOCTYPE html>' "$T/remote.html"
 }
+
+@test "fleet: a macOS host runs the macOS edition and lands in history" {
+    local stubs="$ANZEN_DIR/tests/macos/stubs"
+    # Fake Mac: uname -s says Darwin, macOS commands come from the test stubs
+    cat > "$T/sshmac" <<SH
+#!/bin/bash
+while [ "\$1" = "-o" ]; do shift 2; done
+shift
+[ "\$*" = "uname -s" ] && { echo Darwin; exit 0; }
+exec env -i PATH="$stubs:\$PATH" HOME="$T" NO_COLOR=1 bash -c "\$*"
+SH
+    chmod +x "$T/sshmac"
+    ANZEN_SSH="$T/sshmac" run "$ANZEN_DIR/anzen.sh" --config="$T/c.conf" --history="$T/hist" --remote=mac1 --html --quiet --no-color
+    [ "$status" -ne 255 ]
+    local f; f=$(ls "$T"/hist/*/*.json | head -1)
+    grep -q '"os": "macOS ' "$f"
+    grep -q '"section": "FileVault"' "$f"
+    ls "$ANZEN_DIR"/reports/anzen_*.html >/dev/null
+    grep -l 'macOS Security Audit' "$ANZEN_DIR"/reports/anzen_*.html | xargs rm -f
+}

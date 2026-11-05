@@ -78,7 +78,7 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Continue'
 
-$AnzenVersion = '0.18.0'
+$AnzenVersion = '0.19.0'
 $ScriptPath   = $MyInvocation.MyCommand.Path
 $ScriptDir    = Split-Path -Parent $ScriptPath
 $FailPenalty  = 10

@@ -28,6 +28,10 @@ Schedule a fleet next to the local audit — each keeps its own cron line:
 sudo ./anzen.sh --config=/etc/anzen/anzen.conf --remote=root@pve,root@nas --schedule=weekly:05:30
 ```
 
+macOS hosts need nothing special: anzen detects them (`uname -s`) and runs
+the [macOS edition](macos.md) there, as root when the login has passwordless
+`sudo`. Only `--check`, `--strict`, `--quiet` and `--no-color` reach a Mac.
+
 Windows hosts: run `windows\anzen.ps1 -Remote pc1,pc2 -History <dir>` from a
 Windows machine (PowerShell remoting, see [Windows edition](windows.md#fleet--remote)).
 Point `-History` at the Linux `HISTORY_DIR` (for example an SMB share) and the

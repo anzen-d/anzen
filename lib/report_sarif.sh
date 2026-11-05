@@ -9,7 +9,8 @@ _sarif_escape() {
 
 generate_sarif_report() {
     local output_file=$1
-    declare -A _seen_rules
+    # Space-separated seen list, not an associative array: Bash 3.2 (macOS edition)
+    local seen_rules=" "
     local rules_json="" results_json=""
     local first_rule=true first_result=true
 
@@ -27,8 +28,8 @@ generate_sarif_report() {
         local rule_id
         rule_id=$(printf '%s' "$sec" | tr '[:upper:] /' '[:lower:]--' | tr -cd 'a-z0-9-')
 
-        if [ -z "${_seen_rules[$rule_id]+x}" ]; then
-            _seen_rules[$rule_id]=1
+        if [[ "$seen_rules" != *" $rule_id "* ]]; then
+            seen_rules+="$rule_id "
             $first_rule || rules_json+=','
             rules_json+=$(printf '{"id":"%s","name":"%s","defaultConfiguration":{"level":"%s"},"help":{"text":"Anzen check: %s"}}' \
                 "$rule_id" "$(_sarif_escape "$sec")" "$sarif_level" "$(_sarif_escape "$sec")")
@@ -53,5 +54,4 @@ generate_sarif_report() {
         printf '}\n'
     } > "$output_file"
 
-    unset _seen_rules
 }

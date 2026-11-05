@@ -6,6 +6,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-05
+
+### Added
+- **macOS: HTML, TXT and SARIF reports** (`--html`, `--txt`, `--sarif`) from
+  the Linux edition's generators. With several formats `--output` swaps the
+  extension, as in `anzen.sh`; `--output` alone still means JSON.
+- **Fleet: macOS hosts.** `--remote` detects macOS (`uname -s`) and runs
+  `macos/anzen-macos.sh` there, with passwordless `sudo` when the login is not
+  root. Macs and Linux hosts share one run, history, alerts and dashboard.
+- **macOS checks:** `xprotect` (definitions older than 60 days), `launchd`
+  (launch daemon/agent plists or programs writable by non-root users,
+  unsigned programs), `extensions` (third-party kernel extensions, active
+  system extensions), `profiles` (MDM enrollment, configuration profiles,
+  Find My, Lockdown Mode — inventory only).
+
+### Changed
+- `lib/report_html.sh`, `lib/report_txt.sh` and `lib/report_sarif.sh` run
+  under Bash 3.2 (no associative arrays) and take the edition name from
+  `ANZEN_EDITION`.
+
 ## [0.18.0] - 2026-11-05
 
 ### Added

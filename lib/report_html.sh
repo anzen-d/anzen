@@ -156,7 +156,7 @@ details[open] .chevron { transform: rotate(180deg); }
   <div class="header-top">
     <div>
       <div class="logo">安<span>zen</span></div>
-      <div class="tagline">Linux Security Audit</div>
+      <div class="tagline">${ANZEN_EDITION:-Linux} Security Audit</div>
     </div>
     <div class="header-actions">
       <button class="btn" onclick="toggleTheme()">☀ / ☾</button>
@@ -191,10 +191,8 @@ details[open] .chevron { transform: rotate(180deg); }
 <div class="content" id="main-content">
 HTML
 
-    # Build sections
-    local -A section_score=()
-    local _s _f _w _o _sc
-    while IFS=$'\t' read -r _s _f _w _o _sc; do section_score[$_s]=$_sc; done < <(_section_scores)
+    # Build sections. No associative arrays: the macOS edition runs this under Bash 3.2
+    local section_scores; section_scores=$(_section_scores)
     local prev_section="" section_fail=0 section_warn=0 section_ok=0 section_html=""
 
     _flush_section() {
@@ -203,7 +201,9 @@ HTML
         [ "$section_fail" -gt 0 ] && badges+="<span class=\"mini-badge fail\">${section_fail} FAIL</span>"
         [ "$section_warn" -gt 0 ] && badges+="<span class=\"mini-badge warn\">${section_warn} WARN</span>"
         [ "$section_ok"   -gt 0 ] && badges+="<span class=\"mini-badge ok\">${section_ok} OK</span>"
-        [ -n "${section_score[$prev_section]:-}" ] && badges+="<span class=\"mini-badge\">${section_score[$prev_section]}%</span>"
+        local sec_score
+        sec_score=$(printf '%s\n' "$section_scores" | awk -F'\t' -v s="$prev_section" '$1 == s { print $5; exit }')
+        [ -n "$sec_score" ] && badges+="<span class=\"mini-badge\">${sec_score}%</span>"
         local open_attr=""
         [ "$section_fail" -gt 0 ] && open_attr=" open"
 

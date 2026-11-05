@@ -14,7 +14,7 @@ generate_txt_report() {
 
     {
         echo "============================================================"
-        echo "  ANZEN (安全) — Linux Security Audit Report"
+        echo "  ANZEN (安全) — ${ANZEN_EDITION:-Linux} Security Audit Report"
         echo "  Anzen ${ANZEN_VERSION:-}"
         echo "============================================================"
         echo ""

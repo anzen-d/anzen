@@ -17,7 +17,7 @@
 
 set -u
 
-ANZEN_VERSION="0.18.0"
+ANZEN_VERSION="0.19.0"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 FAIL_PENALTY=10
@@ -29,8 +29,12 @@ SYSTEM_KEYCHAIN="${ANZEN_SYSTEM_KEYCHAIN:-/Library/Keychains/System.keychain}"
 CERT_PEM="${ANZEN_CERT_PEM:-/etc/ssl/cert.pem}"
 HOMEBREW_BUNDLES="${ANZEN_HOMEBREW_BUNDLES-/opt/homebrew/etc/ca-certificates/cert.pem /usr/local/etc/ca-certificates/cert.pem /opt/homebrew/etc/openssl@3/cert.pem /usr/local/etc/openssl@3/cert.pem}"
 CHECK_RUNTIMES="${ANZEN_CHECK_RUNTIMES:-1}"   # Python certifi, Java cacerts
+XPROTECT_DIR="${ANZEN_XPROTECT_DIR:-/Library/Apple/System/Library/CoreServices}"
+# Unquoted on use: the /Users/* glob expands to every user's agents
+LAUNCHD_DIRS="${ANZEN_LAUNCHD_DIRS:-/Library/LaunchDaemons /Library/LaunchAgents /Users/*/Library/LaunchAgents}"
+ROOT_UID="${ANZEN_ROOT_UID:-0}"   # tests run as a normal user
 
-MODULES="system updates filevault sip gatekeeper firewall sharing accounts ssh truststore"
+MODULES="system updates xprotect filevault sip gatekeeper firewall sharing accounts ssh launchd extensions profiles truststore"
 
 usage() {
     cat <<EOF
@@ -41,7 +45,11 @@ Usage: $0 [options]
   --check=MODULE     Run only this module (repeatable). Modules:
                      $MODULES
   --json             Write a JSON report (reports/anzen_<timestamp>.json, or --output)
-  --output=FILE      Path for the JSON report
+  --html             Write an HTML report
+  --txt              Write a plain-text report
+  --sarif            Write a SARIF 2.1.0 report (GitHub/GitLab code scanning)
+  --output=FILE      Report path; with several formats the extension is swapped
+                     per format (out.json, out.html, ...). Alone it means --json
   --history=DIR      Save the run as DIR/<host>/<UTC timestamp>.json (anzen history layout)
   --accept=FILE      Accepted risks: "ID YYYY-MM-DD reason" per line (default: anzen.accept)
   --quiet, -q        Hide INFO lines and section banners
@@ -54,14 +62,17 @@ EOF
 }
 
 # ── Arguments ────────────────────────────────────────────────────────────────
-CHECKS=""; JSON=false; OUTPUT=""; HISTORY=""; ACCEPT_FILE="$ROOT_DIR/anzen.accept"
+CHECKS=""; JSON=false; HTML=false; TXT=false; SARIF=false; OUTPUT=""; HISTORY=""; ACCEPT_FILE="$ROOT_DIR/anzen.accept"
 QUIET=false; STRICT=false; COLOR=true
 [ -n "${NO_COLOR:-}" ] && COLOR=false
 for arg in "$@"; do
     case $arg in
         --check=*)   CHECKS="$CHECKS ${arg#*=}" ;;
         --json)      JSON=true ;;
-        --output=*)  OUTPUT="${arg#*=}"; JSON=true ;;
+        --html)      HTML=true ;;
+        --txt)       TXT=true ;;
+        --sarif)     SARIF=true ;;
+        --output=*)  OUTPUT="${arg#*=}" ;;
         --history=*) HISTORY="${arg#*=}" ;;
         --accept=*)  ACCEPT_FILE="${arg#*=}" ;;
         --quiet|-q)  QUIET=true ;;
@@ -73,6 +84,7 @@ for arg in "$@"; do
         *)           echo "Unknown option: $arg  (try --help)" >&2; exit 1 ;;
     esac
 done
+if [ -n "$OUTPUT" ] && ! $HTML && ! $TXT && ! $SARIF; then JSON=true; fi
 for c in $CHECKS; do
     case " $MODULES " in *" $c "*) ;; *) echo "Unknown module: $c  (valid: $MODULES)" >&2; exit 1 ;; esac
 done
@@ -328,6 +340,124 @@ check_ssh() {
     esac
 }
 
+# _mtime FILE — modification time in epoch seconds (GNU stat for the tests, BSD on macOS)
+_mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null; }
+# _owner_mode FILE — "UID MODE" (octal permission bits)
+_owner_mode() { stat -c '%u %a' "$1" 2>/dev/null || stat -f '%u %Lp' "$1" 2>/dev/null; }
+# _unsafe_perms FILE — true if FILE is not root-owned or group/other can write it
+_unsafe_perms() {
+    local om uid mode
+    om=$(_owner_mode "$1") || return 1
+    uid=${om%% *}; mode=${om##* }
+    [ "$uid" != "$ROOT_UID" ] && return 0
+    [ $(( 0$mode & 022 )) -ne 0 ]
+}
+
+check_xprotect() {
+    section "XProtect"
+    local f m newest=0 ver days
+    for f in "$XPROTECT_DIR/XProtect.bundle/Contents/Info.plist" "$XPROTECT_DIR/XProtect.app/Contents/Info.plist"; do
+        [ -f "$f" ] || continue
+        m=$(_mtime "$f")
+        [ -n "$m" ] && [ "$m" -gt "$newest" ] && newest=$m
+    done
+    if [ "$newest" -eq 0 ]; then info "XProtect not found"; return 0; fi
+    ver=$(_defaults "$XPROTECT_DIR/XProtect.bundle/Contents/Info" CFBundleShortVersionString)
+    [ -n "$ver" ] && info "XProtect version $ver"
+    days=$(( ($(date +%s) - newest) / 86400 ))
+    # Apple ships XProtect data every few weeks with ConfigDataInstall on
+    if [ "$days" -gt 60 ]; then
+        warn "XProtect definitions last updated $days days ago" "sudo softwareupdate --background-critical"
+    else
+        ok "XProtect definitions last updated $days days ago"
+    fi
+}
+
+# _plist_program PLIST — the program a launchd job runs (plutil "raw": macOS 12+)
+_plist_program() {
+    plutil -extract Program raw -o - "$1" 2>/dev/null || plutil -extract ProgramArguments.0 raw -o - "$1" 2>/dev/null
+}
+
+# Launch daemons run as root and launch agents as every user who logs in:
+# anything a normal user can change there is a privilege escalation, and an
+# unsigned program is worth a look (common malware persistence)
+check_launchd() {
+    section "Launch Agents & Daemons"
+    local dir p kind label prog n=0 bad=0
+    # shellcheck disable=SC2086  # LAUNCHD_DIRS is a space-separated glob list
+    for dir in $LAUNCHD_DIRS; do
+        [ -d "$dir" ] || continue
+        case $dir in */LaunchDaemons) kind="Launch daemon" ;; /Library/*) kind="Launch agent" ;; *) kind="User launch agent" ;; esac
+        for p in "$dir"/*.plist; do
+            [ -f "$p" ] || continue
+            n=$((n + 1)); label=$(basename "$p" .plist)
+            prog=$(_plist_program "$p")
+            if [ "$kind" != "User launch agent" ]; then
+                if _unsafe_perms "$p"; then
+                    fail "$kind plist writable by non-root users: $p" "sudo chown root:wheel \"$p\" && sudo chmod 644 \"$p\""
+                    bad=$((bad + 1))
+                fi
+                if [ -n "$prog" ] && [ -f "$prog" ] && _unsafe_perms "$prog"; then
+                    fail "$kind $label runs a program non-root users can change: $prog" "sudo chown root:wheel \"$prog\" && sudo chmod go-w \"$prog\""
+                    bad=$((bad + 1))
+                fi
+            fi
+            if [ -n "$prog" ] && [ -f "$prog" ] && ! codesign -v "$prog" >/dev/null 2>&1; then
+                warn "$kind $label runs an unsigned program: $prog" "codesign -dv \"$prog\"; launchctl print system/$label  # remove the plist if you do not know it"
+                bad=$((bad + 1))
+            fi
+        done
+    done
+    [ "$bad" -eq 0 ] && ok "No unsigned or user-writable launch agents and daemons ($n files)"
+    return 0
+}
+
+check_extensions() {
+    section "Kernel & System Extensions"
+    local kexts n
+    if command -v kmutil >/dev/null 2>&1; then
+        # kextstat layout: the bundle ID is the field before "(version)"
+        kexts=$(kmutil showloaded --list-only 2>/dev/null \
+            | awk 'NR > 1 { for (i = 2; i <= NF; i++) if ($i ~ /^\(/ && $(i - 1) ~ /\./) { print $(i - 1); break } }' | grep -v '^com\.apple\.' | sort -u)
+        n=$(printf '%s' "$kexts" | grep -c .)
+        if [ "$n" -gt 0 ]; then
+            warn "Third-party kernel extensions loaded ($n kexts)" "# kexts run in the kernel and need reduced security on Apple silicon: ask the vendor for a system extension"
+            info "Kernel extensions: $(printf '%s' "$kexts" | tr '\n' ' ')"
+        else
+            ok "No third-party kernel extensions loaded"
+        fi
+    else
+        info "kmutil not available"
+    fi
+    if command -v systemextensionsctl >/dev/null 2>&1; then
+        local ext
+        ext=$(systemextensionsctl list 2>/dev/null | grep -F '[activated enabled]' | awk -F'\t' '{ print $4 }' | sed 's/ *(.*//' | sort -u)
+        [ -n "$ext" ] && info "System extensions: $(printf '%s' "$ext" | tr '\n' ' ')"
+    fi
+    return 0
+}
+
+# Inventory only: management state and settings that are policy decisions
+check_profiles() {
+    section "Management & Profiles"
+    local s ids
+    if command -v profiles >/dev/null 2>&1; then
+        s=$(profiles status -type enrollment 2>/dev/null)
+        case $s in
+            *"MDM enrollment: Yes"*) info "Enrolled in MDM ($(printf '%s' "$s" | sed -n 's/.*MDM enrollment: //p' | head -1))" ;;
+            *"MDM enrollment: No"*)  info "Not enrolled in MDM" ;;
+        esac
+        if $IS_ROOT; then
+            ids=$(profiles list -all 2>/dev/null | sed -n 's/.*profileIdentifier: *//p' | sort -u)
+            if [ -n "$ids" ]; then info "Configuration profiles: $(printf '%s' "$ids" | tr '\n' ' ')"
+            else info "No configuration profiles installed"; fi
+        fi
+    fi
+    if nvram fmm-mobileme-token-FMM >/dev/null 2>&1; then info "Find My Mac on"; else info "Find My Mac off or unknown"; fi
+    [ "$(_defaults .GlobalPreferences LDMGlobalEnabled)" = 1 ] && info "Lockdown Mode on"
+    return 0
+}
+
 # Distrusted CA certificates: same list and fingerprint scheme as the Linux
 # truststore module (SHA-256 of the DER certificate)
 _sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi; }
@@ -485,11 +615,42 @@ write_json() {
     } > "$out"
 }
 
-if $JSON; then
-    [ -n "$OUTPUT" ] || OUTPUT="$ROOT_DIR/reports/anzen_$(date +%Y%m%d_%H%M%S).json"
-    write_json "$OUTPUT"
-    printf '%s  JSON      : %s%s\n' "$BOLD$CYAN" "$OUTPUT" "$NC"
-fi
+# HTML, TXT and SARIF use the Linux edition's generators (kept Bash 3.2 safe),
+# fed through the helpers they expect
+# shellcheck disable=SC2034  # read by lib/report_*.sh
+{ FINDINGS_FILE=$FINDINGS; OS_PRETTY="macOS $(sw_vers -productVersion 2>/dev/null)"; ANZEN_EDITION=macOS; }
+_hostname() { hostname -s 2>/dev/null || hostname; }
+_section_scores() { printf '%s\n' "$SECTIONS" | awk NF; }
+_overall_score() { echo "$SCORE"; }
+
+STAMP=$(date +%Y%m%d_%H%M%S)
+N_FORMATS=0
+for f in $JSON $HTML $TXT $SARIF; do $f && N_FORMATS=$((N_FORMATS + 1)); done
+# Same rule as anzen.sh _report_path
+_report_path() {
+    local base
+    if [ -z "$OUTPUT" ]; then echo "$ROOT_DIR/reports/anzen_$STAMP.$1"
+    elif [ "$N_FORMATS" -le 1 ]; then echo "$OUTPUT"
+    else
+        base=$OUTPUT
+        case $(basename "$base") in *.*) base=${base%.*} ;; esac
+        base=${base%.sarif}
+        echo "$base.$1"
+    fi
+}
+# _write_report LABEL EXT GENERATOR LIBFILE
+_write_report() {
+    local path; path=$(_report_path "$2")
+    mkdir -p "$(dirname "$path")"
+    # shellcheck disable=SC1090
+    [ -n "$4" ] && . "$ROOT_DIR/lib/$4"
+    "$3" "$path"
+    printf '%s  %-10s: %s%s\n' "$BOLD$CYAN" "$1" "$path" "$NC"
+}
+$HTML  && _write_report HTML html generate_html_report report_html.sh
+$TXT   && _write_report Text txt generate_txt_report report_txt.sh
+$JSON  && _write_report JSON json write_json ""
+$SARIF && _write_report SARIF sarif.json generate_sarif_report report_sarif.sh
 if [ -n "$HISTORY" ]; then
     h=$(hostname -s 2>/dev/null || hostname | cut -d. -f1)
     h=$(printf '%s' "$h" | tr '[:upper:]' '[:lower:]')

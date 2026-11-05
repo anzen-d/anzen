@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 The Anzen contributors
 # lib/fleet.sh — Audit remote hosts over SSH (--remote=host1,host2,...)
+# Linux hosts run anzen.sh, macOS hosts (uname -s = Darwin) macos/anzen-macos.sh.
 #
 # Per host: copy anzen to a remote mktemp dir with a generated anzen.conf that
 # carries only scan settings (thresholds, excludes, CVE/image options) and the
@@ -62,17 +63,32 @@ _fleet_run_host() {
         "${_FLEET_SSH[@]}" "$host" "umask 077 && cat > $qtmp/anzen.accept" < "$ACCEPT_FILE"
     fi
 
+    # macOS hosts run the macOS edition (Bash 3.2, its own modules), which
+    # takes only these flags
+    local os; os=$("${_FLEET_SSH[@]}" "$host" "uname -s" 2>/dev/null)
     local -a qargs=()
     local a
-    for a in "$@"; do qargs+=("$(printf '%q' "$a")"); done
+    for a in "$@"; do
+        if [ "$os" = Darwin ]; then
+            case $a in --check=*|--strict|--quiet|-q|--no-color) ;; *) continue ;; esac
+        fi
+        qargs+=("$(printf '%q' "$a")")
+    done
     local ext fmt_flags=""
     for ext in $(_fleet_formats); do
         case $ext in json) fmt_flags+=" --json" ;; html) fmt_flags+=" --html" ;;
                      txt) fmt_flags+=" --txt" ;; sarif.json) fmt_flags+=" --sarif" ;; esac
     done
     # Several formats + --output=out.json → out.json, out.html, ... (extension swap)
-    "${_FLEET_SSH[@]}" "$host" \
-        "bash $qtmp/anzen.sh$fmt_flags --output=$qtmp/out.json ${qargs[*]:-}"
+    if [ "$os" = Darwin ]; then
+        local run="/bin/bash $qtmp/macos/anzen-macos.sh$fmt_flags --output=$qtmp/out.json ${qargs[*]:-}"
+        # Root gives complete results: use passwordless sudo when the login is not root
+        "${_FLEET_SSH[@]}" "$host" \
+            "if [ \"\$(id -u)\" -ne 0 ] && sudo -n true 2>/dev/null; then sudo -n $run; else $run; fi"
+    else
+        "${_FLEET_SSH[@]}" "$host" \
+            "bash $qtmp/anzen.sh$fmt_flags --output=$qtmp/out.json ${qargs[*]:-}"
+    fi
     rc=$?
     for ext in $(_fleet_formats); do
         "${_FLEET_SSH[@]}" "$host" "cat $qtmp/out.$ext" > "$work/out.$ext" 2>/dev/null

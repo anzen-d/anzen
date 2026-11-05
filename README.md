@@ -41,7 +41,7 @@ tool: know the whole state of your machines and stop worrying about them.
 - **"Am I already compromised?"**: what changed since the last run (new SSH keys, cron jobs, services, SUID binaries, accounts, listening ports) and indicators of compromise (preloaded libraries, processes running from `/tmp` or memory, cryptominers).
 - **Distrusted CA certificates** in system, Java, Python and container trust stores, from a curated list, starting with the [eMudhra intermediates compromised in October 2026](docs/modules.md#trust-stores).
 - **Known CVEs** in host packages and in **every running container image**, via [Trivy](https://trivy.dev), with **actively exploited** ones from the [CISA KEV catalog](docs/modules.md#actively-exploited-cves-cisa-kev) flagged first.
-- **Windows and macOS editions:** Defender, firewall, BitLocker, SMB, RDP/NLA, LSA and Credential Guard, LAPS, ASR rules, LLMNR/NetBIOS, privilege-escalation paths and audit policy on Windows, with HTML/SARIF reports, ntfy alerts and `-Remote` over WinRM; FileVault, SIP, Gatekeeper, firewall and sharing services on macOS. Both use the same report format.
+- **Windows and macOS editions:** Defender, firewall, BitLocker, SMB, RDP/NLA, LSA and Credential Guard, LAPS, ASR rules, LLMNR/NetBIOS, privilege-escalation paths and audit policy on Windows, with HTML/SARIF reports, ntfy alerts and `-Remote` over WinRM; FileVault, SIP, Gatekeeper, firewall, sharing services, XProtect age, launch daemons and kernel extensions on macOS, audited over SSH by the Linux fleet. Both use the same report format.
 - **History and dashboard:** per-host score trends, new and fixed problems, all in one static HTML page.
 - **Alerts only when something new breaks**, via ntfy or any command, plus a dead-man switch.
 - **Accepted risks with expiry dates**, so known exceptions stay quiet but never forever.
@@ -151,7 +151,7 @@ sudo ./anzen.sh --config=/etc/anzen/anzen.conf --parallel --schedule=weekly:04:3
 | Compromise detection | `drift`, `compromise` |
 | Active testing | `pentest`, `pentest_external` |
 | Windows | `system`, `updates`, `defender`, `firewall`, `accounts`, `passwords`, `uac`, `bitlocker`, `smb`, `rdp`, `credentials`, `laps`, `asr`, `nameres`, `privesc`, `auditpol`, `powershell`, `secureboot`, `network`, `truststore` |
-| macOS | `system`, `updates`, `filevault`, `sip`, `gatekeeper`, `firewall`, `sharing`, `accounts`, `ssh`, `truststore` |
+| macOS | `system`, `updates`, `xprotect`, `filevault`, `sip`, `gatekeeper`, `firewall`, `sharing`, `accounts`, `ssh`, `launchd`, `extensions`, `profiles`, `truststore` |
 
 Every finding is **FAIL** (fix it), **WARN** (review it), **OK** or **INFO**,
 mostly with a copy-paste fix. Full list in [docs/modules.md](docs/modules.md).

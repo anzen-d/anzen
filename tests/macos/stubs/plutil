@@ -1,0 +1,5 @@
+#!/bin/sh
+# plutil -extract KEY raw -o - FILE — test plists are KEY=VALUE lines
+v=$(sed -n "s|^$2=||p" "$6" 2>/dev/null)
+[ -n "$v" ] || exit 1
+printf '%s\n' "$v"

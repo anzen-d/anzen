@@ -34,8 +34,8 @@ Small, self-contained, no deep knowledge of the codebase needed.
 
 - **Windows parity** — CVE checks, `-Remote` over SSH (WinRM is done), and
   auditing Windows hosts from the Linux `--remote` fleet
-- **macOS parity** — HTML/TXT/SARIF reports, notifications, `--remote`, more
-  checks (MDM profiles, XProtect version, Lockdown Mode, unsigned launch agents)
+- **macOS parity** — standalone notifications, screen-lock policy per user,
+  startup security (Apple silicon `bputil`), configuration-profile payload review
 - **Kubernetes depth** — RBAC, pod security, network policies (beyond the
   current runtime checks)
 - **Plugin catalogue** — started in `plugins/` (backup age, remote certificate

@@ -1,0 +1,4 @@
+#!/bin/sh
+# codesign -v PATH — anything with "unsigned" in its path fails verification
+case "$2" in *unsigned*) echo "$2: code object is not signed at all" >&2; exit 1 ;; esac
+exit 0

@@ -1,0 +1,5 @@
+#!/bin/sh
+case "$1" in
+  status) printf 'Enrolled via DEP: No\nMDM enrollment: No\n' ;;
+  list)   printf '_computerlevel[1] attribute: profileIdentifier: com.example.wifi\n' ;;
+esac
