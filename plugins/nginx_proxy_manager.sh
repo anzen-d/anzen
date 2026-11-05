@@ -71,7 +71,8 @@ run_nginx_proxy_manager_check() {
     [ "$open" -eq 0 ] && ok "Every non-public proxy host has access control"
 
     # The admin UI (port 81) should not be reachable from outside
-    if ss -tln 2>/dev/null | awk 'NR>1{print $4}' | grep -E ':81$' | grep -qvE '^(127\.|\[::1\])'; then
+    # A LAN address is fine; only wildcard binds reach every interface
+    if _svc_listen_addrs 81 | grep -qxE '0\.0\.0\.0|\*|::'; then
         warn "NPM admin UI port 81 listens on all interfaces"
         remedy "# publish it as 127.0.0.1:81:81 (or a LAN address) in the NPM compose file"
     fi

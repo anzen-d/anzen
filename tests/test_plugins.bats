@@ -107,6 +107,15 @@ _npm_host() {
     grep -q "^WARN	.*admin UI port 81" "$FINDINGS_FILE"
 }
 
+@test "nginx_proxy_manager: admin port 81 on a LAN address is not flagged" {
+    # shellcheck disable=SC1091
+    source "$ANZEN_DIR/plugins/nginx_proxy_manager.sh"
+    ss() { printf 'h\nLISTEN 0 0 192.0.2.10:81 0.0.0.0:*\n'; }
+    _npm_host 1 acl.lan.example $'listen 443 ssl;\n    include conf.d/include/force-ssl.conf;\n  deny all;'
+    NPM_DATA_DIR="$T/npm" run_nginx_proxy_manager_check > /dev/null
+    ! grep -q "admin UI port 81" "$FINDINGS_FILE"
+}
+
 @test "nginx_proxy_manager: wrong NPM_DATA_DIR is a WARN" {
     # shellcheck disable=SC1091
     source "$ANZEN_DIR/plugins/nginx_proxy_manager.sh"

@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-11-05
+
+### Fixed
+- `nginx_proxy_manager` plugin: the admin port 81 warning ("listens on all
+  interfaces") also fired for a single LAN address, which its own remedy
+  recommends. It now fires only for wildcard binds (`0.0.0.0`, `::`, `*`).
+
 ## [0.17.0] - 2026-11-05
 
 ### Added
