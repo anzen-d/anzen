@@ -16,6 +16,41 @@
 
 ## Installation
 
+### Packages
+
+Every [release](https://github.com/anzen-d/anzen/releases) has a `.deb` and
+an `.rpm` (Linux edition, `noarch`), signed with a build provenance attestation
+like the tarball:
+
+```bash
+v=0.21.0
+# Debian / Ubuntu
+curl -LO https://github.com/anzen-d/anzen/releases/download/v$v/anzen_${v}_all.deb
+sudo apt install ./anzen_${v}_all.deb
+# Fedora / RHEL / Rocky / openSUSE
+sudo dnf install https://github.com/anzen-d/anzen/releases/download/v$v/anzen-$v-1.noarch.rpm
+```
+
+They install to `/usr/lib/anzen` with `anzen` in `/usr/bin`, shell
+completions, and reports in `/var/lib/anzen/reports`. Plugins load from
+`/usr/lib/anzen/plugins` with `PLUGINS=`; keep your config in `/etc/anzen`.
+
+**macOS** (and Homebrew on Linux) — the formula lives in this repository:
+
+```bash
+brew tap anzen-d/anzen https://github.com/anzen-d/anzen
+brew install anzen          # on a Mac, `anzen` runs the macOS edition
+```
+
+**Windows** — a [Scoop](https://scoop.sh) manifest lives in this repository:
+
+```powershell
+scoop bucket add anzen https://github.com/anzen-d/anzen
+scoop install anzen/anzen   # then, elevated: anzen -Html
+```
+
+### From source
+
 ```bash
 git clone https://github.com/anzen-d/anzen.git
 cd anzen
@@ -36,7 +71,7 @@ SHA-256 checksum and a signed build provenance attestation (Sigstore, created
 by the release workflow from the tagged commit):
 
 ```bash
-v=0.20.0
+v=0.21.0
 curl -LO https://github.com/anzen-d/anzen/releases/download/v$v/anzen-$v.tar.gz
 curl -LO https://github.com/anzen-d/anzen/releases/download/v$v/anzen-$v.tar.gz.sha256
 sha256sum -c anzen-$v.tar.gz.sha256

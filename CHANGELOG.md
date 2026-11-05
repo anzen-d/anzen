@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-05
+
+### Added
+- **Packages:** every release now has `anzen_X.Y.Z_all.deb` and
+  `anzen-X.Y.Z-1.noarch.rpm` (Linux edition in `/usr/lib/anzen`, `anzen` in
+  `/usr/bin`, completions, reports in `/var/lib/anzen/reports`), with
+  `SHA256SUMS` and build provenance attestations. Built by
+  `packaging/build.sh`; CI installs them on Debian and Fedora.
+- **Homebrew formula** (`brew tap anzen-d/anzen https://github.com/anzen-d/anzen`)
+  that runs the macOS edition on a Mac and the Linux edition under Homebrew on
+  Linux, and a **Scoop manifest** (`scoop bucket add anzen …`) for the Windows
+  edition. The release workflow regenerates both for each release
+  (`packaging/manifests.sh`); CI installs them on macOS and Windows.
+
 ## [0.20.0] - 2026-11-05
 
 ### Added

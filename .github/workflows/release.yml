@@ -1,6 +1,7 @@
-# Push a tag like v0.9.0 → GitHub Release with a source tarball, its SHA-256
-# checksum, a signed build provenance attestation (Sigstore) and the matching
-# CHANGELOG section as release notes.
+# Push a tag like v0.9.0 → GitHub Release with a source tarball, .deb and .rpm
+# packages, their SHA-256 checksums, signed build provenance attestations
+# (Sigstore) and the matching CHANGELOG section as release notes. Afterwards the
+# Homebrew formula and Scoop manifest on main are updated to the new tarball.
 name: Release
 
 on:
@@ -34,11 +35,21 @@ jobs:
           git archive --format=tar.gz --prefix="$name/" -o "$name.tar.gz" "$GITHUB_REF_NAME"
           sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
 
+      - name: Build .deb and .rpm
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq rpm file >/dev/null
+          packaging/build.sh "${GITHUB_REF_NAME#v}" dist
+          (cd dist && sha256sum anzen*.deb anzen*.rpm > SHA256SUMS)
+          for f in dist/anzen*.deb; do dpkg-deb --info "$f" | head -3; done
+
       # Verify: gh attestation verify anzen-X.Y.Z.tar.gz --repo anzen-d/anzen
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4
         with:
-          subject-path: anzen-*.tar.gz
+          subject-path: |
+            anzen-*.tar.gz
+            dist/anzen*.deb
+            dist/anzen*.rpm
 
       - name: Release notes from CHANGELOG
         run: |
@@ -51,4 +62,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" anzen-*.tar.gz anzen-*.tar.gz.sha256 \
+            dist/anzen*.deb dist/anzen*.rpm dist/SHA256SUMS \
             --title "Anzen ${GITHUB_REF_NAME}" --notes-file notes.md
+
+      # The formula and manifest must name the tarball's checksum, which only
+      # exists now: commit them to main (GITHUB_TOKEN pushes start no workflows)
+      - name: Update Homebrew formula and Scoop manifest on main
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          sha=$(awk '{ print $1 }' "anzen-$version.tar.gz.sha256")
+          git fetch --depth=1 origin main && git checkout -B main FETCH_HEAD
+          packaging/manifests.sh "$version" "$sha"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/anzen.rb bucket/anzen.json
+          git diff --cached --quiet && exit 0
+          git commit -m "packaging: Homebrew formula and Scoop manifest for $GITHUB_REF_NAME"
+          git push origin main

@@ -40,7 +40,7 @@ Small, self-contained, no deep knowledge of the codebase needed.
   current runtime checks)
 - **Plugin catalogue** — started in `plugins/` (backup age, remote certificate
   expiry, Nginx Proxy Manager, enabled with `PLUGINS=`); more plugins welcome
-- **Packaging** — `.deb`/`.rpm`/AUR packages, Homebrew, Scoop/winget for Windows
+- **Packaging** — an apt/dnf repository, AUR, winget (`.deb`/`.rpm`, Homebrew and Scoop are done)
 - **Dashboard** — per-finding history ("first seen", "flapping"), fleet filter
   by tag
 - **Compliance** — finer control mapping (per message), CIS Benchmark section

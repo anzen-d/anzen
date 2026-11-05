@@ -96,6 +96,13 @@ Runs with the built-in Bash 3.2, nothing to install:
 sudo ./macos/anzen-macos.sh --json
 ```
 
+### Packages
+
+`.deb` and `.rpm` on every [release](https://github.com/anzen-d/anzen/releases),
+`brew tap anzen-d/anzen https://github.com/anzen-d/anzen && brew install anzen`
+on macOS, and `scoop bucket add anzen https://github.com/anzen-d/anzen && scoop install anzen/anzen`
+on Windows. See [installation](docs/installation.md#packages).
+
 ### Audit other machines
 
 ```bash

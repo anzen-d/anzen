@@ -5,3 +5,6 @@ reports/
 # Site-specific config (see *.example)
 anzen.conf
 anzen.accept
+
+# Package builds (packaging/build.sh)
+dist/
