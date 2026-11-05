@@ -186,8 +186,10 @@ ts_env() {
     grep -q 'macOS Security Audit' "$BATS_TEST_TMPDIR/out.html"
     grep -q 'FileVault is off' "$BATS_TEST_TMPDIR/out.html"
     grep -q 'macOS Security Audit Report' "$BATS_TEST_TMPDIR/out.txt"
-    python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); r=d["runs"][0]["results"]; assert r and r[0]["ruleId"]=="filevault", r' "$BATS_TEST_TMPDIR/out.sarif.json"
+    # grep, not python: the Bash 3.2 CI image has no python3
+    grep -q '"version": "2.1.0"' "$BATS_TEST_TMPDIR/out.sarif.json"
+    grep -q '"results": \[{"ruleId":"filevault","level":"error"' "$BATS_TEST_TMPDIR/out.sarif.json"
     # --output alone still means JSON
     mac --check=filevault --output="$BATS_TEST_TMPDIR/only.json"
-    python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$BATS_TEST_TMPDIR/only.json"
+    grep -q '^  "summary": {"fail": 1,' "$BATS_TEST_TMPDIR/only.json"
 }
