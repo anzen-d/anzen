@@ -229,6 +229,21 @@ _services() {
     ! grep -qE "Elasticsearch|CouchDB|etcd" "$FINDINGS_FILE"
 }
 
+@test "services: ZooKeeper answering four-letter commands" {
+    SS_TCP=("LISTEN 0 0 *:2181 *:*")
+    SS_UDP=()
+    # shellcheck disable=SC1091
+    source "$ANZEN_DIR/lib/checks/services.sh"
+    _svc_http() { :; }
+    _svc_probe() { [ "$2" = 2181 ] && [ "$3" = srvr ] && printf 'Zookeeper version: 3.8.4-9316c2a7\nLatency min/avg/max: 0/0.0/0\n'; }
+    _services
+    grep -q "^FAIL	.*ZooKeeper on 127.0.0.1:2181 answers without authentication" "$FINDINGS_FILE"
+    : > "$FINDINGS_FILE"
+    _svc_probe() { printf 'srvr is not executed because it is not in the whitelist.\n'; }
+    _services
+    ! grep -q ZooKeeper "$FINDINGS_FILE"
+}
+
 @test "services: Solr without authentication, RabbitMQ with the guest login" {
     SS_TCP=("LISTEN 0 0 0.0.0.0:8983 0.0.0.0:*" "LISTEN 0 0 127.0.0.1:15672 0.0.0.0:*")
     SS_UDP=()

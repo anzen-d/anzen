@@ -139,6 +139,10 @@ of the latest run shows **since** when it has been there without a break, and
 **flapping ×N** when it was fixed and came back N times. **Export CSV**
 in the dashboard downloads the findings of every host's latest run as one CSV.
 
+Group hosts with `HOST_TAGS="web-01=prod,web media-01=lab"` (full or short host
+name). A tag menu then appears above the hosts; picking a tag limits the hosts,
+the new/fixed lists and the CSV export to the hosts with that tag.
+
 The dashboard shows each host's score and change, a stale marker when the last
 run is older than 8 days, the score trend, FAILs that are new or fixed since the
 previous run, accepted risks expiring within 30 days, section scores and a

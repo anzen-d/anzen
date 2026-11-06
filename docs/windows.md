@@ -34,6 +34,7 @@ powershell -ExecutionPolicy Bypass -File .\windows\anzen.ps1 -Json
 | `nameres` | LLMNR and NetBIOS over TCP/IP (name spoofing, NTLM hash capture) |
 | `privesc` | Service and SYSTEM/elevated scheduled-task binaries, the scripts those tasks run, or their folders writable by users, unquoted service paths, AlwaysInstallElevated, Print Spooler on servers and domain controllers, Point and Print (PrintNightmare) |
 | `auditpol` | Advanced audit policy for logons, lockouts, account and group changes, process creation, policy changes; command line in process creation events; Security log size |
+| `appcontrol` | App Control for Business (WDAC) or AppLocker enforced, AppLocker without the Application Identity service |
 | `powershell` | Script block logging, PowerShell 2.0 |
 | `secureboot` | Secure Boot |
 | `network` | Risky ports (SMB, RDP, WinRM, Telnet…) listening on all interfaces |

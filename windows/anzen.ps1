@@ -81,7 +81,7 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Continue'
 
-$AnzenVersion = '0.23.0'
+$AnzenVersion = '0.24.0'
 $ScriptPath   = $MyInvocation.MyCommand.Path
 $ScriptDir    = Split-Path -Parent $ScriptPath
 $FailPenalty  = 10
@@ -494,6 +494,35 @@ function Invoke-CredentialProtectionCheck {
     else { Warn 'Credential Guard not running' '# GPO: Computer Configuration > Administrative Templates > System > Device Guard > Turn On Virtualization Based Security (Credential Guard: Enabled with UEFI lock)' }
 }
 
+# App Control for Business (WDAC) and AppLocker: allow-listing is the strongest
+# answer to malware a user downloads and runs
+function Invoke-AppControlCheck {
+    Section 'Application Control'
+    $dg = Get-CimInstance -Namespace 'root\Microsoft\Windows\DeviceGuard' -ClassName Win32_DeviceGuard -ErrorAction SilentlyContinue
+    $wdac = $dg | Select-Object -First 1 -ExpandProperty UsermodeCodeIntegrityPolicyEnforcementStatus -ErrorAction SilentlyContinue
+    $enforced = @(); $audit = @()
+    if (Get-Command Get-AppLockerPolicy -ErrorAction SilentlyContinue) {
+        $pol = Get-AppLockerPolicy -Effective -ErrorAction SilentlyContinue
+        foreach ($c in @($pol | Select-Object -ExpandProperty RuleCollections -ErrorAction SilentlyContinue)) {
+            if (-not $c -or -not @($c).Count) { continue }
+            $type = "$($c | Select-Object -ExpandProperty RuleCollectionType -ErrorAction SilentlyContinue)"
+            switch ("$($c | Select-Object -ExpandProperty EnforcementMode -ErrorAction SilentlyContinue)") {
+                'Enabled'   { $enforced += $type }
+                'AuditOnly' { $audit += $type }
+            }
+        }
+    }
+    if ($wdac -eq 2) { Ok 'App Control for Business (WDAC) enforces user-mode code integrity' }
+    if ($enforced) {
+        $svc = Get-Service AppIDSvc -ErrorAction SilentlyContinue
+        if ($svc -and "$($svc.Status)" -eq 'Running') { Ok "AppLocker enforced for: $($enforced -join ', ')" }
+        else { Warn 'AppLocker rules are enforced but the Application Identity service is not running' 'sc.exe config AppIDSvc start= auto; Start-Service AppIDSvc' }
+    }
+    if ($wdac -eq 2 -or $enforced) { return }
+    if ($wdac -eq 1 -or $audit) { Info 'Application control (WDAC or AppLocker) in audit mode only' }
+    else { Info 'No application control policy (AppLocker or WDAC): any program a user can write can run' }
+}
+
 function Invoke-PowerShellCheck {
     Section 'PowerShell'
     $sbl = Get-RegValue 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' 'EnableScriptBlockLogging'
@@ -831,6 +860,7 @@ $Modules = [ordered]@{
     nameres     = 'Invoke-NameResolutionCheck'
     privesc     = 'Invoke-PrivEscCheck'
     auditpol    = 'Invoke-AuditPolicyCheck'
+    appcontrol  = 'Invoke-AppControlCheck'
     powershell  = 'Invoke-PowerShellCheck'
     secureboot  = 'Invoke-SecureBootCheck'
     network     = 'Invoke-NetworkCheck'

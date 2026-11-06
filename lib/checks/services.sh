@@ -122,6 +122,18 @@ run_services_check() {
         remedy "# set requirepass (or an ACL user) in redis.conf, then: systemctl restart redis"
     fi
 
+    # ZooKeeper has no client authentication by default (ACL world:anyone);
+    # the srvr four-letter command answers on any reachable port
+    _ra=$(_svc_probe_addr 2181)
+    if [ -n "$_ra" ] && _svc_probe "$_ra" 2181 'srvr' | grep -q '^Zookeeper version'; then
+        if _svc_public_tcp 2181; then
+            fail "ZooKeeper on $_ra:2181 answers without authentication"
+        else
+            warn "ZooKeeper on $_ra:2181 answers without authentication (local only)"
+        fi
+        remedy "# bind clientPortAddress=127.0.0.1 in zoo.cfg, or enable SASL/mTLS client auth and set ACLs on znodes"
+    fi
+
     # Elasticsearch, CouchDB, etcd and Solr answering over plain HTTP without
     # credentials (or RabbitMQ with its default guest login): anyone who
     # reaches the port reads (and usually writes) all data

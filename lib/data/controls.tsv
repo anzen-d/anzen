@@ -27,6 +27,7 @@ Time Synchronization	.	NIST AU-8; CIS 8.4
 PowerShell	logging	NIST AU-12; CIS 8.8
 PowerShell	.	NIST CM-7; CIS 4.8
 Attack Surface Reduction	.	NIST SI-3, SI-16; CIS 10.5
+Application Control	.	NIST CM-7(5); CIS 2.5, 2.7
 Microsoft Defender|XProtect|Gatekeeper|Rootkit Scanners	.	NIST SI-3; CIS 10.1, 10.2
 Secure Boot|System Integrity Protection	.	NIST SI-7; CIS 4.1
 Kernel Hardening \(sysctl\)|Kernel Modules|Kernel & System Extensions|MAC Framework.*|Systemd Hardening	.	NIST CM-6, CM-7; CIS 4.1

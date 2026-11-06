@@ -91,6 +91,8 @@
 #
 # Rebuild a dashboard after every saved run (serve it read-only, e.g. nginx)
 # DASHBOARD_FILE="/var/lib/anzen/www/index.html"
+# Tags for the dashboard host filter (full or short host name)
+# HOST_TAGS="web-01=prod,web media-01=lab"
 #
 # Fetched after every run — a dead-man switch that alerts when audits stop
 # (Uptime Kuma push monitor, healthchecks.io, ...)

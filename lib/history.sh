@@ -95,6 +95,7 @@ _dashboard_runs() {
                 function chk(re) { if ($0 !~ re) bad = 1 }
                 /^  "hostname": /  { chk("^  \"hostname\": " S ",?$"); sub(/,$/, ""); host = $0 }
                 /^  "date": /      { chk("^  \"date\": " S ",?$"); sub(/,$/, ""); date = $0 }
+                /^  "os": /        { chk("^  \"os\": " S ",?$"); sub(/,$/, ""); os = $0 }
                 /^  "version": /   { chk("^  \"version\": " S ",?$"); sub(/,$/, ""); ver = $0 }
                 /^  "summary": /   { chk("^  \"summary\": \\{\"fail\": [0-9]+, \"warn\": [0-9]+, \"ok\": [0-9]+, \"info\": [0-9]+, \"score\": [0-9]+\\},?$")
                                      sub(/,$/, ""); summ = $0 }
@@ -109,8 +110,8 @@ _dashboard_runs() {
                 }
                 END {
                     if (bad || host == "" || date == "" || summ == "") exit 1
-                    printf "{%s,%s,%s,%s,\"sections\":[%s],\"findings\":%s}\n", \
-                        host, date, (ver == "" ? "\"version\": \"\"" : ver), summ, secs, \
+                    printf "{%s,%s,%s,%s,%s,\"sections\":[%s],\"findings\":%s}\n", \
+                        host, date, (os == "" ? "\"os\": \"\"" : os), (ver == "" ? "\"version\": \"\"" : ver), summ, secs, \
                         (full == 1 ? "[" fnd "]" : "null")
                 }' "$f") || {
                 echo "[WARN] Dashboard: skipping $f (not an anzen report)" >&2
@@ -130,6 +131,20 @@ generate_dashboard() {
     local runs; runs=$(_dashboard_runs "$dir")
     # Neutralise "</script>" inside messages so the data cannot end the block
     runs=${runs//<\//<\\/}
+    # HOST_TAGS="web-01=prod,web media-01=lab": names and tags are checked,
+    # so the JS object below cannot carry markup or script
+    local tags="{" entry h t entries=()
+    read -ra entries <<< "${HOST_TAGS:-}"
+    for entry in ${entries[@]+"${entries[@]}"}; do
+        h=${entry%%=*}; t=${entry#*=}
+        if [[ $entry != *=* || ! $h =~ ^[A-Za-z0-9._-]+$ || ! $t =~ ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$ ]]; then
+            echo "[WARN] Dashboard: ignoring HOST_TAGS entry '$entry' (use host=tag,tag)" >&2
+            continue
+        fi
+        [ "$tags" = "{" ] || tags+=","
+        tags+="\"$h\":[\"${t//,/\",\"}\"]"
+    done
+    tags+="}"
 
     cat > "$out" <<'HTML'
 <!DOCTYPE html>
@@ -205,13 +220,13 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
   <div><button class="theme" id="csv" type="button">Export CSV</button> <button class="theme" id="theme" type="button">Theme</button></div>
 </header>
 <main>
-  <section><h2>Hosts</h2><div class="hosts" id="hosts"></div></section>
+  <section><h2>Hosts</h2><div class="filters" id="tagbar"></div><div class="hosts" id="hosts"></div></section>
   <div id="attention"></div>
   <div id="detail"></div>
 </main>
 <script>
 HTML
-    printf 'const RUNS = %s;\n' "$runs" >> "$out"
+    printf 'const RUNS = %s;\nconst TAGS = %s;\n' "$runs" "$tags" >> "$out"
     cat >> "$out" <<'HTML'
 const STALE_DAYS = 8, EXPIRY_DAYS = 30;
 const $ = s => document.querySelector(s);
@@ -223,8 +238,14 @@ const byHost = {};
 for (const r of RUNS) (byHost[r.hostname] ||= []).push(r);
 for (const h in byHost) byHost[h].sort((a, b) => a.date.localeCompare(b.date));
 const hosts = Object.keys(byHost).sort();
+// Tags by full or short host name; the tag filter limits hosts, changes and CSV
+const tagsOf = h => TAGS[h] || TAGS[h.split(".")[0]] || [];
+const allTags = [...new Set(hosts.flatMap(tagsOf))].sort();
+let tag = "";
+const shown = () => tag ? hosts.filter(h => tagsOf(h).includes(tag)) : hosts;
 // Open on the host that needs attention most: lowest latest score
-let current = [...hosts].sort((a, b) => byHost[a].at(-1).summary.score - byHost[b].at(-1).summary.score)[0];
+const worst = () => [...shown()].sort((a, b) => byHost[a].at(-1).summary.score - byHost[b].at(-1).summary.score)[0];
+let current = worst();
 
 function trend(runs, w, h = 160) {
   if (runs.length < 2) return '<p class="empty">Trend appears after the second run.</p>';
@@ -243,12 +264,12 @@ function trend(runs, w, h = 160) {
 }
 
 function renderHosts() {
-  $("#hosts").innerHTML = hosts.map(h => {
+  $("#hosts").innerHTML = shown().map(h => {
     const runs = byHost[h], last = runs.at(-1), prev = runs.at(-2);
     const d = prev ? last.summary.score - prev.summary.score : 0;
     const age = days(last.date);
     return `<button class="host" type="button" data-host="${esc(h)}" aria-pressed="${h === current}">
-      <div class="name">${esc(h)}</div>
+      <div class="name">${esc(h)}</div>${tagsOf(h).length ? `<div>${tagsOf(h).map(hostTag).join("")}</div>` : ""}
       <div><span class="score">${last.summary.score}%</span>${prev && d ? `<span class="delta ${d > 0 ? "up" : "down"}">${d > 0 ? "+" : ""}${d}</span>` : ""}</div>
       <div class="counts">FAIL ${last.summary.fail} · WARN ${last.summary.warn} · ${runs.length} run${runs.length > 1 ? "s" : ""}</div>
       <div class="when ${age > STALE_DAYS ? "stale" : ""}">Last run ${esc(fmt(last.date))}${age > STALE_DAYS ? " — stale" : ""}</div>
@@ -280,7 +301,7 @@ const stripAccept = m => m.replace(/\s*\[accepted until.*\]$/, "");
 
 // Fleet-wide: what changed since each host's previous run, and what expires soon
 function renderAttention() {
-  const all = hosts.map(h => [h, changes(h)]);
+  const all = shown().map(h => [h, changes(h)]);
   const flat = key => all.flatMap(([h, c]) => c[key].map(f => ({...f, host: h})));
   const newF = flat("newF"), fixed = flat("fixed"), expiring = flat("expiring").sort((a, b) => a.until.localeCompare(b.until));
   $("#attention").innerHTML = `
@@ -352,6 +373,10 @@ function drawTrend() {
 addEventListener("resize", drawTrend);
 
 function render() { renderHosts(); renderAttention(); renderDetail(); }
+if (allTags.length) {
+  $("#tagbar").innerHTML = `<select id="tag" aria-label="Filter hosts by tag"><option value="">All hosts</option>${allTags.map(t => `<option>${esc(t)}</option>`).join("")}</select>`;
+  $("#tag").onchange = e => { tag = e.target.value; if (!shown().includes(current)) current = worst(); render(); };
+}
 
 const root = document.documentElement;
 try { const t = localStorage.getItem("anzen-theme"); if (t) root.dataset.theme = t; } catch (e) {}
@@ -366,7 +391,7 @@ $("#meta").textContent = `${hosts.length} host${hosts.length === 1 ? "" : "s"} �
 $("#csv").onclick = () => {
   const q = v => { v = String(v ?? ""); if (/^[=+@-]/.test(v)) v = "'" + v; return '"' + v.replace(/"/g, '""') + '"'; };
   const rows = [["host", "date", "os", "score", "level", "section", "id", "message", "remedy"]];
-  for (const h of hosts) {
+  for (const h of shown()) {
     const r = byHost[h].at(-1);
     for (const f of r.findings || []) rows.push([h, r.date, r.os, r.summary.score, f.level, f.section, f.id, f.message, f.remedy]);
   }

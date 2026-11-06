@@ -151,6 +151,30 @@ Describe 'New Windows checks' {
         Invoke-PrivEscCheck 6>$null
         @($script:Findings | Where-Object message -like '*Spooler*').Count | Should -Be 0
     }
+    It 'reports application control state' {
+        if (-not (Get-Command Get-AppLockerPolicy -ErrorAction SilentlyContinue)) { New-Item -Path function:global:Get-AppLockerPolicy -Value { } | Out-Null }
+        Mock Get-CimInstance { [pscustomobject]@{ UsermodeCodeIntegrityPolicyEnforcementStatus = 0 } }
+        Mock Get-AppLockerPolicy { [pscustomobject]@{ RuleCollections = @(
+            [pscustomobject]@{ RuleCollectionType = 'Exe'; EnforcementMode = 'Enabled' },
+            [pscustomobject]@{ RuleCollectionType = 'Script'; EnforcementMode = 'AuditOnly' }) } }
+        Mock Get-Service { [pscustomobject]@{ Name = 'AppIDSvc'; Status = 'Stopped' } }
+        Invoke-AppControlCheck 6>$null
+        ($script:Findings | Where-Object message -eq 'AppLocker rules are enforced but the Application Identity service is not running').level | Should -Be 'WARN'
+        Reset-Findings
+        Mock Get-Service { [pscustomobject]@{ Name = 'AppIDSvc'; Status = 'Running' } }
+        Invoke-AppControlCheck 6>$null
+        ($script:Findings | Where-Object message -eq 'AppLocker enforced for: Exe').level | Should -Be 'OK'
+        Reset-Findings
+        Mock Get-AppLockerPolicy { }
+        Mock Get-CimInstance { [pscustomobject]@{ UsermodeCodeIntegrityPolicyEnforcementStatus = 1 } }
+        Invoke-AppControlCheck 6>$null
+        ($script:Findings | Where-Object message -like '*audit mode only').level | Should -Be 'INFO'
+        Reset-Findings
+        Mock Get-CimInstance { [pscustomobject]@{ UsermodeCodeIntegrityPolicyEnforcementStatus = 2 } }
+        Invoke-AppControlCheck 6>$null
+        ($script:Findings | Where-Object message -like 'App Control for Business*').level | Should -Be 'OK'
+        $script:Findings.Count | Should -Be 1
+    }
     It 'flags inbound rules that allow any traffic' {
         Mock Get-NetFirewallProfile { [pscustomobject]@{ Name = 'Domain'; Enabled = $true; DefaultInboundAction = 'Block' } }
         Mock Get-NetFirewallRule { @(

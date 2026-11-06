@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-11-06
+
+### Added
+- Dashboard: `HOST_TAGS="web-01=prod,web media-01=lab"` adds a tag menu; a
+  tag limits the hosts, the new/fixed lists and the CSV export. Tags show on
+  the host cards. Names and tags are validated before they reach the page.
+- `services`: ZooKeeper (2181) answering the `srvr` command — FAIL when the
+  port is public, WARN when local only.
+- Windows: new `appcontrol` module — App Control for Business (WDAC) or
+  AppLocker enforced (OK), AppLocker rules without the Application Identity
+  service running (WARN), audit mode only or no policy (INFO).
+
+### Fixed
+- Dashboard CSV export: the `os` column was always empty, because the
+  dashboard dropped the `os` field of every run.
+
 ## [0.23.0] - 2026-11-06
 
 ### Added

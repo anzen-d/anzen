@@ -25,6 +25,6 @@ for f in "$work"/history/*/*.json; do
 done
 
 mkdir -p "$out"
-"$root/anzen.sh" --history="$work/history" --dashboard="$out/index.html"
+HOST_TAGS="web-01=prod,web media-01=lab nas-backup=lab,storage desktop-win11=office" "$root/anzen.sh" --history="$work/history" --dashboard="$out/index.html"
 cp "$here/report.html" "$out/report.html"
 echo "Demo site: $out"

@@ -19,7 +19,7 @@
 | Compilers & Tools | `compiler` | Compiler/build tools present, offensive security tools (nmap, metasploit, etc.), packet capture tools |
 | PATH Security | `path_check` | Empty/relative PATH entries, `.` in PATH, world-writable PATH dirs, `LD_PRELOAD` set, potential PATH injection in shell configs |
 | Kernel Modules | `modules` | `modules_disabled` sysctl, risky loaded modules, module blacklist entries, `usb-storage` |
-| Services | `services` | Docker group membership, privileged/host-network containers, fail2ban/CrowdSec, exposed databases, Redis without a password, Memcached (TCP and UDP amplification), MongoDB, Elasticsearch / CouchDB / etcd / Solr answering over HTTP without authentication and RabbitMQ accepting the default guest login (local probe), Samba/SMB |
+| Services | `services` | Docker group membership, privileged/host-network containers, fail2ban/CrowdSec, exposed databases, Redis without a password, Memcached (TCP and UDP amplification), MongoDB, Elasticsearch / CouchDB / etcd / Solr / ZooKeeper answering over HTTP without authentication and RabbitMQ accepting the default guest login (local probe), Samba/SMB |
 | Login History | `logins` | Root crontab contents, cron file permissions, recent/failed login history, account password expiry |
 | Kernel Hardening | `kernel` | ASLR, SYN cookies, IP forwarding, ICMP redirects, source routing, martian packet logging, core dumps, unprivileged eBPF, Yama `ptrace_scope`, `dev.tty.ldisc_autoload`, `kexec_load_disabled` (INFO), AppArmor/SELinux status |
 | Audit Daemon | `auditd` | auditd running + rules loaded, NTP/time sync, TCP wrappers, rkhunter/chkrootkit |

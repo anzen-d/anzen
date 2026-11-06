@@ -36,6 +36,7 @@ cp anzen.conf.example anzen.conf
 | `HISTORY_DIR` | — | Save every run under `<dir>/<host>/` |
 | `HISTORY_KEEP` | `52` | Runs kept per host; `0` keeps all |
 | `DASHBOARD_FILE` | — | Rebuild this dashboard after every saved run |
+| `HOST_TAGS` | — | Tags for the dashboard filter: `"web-01=prod,web media-01=lab"` (full or short host name; letters, digits, `.`, `_`, `-`) |
 | `NOTIFY_NTFY_URL` / `NOTIFY_CMD` | — | Notification target |
 | `NOTIFY_ON` | `always` | `always`, `fail` or `regression` (new FAIL vs previous history run; never on a host's first run) |
 | `NOTIFY_ON_FAIL_ONLY` | `false` | Legacy: `true` is the same as `NOTIFY_ON=fail` |

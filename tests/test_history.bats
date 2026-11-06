@@ -75,9 +75,27 @@ teardown() {
 import re, json
 s = open('$HIST/index.html').read()
 assert s.count('</script>') == 1
-d = json.loads(re.search(r'const RUNS = (.*?);\nconst STALE', s, re.S).group(1))
+d = json.loads(re.search(r'const RUNS = (.*?);\nconst TAGS', s, re.S).group(1))
 assert len(d) == 2 and d[-1]['findings'][0]['level'] == 'FAIL'
 assert all(f['level'] != 'OK' for f in d[-1]['findings'])
+"
+    [ "$status" -eq 0 ]
+}
+
+@test "generate_dashboard() passes os through and embeds checked HOST_TAGS" {
+    section "SSH"; fail "x"
+    OS_PRETTY="Debian GNU/Linux 12" history_save "$HIST" >/dev/null
+    HOST_TAGS="$(hostname -s)=prod,web bad<x>=y ok=</script> lab-1=lab" generate_dashboard "$HIST" "$HIST/index.html" 2>"$HIST/err"
+    grep -q "ignoring HOST_TAGS entry 'bad<x>=y'" "$HIST/err"
+    grep -q "ignoring HOST_TAGS entry 'ok=</script>'" "$HIST/err"
+    run python3 -c "
+import re, json
+s = open('$HIST/index.html').read()
+assert s.count('</script>') == 1
+d = json.loads(re.search(r'const RUNS = (.*?);\nconst TAGS', s, re.S).group(1))
+t = json.loads(re.search(r'const TAGS = (.*?);\nconst STALE', s, re.S).group(1))
+assert d[0]['os'] == 'Debian GNU/Linux 12', d[0]
+assert t == {'$(hostname -s)': ['prod', 'web'], 'lab-1': ['lab']}, t
 "
     [ "$status" -eq 0 ]
 }
