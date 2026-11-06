@@ -6,6 +6,31 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-11-06
+
+### Added
+- Fleet: `--remote` audits Windows hosts with the OpenSSH server. anzen
+  detects them (no `uname`, PowerShell answers) and runs the Windows edition
+  in a single SSH session; files and reports travel as base64 over
+  stdin/stdout, so `cmd.exe` and PowerShell both work as the SSH shell.
+  `--check` and `--strict` are passed on.
+- Dashboard: "Findings across hosts" — every FAIL/WARN of the latest runs
+  with the hosts that have it and since when, filterable by text or host and
+  limited to findings on 2+ hosts on request. Follows the tag filter.
+- Dashboard: "since" and "flapping" now use the FAIL/WARN IDs of every stored
+  run, not only the last two (new `ids` per run; only plain anzen IDs pass).
+- `services`: Kafka (9092) answering a Metadata request without
+  authentication — FAIL when public, WARN when local only.
+- Windows `defender`: cloud-delivered protection (MAPS) and potentially
+  unwanted app blocking, while Defender is the active antivirus.
+- Windows `passwords`: Windows Hello PIN minimum length below 6 (when the
+  policy is set) and the convenience PIN for domain users.
+
+### Fixed
+- `install.sh` and the `.deb`/`.rpm` packages now ship `macos/anzen-macos.sh`
+  and `windows/anzen.ps1`: an installed `anzen --remote` failed on Macs.
+  A missing edition script now gives a clear error.
+
 ## [0.24.0] - 2026-11-06
 
 ### Added

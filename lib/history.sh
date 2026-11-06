@@ -105,13 +105,18 @@ _dashboard_runs() {
                 in_s { chk("^    \\{\"name\": " S ", \"fail\": [0-9]+, \"warn\": [0-9]+, \"ok\": [0-9]+, \"score\": [0-9]+\\},?$")
                        sub(/,$/, ""); secs = secs (secs == "" ? "" : ",") $0 }
                 in_f { chk("^    \\{\"id\": " S ", \"level\": \"(FAIL|WARN|OK|INFO)\", \"section\": " S ", \"message\": " S ", \"remedy\": " S "\\},?$") }
+                # FAIL/WARN IDs of every run, for "since" and the cross-host view;
+                # only plain anzen IDs (lowercase, digits, dashes) are kept
+                in_f && /"level": "(FAIL|WARN)"/ && match($0, /^    \{"id": "[a-z0-9-]+"/) {
+                    ids = ids (ids == "" ? "" : ",") substr($0, RSTART + 11, RLENGTH - 11)
+                }
                 in_f && full == 1 && $0 !~ /"level": "OK"/ {
                     sub(/,$/, ""); fnd = fnd (fnd == "" ? "" : ",") $0
                 }
                 END {
                     if (bad || host == "" || date == "" || summ == "") exit 1
-                    printf "{%s,%s,%s,%s,%s,\"sections\":[%s],\"findings\":%s}\n", \
-                        host, date, (os == "" ? "\"os\": \"\"" : os), (ver == "" ? "\"version\": \"\"" : ver), summ, secs, \
+                    printf "{%s,%s,%s,%s,%s,\"sections\":[%s],\"ids\":[%s],\"findings\":%s}\n", \
+                        host, date, (os == "" ? "\"os\": \"\"" : os), (ver == "" ? "\"version\": \"\"" : ver), summ, secs, ids, \
                         (full == 1 ? "[" fnd "]" : "null")
                 }' "$f") || {
                 echo "[WARN] Dashboard: skipping $f (not an anzen report)" >&2
@@ -222,6 +227,7 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
 <main>
   <section><h2>Hosts</h2><div class="filters" id="tagbar"></div><div class="hosts" id="hosts"></div></section>
   <div id="attention"></div>
+  <div id="fleet"></div>
   <div id="detail"></div>
 </main>
 <script>
@@ -312,20 +318,60 @@ function renderAttention() {
     <section><h2>Accepted risks expiring within ${EXPIRY_DAYS} days</h2><div class="panel">${li(expiring, f => `<li>${hostTag(f.host)} <b>${esc(f.until)}</b> — ${esc(stripAccept(f.message))} <span class="id">${esc(f.reason)}</span></li>`)}</div></section>`;
 }
 
+// Per host and finding: start of the current unbroken streak ("since") and
+// how often it came back after going away ("flapping"), from every run's IDs
+const seenOf = {};
+for (const h of hosts) seenOf[h] = byHost[h].map(r => new Set(r.ids || []));
+function histOf(h, id) {
+  const runs = byHost[h], seen = seenOf[h];
+  let i = runs.length - 1;
+  while (i > 0 && seen[i - 1].has(id)) i--;
+  let back = 0, was = false;
+  seen.forEach(s => { if (s.has(id) && was === "gone") back++; if (s.has(id)) was = true; else if (was) was = "gone"; });
+  return {since: runs[i].date, first: i === 0, back};
+}
+const sinceText = (h, x) => (x.first && byHost[h].length > 1 ? "≤ " : "") + fmt(x.since);
+
+// Fleet-wide: each FAIL/WARN of the latest runs with every host that has it
+function renderFleet() {
+  const list = shown();
+  if (list.length < 2) { $("#fleet").innerHTML = ""; return; }
+  const groups = new Map();
+  for (const h of list) for (const f of byHost[h].at(-1).findings || []) {
+    if (f.level !== "FAIL" && f.level !== "WARN") continue;
+    const g = groups.get(f.id) || {f, hosts: []};
+    if (f.level === "FAIL") g.f = f;
+    g.hosts.push([h, histOf(h, f.id)]);
+    groups.set(f.id, g);
+  }
+  const all = [...groups.values()].sort((a, b) => b.hosts.length - a.hosts.length
+    || (a.f.level === b.f.level ? 0 : a.f.level === "FAIL" ? -1 : 1) || a.f.section.localeCompare(b.f.section));
+  $("#fleet").innerHTML = `<section><h2>Findings across hosts</h2><div class="panel">
+    <div class="filters">
+      <input id="fq" type="search" placeholder="Filter by text, section, ID or host" aria-label="Filter findings across hosts">
+      <select id="fmin" aria-label="Hosts"><option value="1">On any host</option><option value="2">On 2+ hosts</option></select>
+    </div>
+    <table><thead><tr><th>Level</th><th>Finding</th><th class="num">Hosts</th><th>Where, since</th></tr></thead><tbody id="frows"></tbody></table>
+  </div></section>`;
+  const rows = () => {
+    const q = $("#fq").value.toLowerCase(), min = +$("#fmin").value;
+    const hit = all.filter(g => g.hosts.length >= min
+      && (!q || `${g.f.message} ${g.f.section} ${g.f.id} ${g.hosts.map(x => x[0]).join(" ")}`.toLowerCase().includes(q)));
+    $("#frows").innerHTML = hit.slice(0, 200).map(g => `<tr><td class="lvl ${esc(g.f.level)}">${esc(g.f.level)}</td>
+      <td class="msg">${esc(stripAccept(g.f.message))}<div class="id">${esc(g.f.section)} · ${esc(g.f.id)}</div></td>
+      <td class="num">${g.hosts.length}</td>
+      <td>${g.hosts.map(([h, x]) => `<div>${hostTag(h)} <span class="id">${esc(sinceText(h, x))}${x.back >= 2 ? ` · flapping ×${x.back}` : ""}</span></div>`).join("")}</td></tr>`).join("")
+      + (hit.length > 200 ? `<tr><td colspan="4" class="empty">${hit.length - 200} more: filter to narrow down.</td></tr>` : "")
+      || '<tr><td colspan="4" class="empty">No matching findings.</td></tr>';
+  };
+  $("#fq").oninput = rows; $("#fmin").onchange = rows; rows();
+}
+
 function renderDetail() {
   if (!current) { $("#detail").innerHTML = ""; return; }
   const runs = byHost[current], last = runs.at(-1), prev = runs.at(-2);
   const issues = (last.findings || []).filter(f => f.level === "FAIL" || f.level === "WARN");
-  // Per finding across this host's runs: start of the current unbroken streak
-  // ("since") and how often it came back after going away ("flapping")
-  const seen = runs.map(r => new Set((r.findings || []).filter(f => f.level === "FAIL" || f.level === "WARN").map(f => f.id)));
-  const hist = id => {
-    let i = runs.length - 1;
-    while (i > 0 && seen[i - 1].has(id)) i--;
-    let back = 0, was = false;
-    seen.forEach(s => { if (s.has(id) && was === "gone") back++; if (s.has(id)) was = true; else if (was) was = "gone"; });
-    return {since: runs[i].date, first: i === 0, back};
-  };
+  const hist = id => histOf(current, id);
   const prevSec = Object.fromEntries((prev?.sections || []).map(s => [s.name, s.score]));
   $("#detail").innerHTML = `
     <h2>${esc(current)} — score trend</h2><div class="panel" id="trend"></div>
@@ -354,7 +400,7 @@ function renderDetail() {
       .sort((a, b) => (a.level === b.level ? 0 : a.level === "FAIL" ? -1 : 1))
       .map(f => {
         const h = hist(f.id);
-        const since = (h.first && runs.length > 1 ? "≤ " : "") + esc(fmt(h.since));
+        const since = esc(sinceText(current, h));
         const flap = h.back >= 2 ? `<div class="id" title="Fixed and back ${h.back} times">flapping ×${h.back}</div>` : "";
         return `<tr><td class="lvl ${esc(f.level)}">${esc(f.level)}</td><td>${esc(f.section)}</td>
         <td class="msg">${esc(f.message)}<div class="id">${esc(f.id)}</div></td><td>${since}${flap}</td></tr>`;
@@ -372,7 +418,7 @@ function drawTrend() {
 }
 addEventListener("resize", drawTrend);
 
-function render() { renderHosts(); renderAttention(); renderDetail(); }
+function render() { renderHosts(); renderAttention(); renderFleet(); renderDetail(); }
 if (allTags.length) {
   $("#tagbar").innerHTML = `<select id="tag" aria-label="Filter hosts by tag"><option value="">All hosts</option>${allTags.map(t => `<option>${esc(t)}</option>`).join("")}</select>`;
   $("#tag").onchange = e => { tag = e.target.value; if (!shown().includes(current)) current = worst(); render(); };

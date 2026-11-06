@@ -15,12 +15,11 @@ Small, self-contained, no deep knowledge of the codebase needed.
 - **Improve a remedy** — many findings print a fix command; make them more
   precise for a distro family, or add one where it is missing.
 - **New single checks** in an existing module, for example:
-  - `services`: Kafka answering without SASL
   - `tls`: wildcard certificates reused on many hosts
 - **New plugins** for the [plugin catalogue](plugins/README.md): Proxmox,
   Home Assistant, Traefik/Caddy, NAS (Synology, TrueNAS)
 - **Windows checks** — `windows/anzen.ps1` is newer and smaller: e.g. Windows
-  Hello / PIN policy, Defender tamper protection, SMB share permissions.
+  SMB share permissions, Defender exclusions, BitLocker recovery-key backup.
 - **Distrusted certificates** — when a CA is compromised or distrusted, add its
   fingerprints to `lib/data/distrusted-certs.tsv` (one line per certificate,
   with a reference link).
@@ -29,8 +28,8 @@ Small, self-contained, no deep knowledge of the codebase needed.
 
 ## Bigger features
 
-- **Windows parity** — CVE checks, `-Remote` over SSH (WinRM is done), and
-  auditing Windows hosts from the Linux `--remote` fleet
+- **Windows parity** — CVE checks, `-Remote` over SSH from a Windows
+  controller (WinRM and the Linux `--remote` fleet are done)
 - **macOS parity** — standalone notifications, screen-lock policy per user,
   startup security (Apple silicon `bputil`), configuration-profile payload review
 - **Kubernetes depth** — RBAC, pod security, network policies (beyond the
@@ -38,7 +37,6 @@ Small, self-contained, no deep knowledge of the codebase needed.
 - **Plugin catalogue** — started in `plugins/` (backup age, remote certificate
   expiry, Nginx Proxy Manager, enabled with `PLUGINS=`); more plugins welcome
 - **Packaging** — an apt/dnf repository, AUR, winget (`.deb`/`.rpm`, Homebrew and Scoop are done)
-- **Dashboard** — per-finding history view across hosts (the tag filter is done)
 - **Compliance** — finer control mapping (per message), CIS Benchmark section
   numbers per distro
 

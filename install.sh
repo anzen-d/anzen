@@ -23,6 +23,10 @@ mkdir -p "$INSTALL_DIR"
 cp -r "$SCRIPT_DIR/lib" "$INSTALL_DIR/"
 cp "$SCRIPT_DIR/anzen.sh" "$INSTALL_DIR/"
 [ -d "$SCRIPT_DIR/plugins" ] && cp -r "$SCRIPT_DIR/plugins" "$INSTALL_DIR/"
+# The macOS and Windows editions: --remote runs them on Macs and Windows hosts
+mkdir -p "$INSTALL_DIR/macos" "$INSTALL_DIR/windows"
+cp "$SCRIPT_DIR/macos/anzen-macos.sh" "$INSTALL_DIR/macos/"
+cp "$SCRIPT_DIR/windows/anzen.ps1" "$INSTALL_DIR/windows/"
 [ -f "$SCRIPT_DIR/anzen.conf.example" ] && cp "$SCRIPT_DIR/anzen.conf.example" "$INSTALL_DIR/"
 
 # Create reports dir

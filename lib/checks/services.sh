@@ -134,6 +134,19 @@ run_services_check() {
         remedy "# bind clientPortAddress=127.0.0.1 in zoo.cfg, or enable SASL/mTLS client auth and set ACLs on znodes"
     fi
 
+    # Kafka: a Metadata v0 request answered on a plain listener means any
+    # client can list, read and write topics (SASL listeners drop it unanswered)
+    _ra=$(_svc_probe_addr 9092)
+    if [ -n "$_ra" ] && _svc_probe "$_ra" 9092 '\x00\x00\x00\x0e\x00\x03\x00\x00\x00\x00\x00\x01\xff\xff\x00\x00\x00\x00' \
+            | od -An -tx1 | tr -d ' \n' | grep -qE '^[0-9a-f]{8}00000001'; then
+        if _svc_public_tcp 9092; then
+            fail "Kafka on $_ra:9092 answers without authentication"
+        else
+            warn "Kafka on $_ra:9092 answers without authentication (local only)"
+        fi
+        remedy "# use SASL_SSL (or SSL with client certificates) listeners in server.properties and set ACLs (allow.everyone.if.no.acl.found=false)"
+    fi
+
     # Elasticsearch, CouchDB, etcd and Solr answering over plain HTTP without
     # credentials (or RabbitMQ with its default guest login): anyone who
     # reaches the port reads (and usually writes) all data

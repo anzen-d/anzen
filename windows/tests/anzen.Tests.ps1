@@ -209,6 +209,24 @@ Describe 'New Windows checks' {
         ($script:Findings | Where-Object message -like 'ASR rule audit:*').Count | Should -Be 1
     }
 
+    It 'checks Defender cloud protection and PUA blocking' {
+        Mock Get-MpComputerStatus { [pscustomobject]@{ AMRunningMode = 'Normal'; AntivirusEnabled = $true; RealTimeProtectionEnabled = $true; AntivirusSignatureAge = 1 } }
+        Mock Get-MpPreference { [pscustomobject]@{ MAPSReporting = 0; PUAProtection = 0 } }
+        Invoke-DefenderCheck 6>$null
+        ($script:Findings | Where-Object message -eq 'Cloud-delivered protection off (MAPS reporting disabled)').level | Should -Be 'WARN'
+        ($script:Findings | Where-Object message -eq 'Potentially unwanted app blocking off').remedy | Should -Be 'Set-MpPreference -PUAProtection Enabled'
+        Reset-Findings
+        Mock Get-MpComputerStatus { [pscustomobject]@{ AMRunningMode = 'Passive Mode'; AntivirusEnabled = $true; RealTimeProtectionEnabled = $true; AntivirusSignatureAge = 1 } }
+        Invoke-DefenderCheck 6>$null
+        @($script:Findings | Where-Object message -like '*unwanted*').Count | Should -Be 0
+    }
+    It 'checks the Windows Hello PIN policy and convenience PIN' {
+        if (-not (Get-Command net -ErrorAction SilentlyContinue)) { New-Item -Path function:global:net -Value { } | Out-Null }
+        Mock Get-RegValue { switch ($Name) { 'MinimumPINLength' { 4 } 'AllowDomainPINLogon' { 1 } default { $null } } }
+        Invoke-PasswordPolicyCheck 6>$null
+        ($script:Findings | Where-Object message -eq 'Windows Hello PIN minimum length (4) below 6').level | Should -Be 'WARN'
+        ($script:Findings | Where-Object message -like 'Convenience PIN sign-in on*').level | Should -Be 'WARN'
+    }
     It 'skips ASR when Defender is passive' {
         Mock Get-MpComputerStatus { [pscustomobject]@{ AMRunningMode = 'Passive Mode' } }
         Mock Get-MpPreference { throw 'not called' }

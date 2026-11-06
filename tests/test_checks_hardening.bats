@@ -229,6 +229,26 @@ _services() {
     ! grep -qE "Elasticsearch|CouchDB|etcd" "$FINDINGS_FILE"
 }
 
+@test "services: Kafka serving metadata without authentication" {
+    SS_TCP=("LISTEN 0 0 127.0.0.1:9092 0.0.0.0:*")
+    SS_UDP=()
+    # shellcheck disable=SC1091
+    source "$ANZEN_DIR/lib/checks/services.sh"
+    _svc_http() { :; }
+    _svc_probe() {
+        [ "$2" = 9092 ] || return 0
+        printf '%s' "$3" > "$T/kafka.req"
+        printf '\x00\x00\x00\x30\x00\x00\x00\x01\x00\x00\x00\x01'
+    }
+    _services
+    grep -q "^WARN	.*Kafka on 127.0.0.1:9092 answers without authentication (local only)" "$FINDINGS_FILE"
+    [ "$(printf "$(cat "$T/kafka.req")" | od -An -tx1 | tr -d ' \n')" = 0000000e0003000000000001ffff00000000 ]
+    : > "$FINDINGS_FILE"
+    _svc_probe() { :; }
+    _services
+    ! grep -q Kafka "$FINDINGS_FILE"
+}
+
 @test "services: ZooKeeper answering four-letter commands" {
     SS_TCP=("LISTEN 0 0 *:2181 *:*")
     SS_UDP=()

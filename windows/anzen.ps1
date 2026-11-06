@@ -81,7 +81,7 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Continue'
 
-$AnzenVersion = '0.24.0'
+$AnzenVersion = '0.25.0'
 $ScriptPath   = $MyInvocation.MyCommand.Path
 $ScriptDir    = Split-Path -Parent $ScriptPath
 $FailPenalty  = 10
@@ -323,6 +323,21 @@ function Invoke-DefenderCheck {
         if ($s.IsTamperProtected) { Ok 'Tamper protection on' }
         else                      { Warn 'Tamper protection off' 'Start-Process windowsdefender://threatsettings' }
     }
+    # Cloud lookups and PUA blocking: only meaningful while Defender is the active antivirus
+    $mode = $s | Select-Object -ExpandProperty AMRunningMode -ErrorAction SilentlyContinue
+    if ($mode -and $mode -ne 'Normal') { return }
+    $p = Get-MpPreference -ErrorAction SilentlyContinue
+    if (-not $p) { return }
+    $maps = $p | Select-Object -ExpandProperty MAPSReporting -ErrorAction SilentlyContinue
+    if ($null -ne $maps) {
+        if ([int]$maps -eq 0) { Warn 'Cloud-delivered protection off (MAPS reporting disabled)' 'Set-MpPreference -MAPSReporting Advanced' }
+        else                  { Ok 'Cloud-delivered protection on' }
+    }
+    $pua = $p | Select-Object -ExpandProperty PUAProtection -ErrorAction SilentlyContinue
+    if ($null -ne $pua) {
+        if ([int]$pua -eq 1) { Ok 'Potentially unwanted app blocking on' }
+        else                 { Warn 'Potentially unwanted app blocking off' 'Set-MpPreference -PUAProtection Enabled' }
+    }
 }
 
 function Invoke-FirewallCheck {
@@ -388,6 +403,19 @@ function Invoke-AccountsCheck {
 
 function Invoke-PasswordPolicyCheck {
     Section 'Password Policy'
+    # Windows Hello PIN policy (when set) and the old convenience PIN, which
+    # stores the domain password instead of using a Hello key
+    $hello = 'HKLM:\SOFTWARE\Policies\Microsoft\PassportForWork\PINComplexity'
+    $pin = Get-RegValue $hello 'MinimumPINLength'
+    if ($null -ne $pin) {
+        if ([int]$pin -lt 6) { Warn "Windows Hello PIN minimum length ($pin) below 6" "Set-ItemProperty '$hello' MinimumPINLength 6" }
+        else                 { Ok "Windows Hello PIN minimum length ($pin)" }
+    }
+    $sys = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System'
+    if ((Get-RegValue $sys 'AllowDomainPINLogon') -eq 1) {
+        Warn 'Convenience PIN sign-in on for domain users (stores the password; use Windows Hello for Business)' "Set-ItemProperty '$sys' AllowDomainPINLogon 0"
+    }
+
     $out = net accounts 2>$null
     if (-not $out) { Info 'net accounts unavailable'; return }
     $minLen = ($out | Select-String 'Minimum password length' | ForEach-Object { ($_ -split ':')[-1].Trim() })

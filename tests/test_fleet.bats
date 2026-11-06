@@ -88,3 +88,37 @@ SH
     ls "$ANZEN_DIR"/reports/anzen_*.html >/dev/null
     grep -l 'macOS Security Audit' "$ANZEN_DIR"/reports/anzen_*.html | xargs rm -f
 }
+
+@test "fleet: a Windows host runs the Windows edition over one PowerShell session" {
+    command -v iconv >/dev/null || skip "iconv not installed"
+    # Fake Windows OpenSSH: no uname; decodes -EncodedCommand, answers the OS
+    # probe, and for the audit checks the files sent on stdin and returns a
+    # Windows report as "json<TAB>base64" plus the exit code
+    cp "$ANZEN_DIR/docs/demo/history/desktop-win11/20261027T040000Z.json" "$T/win.json"
+    cat > "$T/sshwin" <<SH
+#!/bin/bash
+while [ "\$1" = "-o" ]; do shift 2; done
+shift
+case "\$*" in
+    "uname -s") echo "'uname' is not recognized" >&2; exit 1 ;;
+    "powershell -NoProfile -NonInteractive -EncodedCommand "*) ;;
+    *) exit 1 ;;
+esac
+ps=\$(printf '%s' "\${*##* }" | base64 -d | iconv -f UTF-16LE -t UTF-8)
+printf '%s\n' "\$ps" >> "$T/ps.log"
+case \$ps in *OSVersion.Platform*) printf 'Win32NT\r\n'; exit 0 ;; esac
+cat > "$T/stdin"
+printf 'json\t%s\r\nrc\t1\r\n' "\$(base64 < "$T/win.json" | tr -d '\n')"
+SH
+    chmod +x "$T/sshwin"
+    printf 'containers-security-0123abcd  2099-01-01  test\n' > "$T/acc"
+    printf 'ACCEPT_FILE=%s/acc\n' "$T" >> "$T/c.conf"
+    ANZEN_SSH="$T/sshwin" run "$ANZEN_DIR/anzen.sh" --config="$T/c.conf" --history="$T/hist" \
+        --remote=admin@win1 --check=defender --strict --quiet --no-color
+    [ "$status" -eq 1 ]
+    ls "$T"/hist/desktop-win11/*.json
+    cut -f1 "$T/stdin" | sort | tr '\n' ' ' | grep -qx 'lib/data/controls.tsv lib/data/distrusted-certs.tsv windows/anzen.accept windows/anzen.ps1 '
+    grep "^windows/anzen.accept	" "$T/stdin" | cut -f2 | base64 -d | grep -q containers-security-0123abcd
+    grep -q '"-Check"; $a += "defender"' "$T/ps.log"
+    grep -q 'if ("1" -eq "1") { $a += "-Strict" }' "$T/ps.log"
+}

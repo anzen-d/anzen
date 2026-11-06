@@ -141,7 +141,12 @@ in the dashboard downloads the findings of every host's latest run as one CSV.
 
 Group hosts with `HOST_TAGS="web-01=prod,web media-01=lab"` (full or short host
 name). A tag menu then appears above the hosts; picking a tag limits the hosts,
-the new/fixed lists and the CSV export to the hosts with that tag.
+the new/fixed lists, the cross-host view and the CSV export to the hosts with
+that tag.
+
+**Findings across hosts** lists each FAIL and WARN of the latest runs once,
+with every host that has it and since when (from all stored runs). Filter it
+by text or host name, or show only findings on two or more hosts.
 
 The dashboard shows each host's score and change, a stale marker when the last
 run is older than 8 days, the score trend, FAILs that are new or fixed since the

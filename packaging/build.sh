@@ -4,7 +4,7 @@
 # packaging/build.sh VERSION OUTDIR — build anzen_VERSION_all.deb and
 # anzen-VERSION-1.noarch.rpm (Linux edition) from this checkout.
 #
-# Layout: /usr/lib/anzen (anzen.sh, lib/, plugins/), /usr/bin/anzen,
+# Layout: /usr/lib/anzen (anzen.sh, lib/, plugins/, macos/, windows/), /usr/bin/anzen,
 # bash/zsh completions, and reports in /var/lib/anzen/reports (anzen writes
 # reports next to anzen.sh, so /usr/lib/anzen/reports is a symlink there).
 # Needs dpkg-deb for the .deb and rpmbuild for the .rpm; a missing tool skips
@@ -25,6 +25,10 @@ stage() {
     install -d "$root/usr/lib/anzen" "$root/usr/bin" "$root/var/lib/anzen/reports" \
         "$root/usr/share/bash-completion/completions" "$root$zsh" "$root/usr/share/doc/anzen"
     cp -r "$SRC/lib" "$SRC/plugins" "$root/usr/lib/anzen/"
+    # macOS and Windows editions, run on remote hosts by --remote
+    install -d "$root/usr/lib/anzen/macos" "$root/usr/lib/anzen/windows"
+    cp "$SRC/macos/anzen-macos.sh" "$root/usr/lib/anzen/macos/"
+    cp "$SRC/windows/anzen.ps1" "$root/usr/lib/anzen/windows/"
     install -m 755 "$SRC/anzen.sh" "$root/usr/lib/anzen/anzen.sh"
     install -m 644 "$SRC/anzen.conf.example" "$SRC/anzen.accept.example" "$root/usr/lib/anzen/"
     ln -s /var/lib/anzen/reports "$root/usr/lib/anzen/reports"

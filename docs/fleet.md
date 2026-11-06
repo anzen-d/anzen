@@ -32,10 +32,21 @@ macOS hosts need nothing special: anzen detects them (`uname -s`) and runs
 the [macOS edition](macos.md) there, as root when the login has passwordless
 `sudo`. Only `--check`, `--strict`, `--quiet` and `--no-color` reach a Mac.
 
-Windows hosts: run `windows\anzen.ps1 -Remote pc1,pc2 -History <dir>` from a
-Windows machine (PowerShell remoting, see [Windows edition](windows.md#fleet--remote)).
-Point `-History` at the Linux `HISTORY_DIR` (for example an SMB share) and the
-dashboard shows both.
+Windows hosts with the OpenSSH server work the same way: anzen sees that there
+is no `uname`, asks PowerShell, and runs the [Windows edition](windows.md) in one
+SSH session (files go in and reports come back over stdin/stdout, so it works
+with `cmd.exe` or PowerShell as the SSH shell). Log in as an administrator for
+complete results. Only `--check` (Windows module names) and `--strict` reach a
+Windows host. The controller needs `iconv` and `base64`.
+
+```bash
+./anzen.sh --remote=root@web1,admin@pc1 --html
+```
+
+From a Windows machine you can also use PowerShell remoting instead:
+`windows\anzen.ps1 -Remote pc1,pc2 -History <dir>` (see
+[Windows edition](windows.md#fleet--remote)). Point `-History` at the Linux
+`HISTORY_DIR` (for example an SMB share) and the dashboard shows both.
 
 ## Scheduling
 

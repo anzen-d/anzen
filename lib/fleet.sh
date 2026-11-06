@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 The Anzen contributors
 # lib/fleet.sh — Audit remote hosts over SSH (--remote=host1,host2,...)
-# Linux hosts run anzen.sh, macOS hosts (uname -s = Darwin) macos/anzen-macos.sh.
+# Linux hosts run anzen.sh, macOS hosts (uname -s = Darwin) macos/anzen-macos.sh,
+# Windows hosts (OpenSSH server, no uname) windows/anzen.ps1.
 #
 # Per host: copy anzen to a remote mktemp dir with a generated anzen.conf that
 # carries only scan settings (thresholds, excludes, CVE/image options) and the
@@ -42,11 +43,99 @@ _fleet_formats() {
     ${GENERATE_CSV:-false}   && echo csv
 }
 
+# Windows hosts: the OpenSSH server starts cmd.exe or PowerShell, so every
+# command is a PowerShell -EncodedCommand (UTF-16LE base64: no quoting issues
+# in either shell). Files go in and reports come back as "name<TAB>base64" lines
+_fleet_ps_encode() { iconv -f UTF-8 -t UTF-16LE | base64 | tr -d '\n'; }
+
+_fleet_is_windows() {
+    local enc out
+    enc=$(printf '%s' '[Console]::Out.WriteLine([Environment]::OSVersion.Platform)' | _fleet_ps_encode)
+    out=$("${_FLEET_SSH[@]}" "$1" "powershell -NoProfile -NonInteractive -EncodedCommand $enc" 2>/dev/null)
+    [ "${out%$'\r'}" = Win32NT ]
+}
+
+# Runs on the Windows host: write the files from stdin to a temp dir, audit
+# with the requested formats, print the reports and the exit code, clean up
+# shellcheck disable=SC2016
+# (No ErrorActionPreference=Stop: PowerShell 5.1 would turn stderr of the
+# redirected inner run into a terminating error.)
+_FLEET_PS_BOOTSTRAP='$d = Join-Path ([IO.Path]::GetTempPath()) ("anzen." + [guid]::NewGuid().ToString("N").Substring(0, 12))
+try {
+    foreach ($l in ([Console]::In.ReadToEnd() -split "`n")) {
+        if ($l -notmatch "^(windows/anzen\.ps1|windows/anzen\.accept|lib/data/[a-z-]+\.tsv)\t([A-Za-z0-9+/=]*)\r?$") { continue }
+        $p = Join-Path $d ($Matches[1] -replace "/", "\")
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $p) | Out-Null
+        [IO.File]::WriteAllBytes($p, [Convert]::FromBase64String($Matches[2]))
+    }
+    $a = @("-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $d "windows\anzen.ps1"),
+           "-Quiet", "-Offline", "-Output", (Join-Path $d "out.json"))
+    $f = "@FORMATS@" -split ","
+    foreach ($x in $f) { switch ($x) { "json" { $a += "-Json" } "html" { $a += "-Html" } "txt" { $a += "-Txt" } "sarif.json" { $a += "-Sarif" } "csv" { $a += "-Csv" } } }
+    if ("@CHECKS@") { $a += "-Check"; $a += "@CHECKS@" }
+    if ("@STRICT@" -eq "1") { $a += "-Strict" }
+    & powershell.exe @a *> $null
+    $rc = $LASTEXITCODE
+    foreach ($x in $f) {
+        $p = Join-Path $d "out.$x"
+        if (Test-Path -LiteralPath $p) { [Console]::Out.WriteLine("$x`t" + [Convert]::ToBase64String([IO.File]::ReadAllBytes($p))) }
+    }
+    [Console]::Out.WriteLine("rc`t$rc")
+} finally { Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue }'
+
+# _fleet_run_windows HOST WORKDIR ARGS... — like _fleet_run_host for Windows;
+# passes on --check (module names only) and --strict
+_fleet_run_windows() {
+    local host=$1 work=$2; shift 2
+    local a c checks="" strict=0 formats ps f name b64 rc=255
+    for a in "$@"; do
+        case $a in
+            --check=*) c=${a#--check=}
+                       [[ $c =~ ^[a-z0-9_,]+$ ]] && checks+="${checks:+,}$c" ;;
+            --strict)  strict=1 ;;
+        esac
+    done
+    formats=$(_fleet_formats | paste -sd, -)
+    ps=${_FLEET_PS_BOOTSTRAP//@FORMATS@/$formats}
+    ps=${ps//@CHECKS@/$checks}
+    ps=${ps//@STRICT@/$strict}
+    while IFS=$'\t' read -r name b64; do
+        b64=${b64%$'\r'}
+        case $name in
+            rc) [[ $b64 =~ ^[0-9]+$ ]] && rc=$b64 ;;
+            json|html|txt|sarif.json|csv) printf '%s' "$b64" | base64 -d > "$work/out.$name" 2>/dev/null ;;
+        esac
+    done < <({
+        for f in windows/anzen.ps1 lib/data/distrusted-certs.tsv lib/data/controls.tsv; do
+            [ -f "$ANZEN_DIR/$f" ] && printf '%s\t%s\n' "$f" "$(base64 < "$ANZEN_DIR/$f" | tr -d '\n')"
+        done
+        if [ -n "${ACCEPT_FILE:-}" ] && [ -f "$ACCEPT_FILE" ]; then
+            printf 'windows/anzen.accept\t%s\n' "$(base64 < "$ACCEPT_FILE" | tr -d '\n')"
+        fi
+    } | "${_FLEET_SSH[@]}" "$host" "powershell -NoProfile -NonInteractive -EncodedCommand $(printf '%s' "$ps" | _fleet_ps_encode)")
+    [ -s "$work/out.json" ] || { echo "ERROR: $host: no JSON report produced" >&2; return 255; }
+    return "$rc"
+}
+
 # _fleet_run_host HOST WORKDIR ARGS... — run anzen on HOST; its reports land in
 # WORKDIR/out.<ext>. Returns the remote anzen exit code (255 on SSH/setup failure)
 _fleet_run_host() {
     local host=$1 work=$2; shift 2
     local tmp rc
+    # macOS hosts run the macOS edition (Bash 3.2, its own modules), which
+    # takes only these flags; Windows has no uname
+    local os; os=$("${_FLEET_SSH[@]}" "$host" "uname -s" 2>/dev/null)
+    local ed=""
+    if [ -z "$os" ] && _fleet_is_windows "$host"; then ed=windows/anzen.ps1
+    elif [ "$os" = Darwin ]; then ed=macos/anzen-macos.sh; fi
+    if [ -n "$ed" ] && [ ! -f "$ANZEN_DIR/$ed" ]; then
+        echo "ERROR: $host: $ANZEN_DIR/$ed is missing (needed for this host's OS)" >&2
+        return 255
+    fi
+    if [ "$ed" = windows/anzen.ps1 ]; then
+        _fleet_run_windows "$host" "$work" "$@"
+        return
+    fi
     tmp=$("${_FLEET_SSH[@]}" "$host" "mktemp -d /tmp/anzen.XXXXXX" 2>/dev/null)
     # Validate mktemp output before embedding it in remote shell commands
     if [[ ! "$tmp" =~ ^/tmp/anzen\.[a-zA-Z0-9]+$ ]]; then
@@ -64,9 +153,6 @@ _fleet_run_host() {
         "${_FLEET_SSH[@]}" "$host" "umask 077 && cat > $qtmp/anzen.accept" < "$ACCEPT_FILE"
     fi
 
-    # macOS hosts run the macOS edition (Bash 3.2, its own modules), which
-    # takes only these flags
-    local os; os=$("${_FLEET_SSH[@]}" "$host" "uname -s" 2>/dev/null)
     local -a qargs=()
     local a
     for a in "$@"; do

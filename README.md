@@ -41,11 +41,11 @@ tool: know the whole state of your machines and stop worrying about them.
 - **"Am I already compromised?"**: what changed since the last run (new SSH keys, cron jobs, services, SUID binaries, accounts, listening ports) and indicators of compromise (preloaded libraries, processes running from `/tmp` or memory, cryptominers).
 - **Distrusted CA certificates** in system, Java, Python and container trust stores, from a curated list, starting with the [eMudhra intermediates compromised in October 2026](docs/modules.md#trust-stores).
 - **Known CVEs** in host packages and in **every running container image**, via [Trivy](https://trivy.dev), with **actively exploited** ones from the [CISA KEV catalog](docs/modules.md#actively-exploited-cves-cisa-kev) flagged first.
-- **Windows and macOS editions:** Defender, firewall, BitLocker, SMB, RDP/NLA, LSA and Credential Guard, LAPS, ASR rules, LLMNR/NetBIOS, privilege-escalation paths and audit policy on Windows, with HTML/SARIF reports, ntfy alerts and `-Remote` over WinRM; FileVault, SIP, Gatekeeper, firewall, sharing services, XProtect age, launch daemons and kernel extensions on macOS, audited over SSH by the Linux fleet. Both use the same report format.
-- **History and dashboard:** per-host score trends, new and fixed problems, all in one static HTML page.
+- **Windows and macOS editions:** Defender, firewall, BitLocker, SMB, RDP/NLA, LSA and Credential Guard, LAPS, ASR rules, LLMNR/NetBIOS, privilege-escalation paths and audit policy on Windows, with HTML/SARIF reports, ntfy alerts and `-Remote` over WinRM; FileVault, SIP, Gatekeeper, firewall, sharing services, XProtect age, launch daemons and kernel extensions on macOS. The Linux fleet audits both over SSH, and all three use the same report format.
+- **History and dashboard:** per-host score trends, new and fixed problems, findings across hosts, tag filter, all in one static HTML page.
 - **Alerts only when something new breaks**, via ntfy or any command, plus a dead-man switch.
 - **Accepted risks with expiry dates**, so known exceptions stay quiet but never forever.
-- **Fleet mode:** `--remote=host1,host2` audits hosts over SSH without installing anything there.
+- **Fleet mode:** `--remote=host1,host2` audits Linux, macOS and Windows hosts over SSH without installing anything there.
 - **HTML, TXT, JSON, SARIF and CSV reports** with NIST SP 800-53 / CIS Controls references, a per-host inventory, plus a generated `remediate.sh` with the fix commands.
 - **No dependencies:** plain Bash and standard tools; Trivy, curl and Docker only unlock extra checks.
 

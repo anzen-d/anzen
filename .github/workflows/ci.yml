@@ -52,9 +52,9 @@ jobs:
           docker run --rm -v "$PWD":/code -w /code ubuntu:24.04 bash -c \
             'apt-get update -qq >/dev/null && apt-get install -y -qq rpm file >/dev/null && packaging/build.sh 0.0.0 dist'
           docker run --rm -v "$PWD/dist":/p debian:12 bash -c \
-            'apt-get update -qq >/dev/null && apt-get install -y -qq /p/anzen_0.0.0_all.deb >/dev/null && { anzen --check=kernel --quiet --no-color --offline --json || [ $? -eq 1 ]; } && ls /var/lib/anzen/reports/*.json'
+            'apt-get update -qq >/dev/null && apt-get install -y -qq /p/anzen_0.0.0_all.deb >/dev/null && { anzen --check=kernel --quiet --no-color --offline --json || [ $? -eq 1 ]; } && ls /var/lib/anzen/reports/*.json && test -f /usr/lib/anzen/windows/anzen.ps1 -a -f /usr/lib/anzen/macos/anzen-macos.sh'
           docker run --rm -v "$PWD/dist":/p fedora:41 bash -c \
-            'dnf install -y -q /p/anzen-0.0.0-1.noarch.rpm >/dev/null && rpm -V anzen && { anzen --check=kernel --quiet --no-color --offline --json || [ $? -eq 1 ]; } && ls /var/lib/anzen/reports/*.json'
+            'dnf install -y -q /p/anzen-0.0.0-1.noarch.rpm >/dev/null && rpm -V anzen && { anzen --check=kernel --quiet --no-color --offline --json || [ $? -eq 1 ]; } && ls /var/lib/anzen/reports/*.json && test -f /usr/lib/anzen/windows/anzen.ps1 -a -f /usr/lib/anzen/macos/anzen-macos.sh'
 
   distros:
     name: Distro matrix
@@ -110,6 +110,31 @@ jobs:
           if (-not $report.findings.Count) { Write-Error 'empty remote report'; exit 1 }
           if (-not (Test-Path "$env:RUNNER_TEMP\fleet.html")) { Write-Error 'remote HTML missing'; exit 1 }
           exit 0
+      - name: Linux fleet audits Windows over SSH (Git Bash, stand-in ssh runs cmd.exe)
+        shell: bash
+        env:
+          MSYS_NO_PATHCONV: '1'
+          MSYS2_ARG_CONV_EXCL: '*'
+        run: |
+          # Like the Win32-OpenSSH server: the command runs under cmd.exe with
+          # only Windows tools on PATH (no uname), stdin passed through
+          cat > "$RUNNER_TEMP/ssh" <<'SH'
+          #!/bin/bash
+          while [ "$1" = "-o" ]; do shift 2; done
+          shift
+          PATH="/c/Windows/System32:/c/Windows:/c/Windows/System32/WindowsPowerShell/v1.0" exec cmd.exe /c "$*"
+          SH
+          chmod +x "$RUNNER_TEMP/ssh"
+          set +e
+          ANZEN_SSH="$RUNNER_TEMP/ssh" ./anzen.sh --remote=win1 --history="$RUNNER_TEMP/h-ssh" \
+            --html --output="$RUNNER_TEMP/ssh-win.html" --no-color
+          rc=$?
+          set -e
+          [ "$rc" -le 1 ] || { echo "fleet exit code $rc"; exit 1; }
+          f=$(ls "$RUNNER_TEMP"/h-ssh/*/*.json | head -1)
+          grep -q '"os": "Microsoft Windows' "$f"
+          grep -q '"section": "Microsoft Defender"' "$f"
+          grep -qi '<!DOCTYPE html>' "$RUNNER_TEMP/ssh-win.html"
       - name: Scoop manifest installs (latest release tarball)
         shell: powershell
         run: |
