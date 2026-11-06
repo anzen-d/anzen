@@ -3,8 +3,8 @@
 class Anzen < Formula
   desc "Security audit for macOS, Linux and Windows hosts"
   homepage "https://github.com/anzen-d/anzen"
-  url "https://github.com/anzen-d/anzen/releases/download/v0.24.0/anzen-0.24.0.tar.gz"
-  sha256 "861398d04bbd623c57620ac1cef59b06564c345e2e63f26b0fda6373ae9ba355"
+  url "https://github.com/anzen-d/anzen/releases/download/v0.25.0/anzen-0.25.0.tar.gz"
+  sha256 "04eeb4e89770e7e4be44e228a6e26eee9abc9de4920b1a31f149ef716629b8f6"
   license "AGPL-3.0-or-later"
 
   def install
