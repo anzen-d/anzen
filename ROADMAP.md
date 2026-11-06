@@ -18,8 +18,8 @@ Small, self-contained, no deep knowledge of the codebase needed.
   - `tls`: wildcard certificates reused on many hosts
 - **New plugins** for the [plugin catalogue](plugins/README.md): Proxmox,
   Home Assistant, Traefik/Caddy, NAS (Synology, TrueNAS)
-- **Windows checks** — `windows/anzen.ps1` is newer and smaller: e.g. Windows
-  SMB share permissions, Defender exclusions, BitLocker recovery-key backup.
+- **Windows checks** — `windows/anzen.ps1` is newer and smaller: e.g. NTFS
+  permissions behind shares, BitLocker recovery-key escrow to AD/Entra ID.
 - **Distrusted certificates** — when a CA is compromised or distrusted, add its
   fingerprints to `lib/data/distrusted-certs.tsv` (one line per certificate,
   with a reference link).

@@ -81,7 +81,7 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Continue'
 
-$AnzenVersion = '0.25.0'
+$AnzenVersion = '0.26.0'
 $ScriptPath   = $MyInvocation.MyCommand.Path
 $ScriptDir    = Split-Path -Parent $ScriptPath
 $FailPenalty  = 10
@@ -338,6 +338,34 @@ function Invoke-DefenderCheck {
         if ([int]$pua -eq 1) { Ok 'Potentially unwanted app blocking on' }
         else                 { Warn 'Potentially unwanted app blocking off' 'Set-MpPreference -PUAProtection Enabled' }
     }
+    # Exclusions that blind Defender where malware lands or runs. Non-admins read
+    # "N/A: Must be an administrator to view exclusions" instead of the list.
+    $all = 0
+    foreach ($x in @($p | Select-Object -ExpandProperty ExclusionPath -ErrorAction SilentlyContinue)) {
+        if (-not $x -or "$x" -like 'N/A*') { continue }
+        $all++
+        $e = [Environment]::ExpandEnvironmentVariables("$x").TrimEnd('\')
+        if ($e -match '^[A-Za-z]:$' -or $e -match '^[A-Za-z]:\\Users$' -or $e -match '\\(Temp|Tmp|Downloads|AppData)(\\|$)' -or $e -match '\\(Public|ProgramData)$') {
+            Warn "Defender exclusion on a whole drive or user-writable folder: $x" "Remove-MpPreference -ExclusionPath $(ConvertTo-PsLiteral $x)"
+        }
+    }
+    $risky = 'exe', 'dll', 'sys', 'scr', 'com', 'ps1', 'psm1', 'bat', 'cmd', 'vbs', 'js', 'jse', 'hta', 'msi', 'lnk', 'zip', 'iso'
+    foreach ($x in @($p | Select-Object -ExpandProperty ExclusionExtension -ErrorAction SilentlyContinue)) {
+        if (-not $x -or "$x" -like 'N/A*') { continue }
+        $all++
+        if ("$x".TrimStart('*').TrimStart('.') -in $risky) {
+            Warn "Defender exclusion for an executable file type: $x" "Remove-MpPreference -ExclusionExtension $(ConvertTo-PsLiteral $x)"
+        }
+    }
+    $hosts = 'powershell.exe', 'pwsh.exe', 'cmd.exe', 'wscript.exe', 'cscript.exe', 'mshta.exe', 'rundll32.exe', 'regsvr32.exe', 'msiexec.exe', 'python.exe', 'node.exe', 'java.exe', 'javaw.exe'
+    foreach ($x in @($p | Select-Object -ExpandProperty ExclusionProcess -ErrorAction SilentlyContinue)) {
+        if (-not $x -or "$x" -like 'N/A*') { continue }
+        $all++
+        if ((Split-Path -Leaf "$x") -in $hosts) {
+            Warn "Defender exclusion for a script host or interpreter: $x" "Remove-MpPreference -ExclusionProcess $(ConvertTo-PsLiteral $x)"
+        }
+    }
+    if ($all) { Info "Defender exclusions set ($all) — review them: Get-MpPreference | Select-Object Exclusion*" }
 }
 
 function Invoke-FirewallCheck {
@@ -451,7 +479,15 @@ function Invoke-BitLockerCheck {
         Info "BitLocker status unavailable: $($_.Exception.Message)"; return
     }
     if ($v.ProtectionStatus -eq 'On') { Ok "System drive $($v.MountPoint) encrypted ($($v.EncryptionMethod))" }
-    else { Warn "System drive $($v.MountPoint) not protected by BitLocker" "Enable-BitLocker -MountPoint $env:SystemDrive -TpmProtector" }
+    else { Warn "System drive $($v.MountPoint) not protected by BitLocker" "Enable-BitLocker -MountPoint $env:SystemDrive -TpmProtector"; return }
+    # Without a recovery password a TPM reset, firmware update or board swap locks the data out
+    $types = @($v | Select-Object -ExpandProperty KeyProtector -ErrorAction SilentlyContinue |
+        ForEach-Object { "$($_ | Select-Object -ExpandProperty KeyProtectorType -ErrorAction SilentlyContinue)" })
+    if ($types -contains 'RecoveryPassword') {
+        Ok 'BitLocker recovery password exists (keep a copy in AD, Entra ID or offline)'
+    } else {
+        Warn "System drive $($v.MountPoint) has no BitLocker recovery password" "Add-BitLockerKeyProtector -MountPoint $env:SystemDrive -RecoveryPasswordProtector"
+    }
 }
 
 function Invoke-SmbCheck {
@@ -486,6 +522,26 @@ function Invoke-SmbCheck {
     else { Warn 'Anonymous users can enumerate shares (RestrictAnonymous=0)' "Set-ItemProperty '$lsa' RestrictAnonymous 1" }
     $nss = @(Get-RegValue $srv 'NullSessionShares' | Where-Object { $_ })
     if ($nss.Count) { Warn "Shares open to null sessions: $($nss -join ', ')" "Set-ItemProperty '$srv' NullSessionShares ([string[]]@())" }
+
+    # Share permissions: write access for Everyone, anonymous or every domain user
+    if (-not (Get-Command Get-SmbShare -ErrorAction SilentlyContinue)) { return }
+    $broad = @('Everyone', 'NT AUTHORITY\ANONYMOUS LOGON', 'NT AUTHORITY\Authenticated Users')
+    foreach ($sid in 'S-1-1-0', 'S-1-5-7', 'S-1-5-11') {
+        # localised names (Jeder, Tout le monde, ...)
+        try { $broad += ([Security.Principal.SecurityIdentifier]::new($sid)).Translate([Security.Principal.NTAccount]).Value } catch { $null = $_ }
+    }
+    $shares = @(Get-SmbShare -Special $false -ErrorAction SilentlyContinue)
+    $open = 0
+    foreach ($sh in $shares) {
+        foreach ($a in @(Get-SmbShareAccess -Name $sh.Name -ErrorAction SilentlyContinue)) {
+            if ("$($a.AccessControlType)" -eq 'Allow' -and "$($a.AccessRight)" -in 'Full', 'Change' -and $broad -contains "$($a.AccountName)") {
+                $open++
+                Warn "Share '$($sh.Name)' gives $($a.AccountName) $("$($a.AccessRight)".ToLowerInvariant()) access" `
+                    "Revoke-SmbShareAccess -Name $(ConvertTo-PsLiteral $sh.Name) -AccountName $(ConvertTo-PsLiteral $a.AccountName) -Force"
+            }
+        }
+    }
+    if ($shares.Count -and -not $open) { Ok 'No share gives Everyone or anonymous users write access' }
 }
 
 function Invoke-RdpCheck {

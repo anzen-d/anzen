@@ -361,6 +361,62 @@ Describe 'Null sessions, WSUS and task scripts' {
         ($f | Where-Object message -eq 'Shares open to null sessions: PUBLIC').level | Should -Be 'WARN'
         @($f | Where-Object message -like '*RestrictAnonymousSAM*').Count | Should -Be 0
     }
+    It 'flags shares that give Everyone write access' {
+        foreach ($c in 'Get-SmbServerConfiguration', 'Get-SmbClientConfiguration', 'Get-SmbShare', 'Get-SmbShareAccess') {
+            if (-not (Get-Command $c -ErrorAction SilentlyContinue)) { New-Item -Path "function:global:$c" -Value { } | Out-Null }
+        }
+        Mock Get-SmbClientConfiguration { [pscustomobject]@{ RequireSecuritySignature = $true } }
+        Mock Get-SmbServerConfiguration { [pscustomobject]@{ EnableSMB1Protocol = $false; RequireSecuritySignature = $true } }
+        Mock Get-RegValue { switch ($Name) { 'RestrictAnonymous' { 1 } default { $null } } }
+        Mock Get-SmbShare { @([pscustomobject]@{ Name = 'Team' }, [pscustomobject]@{ Name = 'Docs' }) }
+        Mock Get-SmbShareAccess {
+            $n = "$args $(Get-Variable Name -ValueOnly -ErrorAction SilentlyContinue)"
+            if ($n -match 'Team') { @(
+                [pscustomobject]@{ AccountName = 'Everyone'; AccessRight = 'Change'; AccessControlType = 'Allow' },
+                [pscustomobject]@{ AccountName = 'BUILTIN\Administrators'; AccessRight = 'Full'; AccessControlType = 'Allow' }) }
+            else { @([pscustomobject]@{ AccountName = 'Everyone'; AccessRight = 'Read'; AccessControlType = 'Allow' }) }
+        }
+        Invoke-SmbCheck 6>$null
+        $w = @($script:Findings | Where-Object message -like 'Share *')
+        $w.Count | Should -Be 1
+        $w[0].message | Should -Be "Share 'Team' gives Everyone change access"
+        $w[0].remedy | Should -Be "Revoke-SmbShareAccess -Name 'Team' -AccountName 'Everyone' -Force"
+    }
+    It 'flags Defender exclusions that cover risky places' {
+        if (-not (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue)) { New-Item -Path function:global:Get-MpComputerStatus -Value { } | Out-Null }
+        if (-not (Get-Command Get-MpPreference -ErrorAction SilentlyContinue)) { New-Item -Path function:global:Get-MpPreference -Value { } | Out-Null }
+        Mock Get-MpComputerStatus { [pscustomobject]@{ AMRunningMode = 'Normal'; AntivirusEnabled = $true; RealTimeProtectionEnabled = $true; AntivirusSignatureAge = 1 } }
+        Mock Get-MpPreference { [pscustomobject]@{ MAPSReporting = 2; PUAProtection = 1
+            ExclusionPath = @('C:\', 'C:\Users\bob\Downloads', 'D:\SQL\Data', 'C:\ProgramData\Vendor')
+            ExclusionExtension = @('.ps1', 'mdf')
+            ExclusionProcess = @('C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe', 'sqlservr.exe') } }
+        Invoke-DefenderCheck 6>$null
+        $w = @($script:Findings | Where-Object { $_.level -eq 'WARN' -and $_.message -like 'Defender exclusion*' })
+        $w.message | Should -Be @(
+            'Defender exclusion on a whole drive or user-writable folder: C:\',
+            'Defender exclusion on a whole drive or user-writable folder: C:\Users\bob\Downloads',
+            'Defender exclusion for an executable file type: .ps1',
+            'Defender exclusion for a script host or interpreter: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe')
+        $w[2].remedy | Should -Be "Remove-MpPreference -ExclusionExtension '.ps1'"
+        ($script:Findings | Where-Object message -like 'Defender exclusions set (8)*').level | Should -Be 'INFO'
+        Reset-Findings
+        Mock Get-MpPreference { [pscustomobject]@{ MAPSReporting = 2; PUAProtection = 1; ExclusionPath = @('N/A: Must be an administrator to view exclusions') } }
+        Invoke-DefenderCheck 6>$null
+        @($script:Findings | Where-Object message -like 'Defender exclusion*').Count | Should -Be 0
+    }
+    It 'warns when BitLocker has no recovery password' {
+        if (-not (Get-Command Get-BitLockerVolume -ErrorAction SilentlyContinue)) { New-Item -Path function:global:Get-BitLockerVolume -Value { } | Out-Null }
+        Mock Get-BitLockerVolume { [pscustomobject]@{ MountPoint = 'C:'; ProtectionStatus = 'On'; EncryptionMethod = 'XtsAes128'
+            KeyProtector = @([pscustomobject]@{ KeyProtectorType = 'Tpm' }) } }
+        Invoke-BitLockerCheck 6>$null
+        ($script:Findings | Where-Object message -eq 'System drive C: has no BitLocker recovery password').remedy |
+            Should -Match '-RecoveryPasswordProtector$'
+        Reset-Findings
+        Mock Get-BitLockerVolume { [pscustomobject]@{ MountPoint = 'C:'; ProtectionStatus = 'On'; EncryptionMethod = 'XtsAes128'
+            KeyProtector = @([pscustomobject]@{ KeyProtectorType = 'Tpm' }, [pscustomobject]@{ KeyProtectorType = 'RecoveryPassword' }) } }
+        Invoke-BitLockerCheck 6>$null
+        @($script:Findings | Where-Object level -eq 'WARN').Count | Should -Be 0
+    }
     It 'fails WSUS over plain HTTP' {
         if (-not (Get-Command Get-HotFix -ErrorAction SilentlyContinue)) { New-Item -Path function:global:Get-HotFix -Value { } | Out-Null }
         if (-not (Get-Command Get-Service -ErrorAction SilentlyContinue)) { New-Item -Path function:global:Get-Service -Value { } | Out-Null }

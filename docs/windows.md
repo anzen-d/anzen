@@ -20,13 +20,13 @@ powershell -ExecutionPolicy Bypass -File .\windows\anzen.ps1 -Json
 | `system` | Pending reboot, uptime, disk usage |
 | `inventory` | INFO only: manufacturer, model, serial, CPU, memory, domain/workgroup, Windows version and build, installed program count, TPM |
 | `updates` | Days since last installed update, Windows Update service, WSUS over plain HTTP (FAIL) |
-| `defender` | Antivirus and real-time protection, signature age, tamper protection |
+| `defender` | Antivirus and real-time protection, signature age, tamper protection, cloud-delivered protection, PUA blocking, exclusions of whole drives, user-writable folders, executable file types and script hosts |
 | `firewall` | Every profile enabled and blocking inbound by default, inbound allow rules open to any traffic |
 | `accounts` | Guest and built-in Administrator, accounts without passwords, local admins, auto-logon with stored password |
-| `passwords` | Minimum length, lockout threshold |
+| `passwords` | Minimum length, lockout threshold, Windows Hello PIN length, convenience PIN |
 | `uac` | UAC on, admin consent prompt, secure desktop |
-| `bitlocker` | System drive protection |
-| `smb` | SMBv1, signing required on server and client, null sessions (`RestrictNullSessAccess`, `RestrictAnonymous`, `RestrictAnonymousSAM`, `EveryoneIncludesAnonymous`, null-session shares) |
+| `bitlocker` | System drive protection, recovery password protector |
+| `smb` | SMBv1, signing required on server and client, null sessions (`RestrictNullSessAccess`, `RestrictAnonymous`, `RestrictAnonymousSAM`, `EveryoneIncludesAnonymous`, null-session shares), shares giving Everyone, anonymous or Authenticated Users change/full access |
 | `rdp` | Remote Desktop with Network Level Authentication |
 | `credentials` | LSA protection, LM/NTLMv1, stored LM hashes, WDigest, Credential Guard (Enterprise/Education/Server) |
 | `laps` | Windows LAPS or legacy LAPS on domain- or Entra-joined machines |

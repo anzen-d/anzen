@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-11-06
+
+### Added
+- Windows `smb`: shares (admin shares excluded) that give Everyone,
+  anonymous users or Authenticated Users change or full access, with a
+  `Revoke-SmbShareAccess` remedy. Localised account names are recognised
+  by SID.
+- Windows `defender`: exclusions that blind Defender — a whole drive or a
+  user-writable folder (Temp, Downloads, AppData, Public, ProgramData),
+  executable file types (`.exe`, `.ps1`, `.dll`...) and script hosts or
+  interpreters (`powershell.exe`, `mshta.exe`, `python.exe`...). Each is a
+  WARN with a `Remove-MpPreference` remedy; other exclusions are counted.
+- Windows `bitlocker`: an encrypted system drive without a recovery password
+  protector (a TPM reset or board swap would lock the data out).
+
 ## [0.25.0] - 2026-11-06
 
 ### Added
