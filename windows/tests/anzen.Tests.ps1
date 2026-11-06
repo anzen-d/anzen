@@ -134,7 +134,7 @@ Describe 'New Windows checks' {
         ($f | Where-Object message -eq 'AlwaysInstallElevated off').level | Should -Be 'OK'
     }
     It 'flags the Print Spooler on a domain controller and unsafe Point and Print' {
-        Mock Get-CimInstance { if ("$args" -match 'ComputerSystem') { [pscustomobject]@{ DomainRole = 5 } } }
+        Mock Get-CimInstance { if ("$args $(Get-Variable ClassName -ValueOnly -ErrorAction SilentlyContinue)" -match 'ComputerSystem') { [pscustomobject]@{ DomainRole = 5 } } }
         Mock Get-ScheduledTask { @() }
         Mock Get-Service { [pscustomobject]@{ Name = 'Spooler'; Status = 'Running' } }
         Mock Get-RegValue { if ($Name -eq 'RestrictDriverInstallationToAdministrators') { 0 } }
@@ -144,7 +144,7 @@ Describe 'New Windows checks' {
         ($f | Where-Object message -eq 'Point and Print lets non-admins install printer drivers (PrintNightmare)').level | Should -Be 'FAIL'
     }
     It 'leaves the Print Spooler alone on workstations' {
-        Mock Get-CimInstance { if ("$args" -match 'ComputerSystem') { [pscustomobject]@{ DomainRole = 1 } } }
+        Mock Get-CimInstance { if ("$args $(Get-Variable ClassName -ValueOnly -ErrorAction SilentlyContinue)" -match 'ComputerSystem') { [pscustomobject]@{ DomainRole = 1 } } }
         Mock Get-ScheduledTask { @() }
         Mock Get-Service { [pscustomobject]@{ Name = 'Spooler'; Status = 'Running' } }
         Mock Get-RegValue { $null }
