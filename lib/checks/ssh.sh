@@ -129,6 +129,23 @@ run_ssh_check() {
         info "AllowAgentForwarding: $VAL — forwarded agents of logged-in users are usable by root here"
     fi
 
+    # Host-based and rhosts trust: a login is accepted because of the client
+    # host name, so one compromised host opens every host that trusts it
+    VAL=$(_ssh_val "HostbasedAuthentication"); VAL=${VAL:-no}
+    if echo "$VAL" | grep -qi "^yes$"; then
+        warn "HostbasedAuthentication: yes — logins are trusted by client host instead of a user key"
+        remedy "sed -i 's/^#*HostbasedAuthentication.*/HostbasedAuthentication no/' /etc/ssh/sshd_config && $(_sshd_reload)"
+    else
+        ok "HostbasedAuthentication: no"
+    fi
+    VAL=$(_ssh_val "IgnoreRhosts"); VAL=${VAL:-yes}
+    if echo "$VAL" | grep -qi "^no$"; then
+        warn "IgnoreRhosts: no — ~/.rhosts and ~/.shosts files are honoured"
+        remedy "sed -i 's/^#*IgnoreRhosts.*/IgnoreRhosts yes/' /etc/ssh/sshd_config && $(_sshd_reload)"
+    else
+        ok "IgnoreRhosts: $VAL"
+    fi
+
     # MaxAuthTries
     VAL=$(_ssh_val "MaxAuthTries"); VAL=${VAL:-6}
     if [ "$VAL" -gt 4 ] 2>/dev/null; then

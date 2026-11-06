@@ -122,25 +122,32 @@ run_services_check() {
         remedy "# set requirepass (or an ACL user) in redis.conf, then: systemctl restart redis"
     fi
 
-    # Elasticsearch, CouchDB and etcd answering over plain HTTP without
-    # credentials: anyone who reaches the port reads (and usually writes) all data
-    local _spec _port _name _path _body _match _a _r
+    # Elasticsearch, CouchDB, etcd and Solr answering over plain HTTP without
+    # credentials (or RabbitMQ with its default guest login): anyone who
+    # reaches the port reads (and usually writes) all data
+    local _spec _port _name _path _body _match _auth _a _r _what
     for _spec in "9200|Elasticsearch|/||\"cluster_name\"" \
                  "5984|CouchDB|/_all_dbs||^\\[" \
-                 "2379|etcd|/v3/kv/range|{\"key\":\"AA==\",\"limit\":1}|\"header\""; do
-        IFS='|' read -r _port _name _path _body _match <<< "$_spec"
+                 "2379|etcd|/v3/kv/range|{\"key\":\"AA==\",\"limit\":1}|\"header\"" \
+                 "8983|Solr|/solr/admin/info/system?wt=json||\"solr_home\"" \
+                 "15672|RabbitMQ|/api/whoami||\"name\":\"guest\"|guest:guest"; do
+        IFS='|' read -r _port _name _path _body _match _auth <<< "$_spec"
         _a=$(_svc_probe_addr "$_port")
         [ -n "$_a" ] || continue
-        _r=$(_svc_http "$_a" "$_port" "$_path" "$_body") || continue
+        _r=$(_svc_http "$_a" "$_port" "$_path" "$_body" "$_auth") || continue
         [ "${_r%%	*}" = 200 ] && printf '%s' "${_r#*	}" | grep -qE "$_match" || continue
+        _what="answers without authentication"
+        [ -n "$_auth" ] && _what="accepts the default ${_auth%%:*} login"
         if _svc_public_tcp "$_port"; then
-            fail "$_name on $_a:$_port answers without authentication"
+            fail "$_name on $_a:$_port $_what"
         else
-            warn "$_name on $_a:$_port answers without authentication (local only)"
+            warn "$_name on $_a:$_port $_what (local only)"
         fi
         case $_name in
             Elasticsearch) remedy "# enable security: xpack.security.enabled: true in elasticsearch.yml, then set passwords (elasticsearch-reset-password)" ;;
             CouchDB)       remedy "# create an admin in local.ini [admins] and set [chttpd] require_valid_user = true, then restart couchdb" ;;
+            Solr)          remedy "# enable the BasicAuthPlugin in security.json (bin/solr auth enable), bind SOLR_JETTY_HOST=127.0.0.1 unless remote clients need it" ;;
+            RabbitMQ)      remedy "rabbitmqctl delete_user guest   # after creating your own admin user" ;;
             etcd)          remedy "# enable client TLS auth (--client-cert-auth, --trusted-ca-file) or etcdctl auth enable; bind --listen-client-urls to localhost" ;;
         esac
     done

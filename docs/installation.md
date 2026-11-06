@@ -23,7 +23,7 @@ an `.rpm` (Linux edition, `noarch`), signed with a build provenance attestation
 like the tarball:
 
 ```bash
-v=0.22.0
+v=0.23.0
 # Debian / Ubuntu
 curl -LO https://github.com/anzen-d/anzen/releases/download/v$v/anzen_${v}_all.deb
 sudo apt install ./anzen_${v}_all.deb
@@ -71,7 +71,7 @@ SHA-256 checksum and a signed build provenance attestation (Sigstore, created
 by the release workflow from the tagged commit):
 
 ```bash
-v=0.22.0
+v=0.23.0
 curl -LO https://github.com/anzen-d/anzen/releases/download/v$v/anzen-$v.tar.gz
 curl -LO https://github.com/anzen-d/anzen/releases/download/v$v/anzen-$v.tar.gz.sha256
 sha256sum -c anzen-$v.tar.gz.sha256

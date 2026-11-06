@@ -81,7 +81,7 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Continue'
 
-$AnzenVersion = '0.22.0'
+$AnzenVersion = '0.23.0'
 $ScriptPath   = $MyInvocation.MyCommand.Path
 $ScriptDir    = Split-Path -Parent $ScriptPath
 $FailPenalty  = 10
@@ -338,6 +338,24 @@ function Invoke-FirewallCheck {
             Ok "Firewall profile $($p.Name) enabled, inbound blocked by default"
         }
     }
+
+    # Enabled inbound allow rules with no port, program or remote-address
+    # limit open the whole host, whatever the default action says
+    $rules = @(Get-NetFirewallRule -Direction Inbound -Action Allow -Enabled True -ErrorAction SilentlyContinue)
+    if (-not $rules) { return }
+    $ports = @{}; foreach ($f in @(Get-NetFirewallPortFilter -All -ErrorAction SilentlyContinue)) { $ports[$f.InstanceID] = $f }
+    $addrs = @{}; foreach ($f in @(Get-NetFirewallAddressFilter -All -ErrorAction SilentlyContinue)) { $addrs[$f.InstanceID] = $f }
+    $apps = @{};  foreach ($f in @(Get-NetFirewallApplicationFilter -All -ErrorAction SilentlyContinue)) { $apps[$f.InstanceID] = $f }
+    $any = 0
+    foreach ($r in $rules) {
+        $pf = $ports[$r.Name]; $af = $addrs[$r.Name]; $ap = $apps[$r.Name]
+        if (-not ($pf -and $af -and $ap)) { continue }
+        if ("$($pf.Protocol)" -eq 'Any' -and "$($af.RemoteAddress)" -eq 'Any' -and "$($ap.Program)" -eq 'Any') {
+            $any++
+            Warn "Firewall rule '$($r.DisplayName)' allows any inbound traffic" "Disable-NetFirewallRule -Name $(ConvertTo-PsLiteral $r.Name)"
+        }
+    }
+    if (-not $any) { Ok "No inbound rule allows any traffic ($($rules.Count) allow rules)" }
 }
 
 function Invoke-AccountsCheck {
@@ -721,6 +739,22 @@ function Invoke-PrivEscCheck {
     } elseif ($m -eq 1) {
         Warn 'AlwaysInstallElevated set for the machine (users who set it too install MSI packages as SYSTEM)' "Remove-ItemProperty 'HKLM:\$inst' AlwaysInstallElevated"
     } else { Ok 'AlwaysInstallElevated off' }
+
+    # Print Spooler: PrintNightmare-class bugs give SYSTEM, and on a domain
+    # controller the spooler also lets any user coerce DC authentication
+    $role = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty DomainRole -ErrorAction SilentlyContinue
+    $spool = Get-Service Spooler -ErrorAction SilentlyContinue
+    if ($spool -and "$($spool.Status)" -eq 'Running') {
+        $off = 'Stop-Service Spooler; Set-Service Spooler -StartupType Disabled'
+        if ($role -ge 4)     { Fail 'Print Spooler running on a domain controller' $off }
+        elseif ($role -ge 2) { Warn 'Print Spooler running on a server (disable it unless this host shares printers)' $off }
+    }
+    $pp = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers\PointAndPrint'
+    if ((Get-RegValue $pp 'RestrictDriverInstallationToAdministrators') -eq 0) {
+        Fail 'Point and Print lets non-admins install printer drivers (PrintNightmare)' "Set-ItemProperty '$pp' RestrictDriverInstallationToAdministrators 1"
+    } elseif ((Get-RegValue $pp 'NoWarningNoElevationOnInstall') -eq 1) {
+        Fail 'Point and Print installs printer drivers without elevation (PrintNightmare)' "Set-ItemProperty '$pp' NoWarningNoElevationOnInstall 0"
+    }
 }
 
 # Advanced audit policy subcategories (GUIDs are language-independent) and the

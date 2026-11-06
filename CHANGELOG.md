@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-11-06
+
+### Added
+- `ssh`: `HostbasedAuthentication yes` and `IgnoreRhosts no` are WARNs.
+- `services`: Solr (8983) answering without authentication, and the RabbitMQ
+  management API (15672) accepting the default `guest` login — FAIL when the
+  port is public, WARN when local only. `_svc_http` takes an optional
+  `USER:PASS`.
+- Windows `firewall`: enabled inbound allow rules with no protocol, program
+  or remote-address limit (WARN per rule).
+- Windows `privesc`: Print Spooler running on a domain controller (FAIL) or a
+  server (WARN), and Point and Print settings that let non-admins install
+  printer drivers (PrintNightmare, FAIL).
+
 ## [0.22.0] - 2026-11-05
 
 ### Added

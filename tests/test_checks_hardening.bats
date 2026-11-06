@@ -178,6 +178,18 @@ _services() {
     grep -q "^OK	SSH Configuration	AllowAgentForwarding: no" "$FINDINGS_FILE"
 }
 
+@test "ssh: host-based and rhosts trust are WARNs" {
+    SSHD_T=$'port 2222\nhostbasedauthentication yes\nignorerhosts no'
+    _sshd_t
+    grep -q "^WARN	SSH Configuration	HostbasedAuthentication: yes" "$FINDINGS_FILE"
+    grep -q "^WARN	SSH Configuration	IgnoreRhosts: no" "$FINDINGS_FILE"
+    : > "$FINDINGS_FILE"
+    SSHD_T=$'port 2222\nhostbasedauthentication no\nignorerhosts yes'
+    _sshd_t
+    grep -q "^OK	SSH Configuration	HostbasedAuthentication: no" "$FINDINGS_FILE"
+    grep -q "^OK	SSH Configuration	IgnoreRhosts: yes" "$FINDINGS_FILE"
+}
+
 @test "kernel: ldisc autoload is a WARN, kexec loading INFO" {
     # shellcheck disable=SC1091
     source "$ANZEN_DIR/lib/checks/kernel.sh"
@@ -217,11 +229,42 @@ _services() {
     ! grep -qE "Elasticsearch|CouchDB|etcd" "$FINDINGS_FILE"
 }
 
+@test "services: Solr without authentication, RabbitMQ with the guest login" {
+    SS_TCP=("LISTEN 0 0 0.0.0.0:8983 0.0.0.0:*" "LISTEN 0 0 127.0.0.1:15672 0.0.0.0:*")
+    SS_UDP=()
+    # shellcheck disable=SC1091
+    source "$ANZEN_DIR/lib/checks/services.sh"
+    _svc_probe() { :; }
+    _svc_http() {
+        echo "$2 ${5:-}" >> "$T/http.log"
+        case $2 in
+            8983) printf '200\t{"responseHeader":{"status":0},"solr_home":"/var/solr/data"}\n' ;;
+            15672) [ "${5:-}" = guest:guest ] && printf '200\t{"name":"guest","tags":["administrator"]}\n' ;;
+        esac
+    }
+    _services
+    grep -q "^FAIL	.*Solr on 127.0.0.1:8983 answers without authentication" "$FINDINGS_FILE"
+    grep -q "^WARN	.*RabbitMQ on 127.0.0.1:15672 accepts the default guest login (local only)" "$FINDINGS_FILE"
+    grep -q "^15672 guest:guest$" "$T/http.log"
+    : > "$FINDINGS_FILE"
+    _svc_http() { case $2 in 8983) printf '401\t\n' ;; 15672) printf '401\t{"error":"not_authorised"}\n' ;; esac; }
+    _services
+    ! grep -qE "Solr|RabbitMQ" "$FINDINGS_FILE"
+}
+
 @test "_svc_http returns status and body, brackets IPv6" {
     curl() { echo "$*" > "$T/curl.args"; printf 'line1\nline2\n404'; }
     run _svc_http ::1 2379 /version
     [ "$output" = "404	line1 line2" ]
     grep -q 'http://\[::1\]:2379/version' "$T/curl.args"
+}
+
+@test "_svc_http sends basic auth only when asked" {
+    curl() { echo "$*" > "$T/curl.args"; printf 'ok\n200'; }
+    _svc_http 127.0.0.1 15672 /api/whoami "" guest:guest > /dev/null
+    grep -q -- '-u guest:guest' "$T/curl.args"
+    _svc_http 127.0.0.1 15672 /api/whoami > /dev/null
+    ! grep -q -- '-u' "$T/curl.args"
 }
 
 @test "tls: CA-issued leaf without SAN is a WARN, with SAN quiet" {

@@ -108,7 +108,8 @@ Describe 'Remedy and path helpers' {
 Describe 'New Windows checks' {
     BeforeAll {
         # Windows-only cmdlets: stand-ins so Pester can mock them on any platform
-        foreach ($c in 'Get-CimInstance', 'Get-ScheduledTask', 'Get-MpPreference', 'Get-MpComputerStatus') {
+        foreach ($c in 'Get-CimInstance', 'Get-ScheduledTask', 'Get-MpPreference', 'Get-MpComputerStatus', 'Get-Service',
+                       'Get-NetFirewallProfile', 'Get-NetFirewallRule', 'Get-NetFirewallPortFilter', 'Get-NetFirewallAddressFilter', 'Get-NetFirewallApplicationFilter') {
             if (-not (Get-Command $c -ErrorAction SilentlyContinue)) { New-Item -Path "function:global:$c" -Value { } | Out-Null }
         }
     }
@@ -131,6 +132,44 @@ Describe 'New Windows checks' {
         $u.remedy | Should -Be "Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\VendorSvc' ImagePath '`"C:\Program Files\Vendor App\svc.exe`" -run'"
         @($f | Where-Object message -like 'Service Good*').Count | Should -Be 0
         ($f | Where-Object message -eq 'AlwaysInstallElevated off').level | Should -Be 'OK'
+    }
+    It 'flags the Print Spooler on a domain controller and unsafe Point and Print' {
+        Mock Get-CimInstance { if ("$args" -match 'ComputerSystem') { [pscustomobject]@{ DomainRole = 5 } } }
+        Mock Get-ScheduledTask { @() }
+        Mock Get-Service { [pscustomobject]@{ Name = 'Spooler'; Status = 'Running' } }
+        Mock Get-RegValue { if ($Name -eq 'RestrictDriverInstallationToAdministrators') { 0 } }
+        Invoke-PrivEscCheck 6>$null
+        $f = $script:Findings
+        ($f | Where-Object message -eq 'Print Spooler running on a domain controller').level | Should -Be 'FAIL'
+        ($f | Where-Object message -eq 'Point and Print lets non-admins install printer drivers (PrintNightmare)').level | Should -Be 'FAIL'
+    }
+    It 'leaves the Print Spooler alone on workstations' {
+        Mock Get-CimInstance { if ("$args" -match 'ComputerSystem') { [pscustomobject]@{ DomainRole = 1 } } }
+        Mock Get-ScheduledTask { @() }
+        Mock Get-Service { [pscustomobject]@{ Name = 'Spooler'; Status = 'Running' } }
+        Mock Get-RegValue { $null }
+        Invoke-PrivEscCheck 6>$null
+        @($script:Findings | Where-Object message -like '*Spooler*').Count | Should -Be 0
+    }
+    It 'flags inbound rules that allow any traffic' {
+        Mock Get-NetFirewallProfile { [pscustomobject]@{ Name = 'Domain'; Enabled = $true; DefaultInboundAction = 'Block' } }
+        Mock Get-NetFirewallRule { @(
+            [pscustomobject]@{ Name = 'open-all'; DisplayName = "Bob's test" },
+            [pscustomobject]@{ Name = 'rdp'; DisplayName = 'Remote Desktop' }) }
+        Mock Get-NetFirewallPortFilter { @(
+            [pscustomobject]@{ InstanceID = 'open-all'; Protocol = 'Any' },
+            [pscustomobject]@{ InstanceID = 'rdp'; Protocol = 'TCP' }) }
+        Mock Get-NetFirewallAddressFilter { @(
+            [pscustomobject]@{ InstanceID = 'open-all'; RemoteAddress = 'Any' },
+            [pscustomobject]@{ InstanceID = 'rdp'; RemoteAddress = 'Any' }) }
+        Mock Get-NetFirewallApplicationFilter { @(
+            [pscustomobject]@{ InstanceID = 'open-all'; Program = 'Any' },
+            [pscustomobject]@{ InstanceID = 'rdp'; Program = 'Any' }) }
+        Invoke-FirewallCheck 6>$null
+        $w = @($script:Findings | Where-Object message -like 'Firewall rule *')
+        $w.Count | Should -Be 1
+        $w[0].message | Should -Be "Firewall rule 'Bob's test' allows any inbound traffic"
+        $w[0].remedy | Should -Be "Disable-NetFirewallRule -Name 'open-all'"
     }
 
     It 'lists recommended ASR rules that are not in block mode' {

@@ -15,14 +15,12 @@ Small, self-contained, no deep knowledge of the codebase needed.
 - **Improve a remedy** — many findings print a fix command; make them more
   precise for a distro family, or add one where it is missing.
 - **New single checks** in an existing module, for example:
-  - `ssh`: `DisableForwarding`, `HostbasedAuthentication`, `IgnoreRhosts`
-  - `services`: RabbitMQ/Kafka/Solr answering without auth
+  - `services`: Kafka or ZooKeeper answering without auth
   - `tls`: wildcard certificates reused on many hosts
 - **New plugins** for the [plugin catalogue](plugins/README.md): Proxmox,
   Home Assistant, Traefik/Caddy, NAS (Synology, TrueNAS)
 - **Windows checks** — `windows/anzen.ps1` is newer and smaller: e.g. Windows
-  Hello / PIN policy, Print Spooler on servers, AppLocker / WDAC policy,
-  Windows Firewall rules allowing any inbound.
+  Hello / PIN policy, AppLocker / WDAC policy.
 - **Distrusted certificates** — when a CA is compromised or distrusted, add its
   fingerprints to `lib/data/distrusted-certs.tsv` (one line per certificate,
   with a reference link).

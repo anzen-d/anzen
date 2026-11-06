@@ -61,17 +61,15 @@ _svc_probe_addr() {
     esac
 }
 
-# _svc_http ADDR PORT PATH [JSON_BODY] — "STATUS<TAB>first 2 KB of body" of a
+# _svc_http ADDR PORT PATH [JSON_BODY] [USER:PASS] — "STATUS<TAB>first 2 KB of body" of a
 # plain-HTTP request to a local service (GET, or POST with a JSON body); 3 s timeout
 _svc_http() {
     command -v curl &>/dev/null || return 1
-    local host=$1 out
+    local host=$1 out opts=()
     case $host in *:*) host="[$host]" ;; esac
-    if [ -n "${4:-}" ]; then
-        out=$(curl -s -m 3 -H 'Content-Type: application/json' -d "$4" -w '\n%{http_code}' "http://$host:$2$3" 2>/dev/null) || return 1
-    else
-        out=$(curl -s -m 3 -w '\n%{http_code}' "http://$host:$2$3" 2>/dev/null) || return 1
-    fi
+    [ -n "${4:-}" ] && opts+=(-H 'Content-Type: application/json' -d "$4")
+    [ -n "${5:-}" ] && opts+=(-u "$5")
+    out=$(curl -s -m 3 ${opts[@]+"${opts[@]}"} -w '\n%{http_code}' "http://$host:$2$3" 2>/dev/null) || return 1
     printf '%s\t%s\n' "${out##*$'\n'}" "$(printf '%s' "${out%$'\n'*}" | head -c 2048 | tr '\n\t' '  ')"
 }
 
