@@ -1,5 +1,6 @@
 #!/bin/sh
 # defaults read DOMAIN KEY — values for an insecure test Mac
+[ "$1" = -currentHost ] && [ "$3:$4" = com.apple.screensaver:idleTime ] && { echo "${STUB_IDLE:-0}"; exit 0; }
 case "$2:$3" in
   */com.apple.SoftwareUpdate:AutomaticCheckEnabled) echo 1 ;;
   */com.apple.SoftwareUpdate:AutomaticDownload) echo 0 ;;

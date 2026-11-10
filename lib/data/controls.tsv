@@ -42,3 +42,4 @@ Pentest.*	.	NIST CA-8, SC-7
 Changes Since Last Run	.	NIST CM-3
 System Information	reboot|restart	NIST SI-2; CIS 7.3
 Management & Profiles	.	NIST CM-8; CIS 1.1
+Screen Lock	.	NIST AC-11; CIS 4.3

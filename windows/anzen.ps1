@@ -81,7 +81,7 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Continue'
 
-$AnzenVersion = '0.26.0'
+$AnzenVersion = '0.27.0'
 $ScriptPath   = $MyInvocation.MyCommand.Path
 $ScriptDir    = Split-Path -Parent $ScriptPath
 $FailPenalty  = 10
@@ -542,6 +542,16 @@ function Invoke-SmbCheck {
         }
     }
     if ($shares.Count -and -not $open) { Ok 'No share gives Everyone or anonymous users write access' }
+    # Share rights and NTFS rights both apply: a share limited to Read still lets
+    # local users (or a later share change) write when the folder ACL is open
+    foreach ($sh in $shares) {
+        $dir = "$($sh | Select-Object -ExpandProperty Path -ErrorAction SilentlyContinue)"
+        if (-not $dir -or -not (Test-Path -LiteralPath $dir)) { continue }
+        if (Test-UserWritable $dir -Folder) {
+            Warn "Folder behind share '$($sh.Name)' is writable by Everyone, Users or Authenticated Users (NTFS)" `
+                "# icacls $(ConvertTo-PsLiteral $dir) — remove write access for Everyone, Users and Authenticated Users"
+        }
+    }
 }
 
 function Invoke-RdpCheck {
@@ -580,6 +590,30 @@ function Invoke-CredentialProtectionCheck {
 
 # App Control for Business (WDAC) and AppLocker: allow-listing is the strongest
 # answer to malware a user downloads and runs
+# Unattended sessions: machine inactivity limit, or a password-protected screen saver
+function Invoke-ScreenLockCheck {
+    Section 'Screen Lock'
+    $pol = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System'
+    $t = Get-RegValue $pol 'InactivityTimeoutSecs'
+    if ($t -and [int]$t -gt 0) {
+        $min = [math]::Ceiling([int]$t / 60)
+        if ($min -gt 15) { Warn "Machine inactivity limit $min minutes (above 15)" "Set-ItemProperty '$pol' InactivityTimeoutSecs 900" }
+        else             { Ok "Machine inactivity limit $min minutes" }
+        return
+    }
+    # No machine policy: fall back to the screen saver of the user running the audit
+    $d = 'HKCU:\Control Panel\Desktop'
+    $gp = 'HKCU:\Software\Policies\Microsoft\Windows\Control Panel\Desktop'
+    $active = Get-RegValue $gp 'ScreenSaveActive'; if ($null -eq $active) { $active = Get-RegValue $d 'ScreenSaveActive' }
+    $secure = Get-RegValue $gp 'ScreenSaverIsSecure'; if ($null -eq $secure) { $secure = Get-RegValue $d 'ScreenSaverIsSecure' }
+    $tout = Get-RegValue $gp 'ScreenSaveTimeOut'; if ($null -eq $tout) { $tout = Get-RegValue $d 'ScreenSaveTimeOut' }
+    if ("$active" -eq '1' -and "$secure" -eq '1' -and $tout -and [int]$tout -gt 0 -and [int]$tout -le 900) {
+        Ok "Screen saver locks after $([math]::Ceiling([int]$tout / 60)) minutes (no machine inactivity limit)"
+    } else {
+        Warn 'No machine inactivity limit and the screen saver does not lock within 15 minutes' "Set-ItemProperty '$pol' InactivityTimeoutSecs 900"
+    }
+}
+
 function Invoke-AppControlCheck {
     Section 'Application Control'
     $dg = Get-CimInstance -Namespace 'root\Microsoft\Windows\DeviceGuard' -ClassName Win32_DeviceGuard -ErrorAction SilentlyContinue
@@ -945,6 +979,7 @@ $Modules = [ordered]@{
     privesc     = 'Invoke-PrivEscCheck'
     auditpol    = 'Invoke-AuditPolicyCheck'
     appcontrol  = 'Invoke-AppControlCheck'
+    screenlock  = 'Invoke-ScreenLockCheck'
     powershell  = 'Invoke-PowerShellCheck'
     secureboot  = 'Invoke-SecureBootCheck'
     network     = 'Invoke-NetworkCheck'

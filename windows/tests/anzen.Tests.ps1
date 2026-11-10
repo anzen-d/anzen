@@ -382,6 +382,38 @@ Describe 'Null sessions, WSUS and task scripts' {
         $w[0].message | Should -Be "Share 'Team' gives Everyone change access"
         $w[0].remedy | Should -Be "Revoke-SmbShareAccess -Name 'Team' -AccountName 'Everyone' -Force"
     }
+    It 'flags folders behind shares that users can write' {
+        foreach ($c in 'Get-SmbServerConfiguration', 'Get-SmbClientConfiguration', 'Get-SmbShare', 'Get-SmbShareAccess') {
+            if (-not (Get-Command $c -ErrorAction SilentlyContinue)) { New-Item -Path "function:global:$c" -Value { } | Out-Null }
+        }
+        Mock Get-SmbClientConfiguration { [pscustomobject]@{ RequireSecuritySignature = $true } }
+        Mock Get-SmbServerConfiguration { [pscustomobject]@{ EnableSMB1Protocol = $false; RequireSecuritySignature = $true } }
+        Mock Get-RegValue { switch ($Name) { 'RestrictAnonymous' { 1 } default { $null } } }
+        Mock Get-SmbShare { @([pscustomobject]@{ Name = 'Team'; Path = 'D:\Team' }, [pscustomobject]@{ Name = 'Docs'; Path = 'D:\Docs' }) }
+        Mock Get-SmbShareAccess { }
+        Mock Test-Path { $true }
+        Mock Test-UserWritable { $Path -eq 'D:\Team' }
+        Invoke-SmbCheck 6>$null
+        $w = @($script:Findings | Where-Object message -like 'Folder behind share*')
+        $w.Count | Should -Be 1
+        $w[0].message | Should -Be "Folder behind share 'Team' is writable by Everyone, Users or Authenticated Users (NTFS)"
+        $w[0].remedy | Should -Match "^# icacls 'D:\\Team'"
+    }
+    It 'checks the inactivity limit and screen saver lock' {
+        Mock Get-RegValue { switch ($Name) { 'InactivityTimeoutSecs' { 1800 } default { $null } } }
+        Invoke-ScreenLockCheck 6>$null
+        $script:Findings[0].message | Should -Be 'Machine inactivity limit 30 minutes (above 15)'
+        Reset-Findings
+        Mock Get-RegValue { switch ($Name) { 'ScreenSaveActive' { '1' } 'ScreenSaverIsSecure' { '1' } 'ScreenSaveTimeOut' { '600' } default { $null } } }
+        Invoke-ScreenLockCheck 6>$null
+        $script:Findings[0].level | Should -Be 'OK'
+        $script:Findings[0].message | Should -Be 'Screen saver locks after 10 minutes (no machine inactivity limit)'
+        Reset-Findings
+        Mock Get-RegValue { switch ($Name) { 'ScreenSaveActive' { '1' } 'ScreenSaverIsSecure' { '0' } 'ScreenSaveTimeOut' { '600' } default { $null } } }
+        Invoke-ScreenLockCheck 6>$null
+        $script:Findings[0].level | Should -Be 'WARN'
+        $script:Findings[0].remedy | Should -Match 'InactivityTimeoutSecs 900$'
+    }
     It 'flags Defender exclusions that cover risky places' {
         if (-not (Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue)) { New-Item -Path function:global:Get-MpComputerStatus -Value { } | Out-Null }
         if (-not (Get-Command Get-MpPreference -ErrorAction SilentlyContinue)) { New-Item -Path function:global:Get-MpPreference -Value { } | Out-Null }

@@ -26,7 +26,7 @@ powershell -ExecutionPolicy Bypass -File .\windows\anzen.ps1 -Json
 | `passwords` | Minimum length, lockout threshold, Windows Hello PIN length, convenience PIN |
 | `uac` | UAC on, admin consent prompt, secure desktop |
 | `bitlocker` | System drive protection, recovery password protector |
-| `smb` | SMBv1, signing required on server and client, null sessions (`RestrictNullSessAccess`, `RestrictAnonymous`, `RestrictAnonymousSAM`, `EveryoneIncludesAnonymous`, null-session shares), shares giving Everyone, anonymous or Authenticated Users change/full access |
+| `smb` | SMBv1, signing required on server and client, null sessions (`RestrictNullSessAccess`, `RestrictAnonymous`, `RestrictAnonymousSAM`, `EveryoneIncludesAnonymous`, null-session shares), shares giving Everyone, anonymous or Authenticated Users change/full access, share folders whose NTFS ACL lets Everyone, Users or Authenticated Users write |
 | `rdp` | Remote Desktop with Network Level Authentication |
 | `credentials` | LSA protection, LM/NTLMv1, stored LM hashes, WDigest, Credential Guard (Enterprise/Education/Server) |
 | `laps` | Windows LAPS or legacy LAPS on domain- or Entra-joined machines |
@@ -35,6 +35,7 @@ powershell -ExecutionPolicy Bypass -File .\windows\anzen.ps1 -Json
 | `privesc` | Service and SYSTEM/elevated scheduled-task binaries, the scripts those tasks run, or their folders writable by users, unquoted service paths, AlwaysInstallElevated, Print Spooler on servers and domain controllers, Point and Print (PrintNightmare) |
 | `auditpol` | Advanced audit policy for logons, lockouts, account and group changes, process creation, policy changes; command line in process creation events; Security log size |
 | `appcontrol` | App Control for Business (WDAC) or AppLocker enforced, AppLocker without the Application Identity service |
+| `screenlock` | Machine inactivity limit (`InactivityTimeoutSecs`) of 15 minutes or less, otherwise a password-protected screen saver within 15 minutes for the user running the audit |
 | `powershell` | Script block logging, PowerShell 2.0 |
 | `secureboot` | Secure Boot |
 | `network` | Risky ports (SMB, RDP, WinRM, Telnet…) listening on all interfaces |

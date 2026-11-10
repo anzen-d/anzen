@@ -17,7 +17,7 @@
 
 set -u
 
-ANZEN_VERSION="0.26.0"
+ANZEN_VERSION="0.27.0"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 FAIL_PENALTY=10
@@ -34,7 +34,7 @@ XPROTECT_DIR="${ANZEN_XPROTECT_DIR:-/Library/Apple/System/Library/CoreServices}"
 LAUNCHD_DIRS="${ANZEN_LAUNCHD_DIRS:-/Library/LaunchDaemons /Library/LaunchAgents /Users/*/Library/LaunchAgents}"
 ROOT_UID="${ANZEN_ROOT_UID:-0}"   # tests run as a normal user
 
-MODULES="system inventory updates xprotect filevault sip gatekeeper firewall sharing accounts ssh launchd extensions profiles truststore"
+MODULES="system inventory updates xprotect filevault sip gatekeeper firewall sharing accounts screenlock ssh launchd extensions profiles truststore"
 
 usage() {
     cat <<EOF
@@ -456,6 +456,51 @@ check_extensions() {
 }
 
 # Inventory only: management state and settings that are policy decisions
+# Local accounts to check: every user with UID 501+ as root, otherwise yourself
+_lock_users() {
+    if $IS_ROOT; then dscl . -list /Users UniqueID 2>/dev/null | awk '$2 >= 501 && $1 !~ /^_/ { print $1 }'
+    else id -un; fi
+}
+_as_user() { local u=$1; shift; if [ "$u" = "$(id -un)" ]; then "$@"; else sudo -n -H -u "$u" "$@"; fi; }
+
+check_screenlock() {
+    section "Screen Lock"
+    local u st delay idle ds mi n=0 how="System Settings → Lock Screen"
+    ds=$(pmset -g 2>/dev/null | awk '$1 == "displaysleep" { print $2; exit }')
+    for u in $(_lock_users); do
+        n=$((n + 1))
+        # macOS 13+: "screenLock delay is immediate" / "... is 300 seconds" / "screenLock is off"
+        st=$(_as_user "$u" sysadminctl -screenLock status 2>&1)
+        case $st in
+            *"screenLock is off"*)
+                warn "Screen lock off for '$u' — waking the screen asks for no password" "$how → Require password after screen saver begins or display is turned off: Immediately" ;;
+            *"delay is immediate"*)
+                ok "Password required immediately after sleep or screen saver for '$u'" ;;
+            *"delay is "*)
+                delay=$(printf '%s\n' "$st" | sed -n 's/.*delay is \([0-9][0-9]*\) seconds.*/\1/p' | head -1)
+                if [ -n "$delay" ] && [ "$delay" -gt 300 ]; then
+                    warn "Password asked only $delay seconds after the screen saver starts for '$u'" "$how → Require password: 5 minutes or less"
+                elif [ -n "$delay" ]; then ok "Password asked $delay seconds after the screen saver starts for '$u'"; fi ;;
+        esac
+        # Minutes until the screen saver or display sleep, whichever comes first
+        idle=$(_defaults "/Library/Managed Preferences/com.apple.screensaver" idleTime)
+        [ -n "$idle" ] || idle=$(_as_user "$u" defaults -currentHost read com.apple.screensaver idleTime 2>/dev/null)
+        case $idle in ''|*[!0-9]*) idle=1200 ;; esac   # unset: macOS default of 20 minutes
+        mi=""
+        [ "$idle" -gt 0 ] && mi=$(( (idle + 59) / 60 ))
+        case $ds in ''|*[!0-9]*|0) ;; *) if [ -z "$mi" ] || [ "$ds" -lt "$mi" ]; then mi=$ds; fi ;; esac
+        if [ -z "$mi" ]; then
+            warn "Screen never locks by itself for '$u' (screen saver and display sleep off)" "$how → Start Screen Saver when inactive: 20 minutes or less"
+        elif [ "$mi" -gt 30 ]; then
+            warn "Screen locks by itself only after $mi minutes for '$u'" "$how → Start Screen Saver when inactive: 20 minutes or less"
+        else
+            ok "Screen saver or display sleep after $mi minutes for '$u'"
+        fi
+    done
+    [ "$n" -gt 0 ] || info "No local user accounts found"
+    return 0
+}
+
 check_profiles() {
     section "Management & Profiles"
     local s ids

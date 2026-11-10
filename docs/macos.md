@@ -30,6 +30,7 @@ checks were limited.
 | `firewall` | Application firewall and stealth mode |
 | `sharing` | Remote Login, Screen Sharing / Remote Management, File Sharing (SMB/AFP), Printer Sharing listening on all interfaces |
 | `accounts` | Automatic login and a stored `/etc/kcpassword`, guest account, number of administrators, password after screen saver |
+| `screenlock` | Per user (every local account as root, yourself otherwise): screen lock off or a password delay above 5 minutes (`sysadminctl -screenLock status`, macOS 13+), and no screen saver or display sleep within 30 minutes (managed profile, `-currentHost` screen saver `idleTime`, `pmset` `displaysleep`) |
 | `ssh` | `PermitRootLogin` and password authentication, when Remote Login is on |
 | `launchd` | Launch daemons and agents: plist or program writable by non-root users (FAIL: runs as root or as every user), unsigned programs (WARN, common malware persistence). Covers `/Library/LaunchDaemons`, `/Library/LaunchAgents` and every user's `~/Library/LaunchAgents` |
 | `extensions` | Third-party kernel extensions loaded (WARN), active system extensions (INFO) |

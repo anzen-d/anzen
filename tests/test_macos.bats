@@ -178,6 +178,19 @@ ts_env() {
     [[ "$output" == *"Not enrolled in MDM"* ]]
 }
 
+@test "macos: screen lock per user" {
+    mac --check=screenlock
+    [[ "$output" == *"[WARN] Screen lock off for '"*"' — waking the screen asks for no password"* ]]
+    [[ "$output" == *"[WARN] Screen never locks by itself for '"*"' (screen saver and display sleep off)"* ]]
+    STUB_LOCK="screenLock delay is 600 seconds" STUB_IDLE=3600 STUB_DS=45 mac --check=screenlock
+    [[ "$output" == *"[WARN] Password asked only 600 seconds after the screen saver starts for '"* ]]
+    [[ "$output" == *"[WARN] Screen locks by itself only after 45 minutes for '"* ]]
+    STUB_LOCK="screenLock delay is immediate" STUB_IDLE=300 STUB_DS=10 mac --check=screenlock
+    [[ "$output" == *"[ OK ] Password required immediately after sleep or screen saver for '"* ]]
+    [[ "$output" == *"[ OK ] Screen saver or display sleep after 5 minutes for '"* ]]
+    [[ "$output" != *"[WARN]"* ]]
+}
+
 @test "macos: HTML, TXT and SARIF reports from the shared generators" {
     local o="$BATS_TEST_TMPDIR/out.json"
     mac --check=filevault --check=accounts --json --html --txt --sarif --output="$o"

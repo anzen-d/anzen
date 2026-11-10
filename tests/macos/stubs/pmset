@@ -1,0 +1,2 @@
+#!/bin/sh
+printf 'System-wide power settings:\nCurrently in use:\n displaysleep         %s\n sleep                0\n' "${STUB_DS:-0}"

@@ -1,0 +1,4 @@
+#!/bin/sh
+# sudo -n -H -u USER CMD... — run CMD as the test user
+while [ $# -gt 0 ]; do case $1 in -u) shift 2 ;; -*) shift ;; *) break ;; esac; done
+exec "$@"

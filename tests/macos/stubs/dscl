@@ -1,2 +1,5 @@
 #!/bin/sh
-echo "GroupMembership: root demo alice bob"
+case "$*" in
+  *"-list /Users UniqueID"*) printf 'root 0\n_www 70\ndemo 501\nalice 502\n' ;;
+  *) echo "GroupMembership: root demo alice bob" ;;
+esac

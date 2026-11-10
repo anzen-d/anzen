@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-11-10
+
+### Added
+- macOS `screenlock` (new module): for every local account (as root) or
+  yourself — screen lock off or a password delay above 5 minutes
+  (`sysadminctl -screenLock status`, macOS 13+), and no screen saver or
+  display sleep within 30 minutes (managed profile, per-host `idleTime`,
+  `pmset` `displaysleep`).
+- Windows `screenlock` (new module): machine inactivity limit
+  (`InactivityTimeoutSecs`) above 15 minutes or missing without a
+  password-protected screen saver within 15 minutes.
+- Windows `smb`: folders behind shares whose NTFS ACL lets Everyone, Users
+  or Authenticated Users write — share rights alone do not protect them.
+
 ## [0.26.0] - 2026-11-06
 
 ### Added
