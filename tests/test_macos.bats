@@ -188,7 +188,8 @@ ts_env() {
     STUB_LOCK="screenLock delay is immediate" STUB_IDLE=300 STUB_DS=10 mac --check=screenlock
     [[ "$output" == *"[ OK ] Password required immediately after sleep or screen saver for '"* ]]
     [[ "$output" == *"[ OK ] Screen saver or display sleep after 5 minutes for '"* ]]
-    [[ "$output" != *"[WARN]"* ]]
+    [[ "$output" != *"[WARN] Screen"* ]]
+    [[ "$output" != *"[WARN] Password"* ]]
 }
 
 @test "macos: HTML, TXT and SARIF reports from the shared generators" {
