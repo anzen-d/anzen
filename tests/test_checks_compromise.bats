@@ -69,3 +69,32 @@ teardown() { rm -f "$FINDINGS_FILE" "${FINDINGS_FILE}.tmp"; }
     ANZEN_LD_SO_PRELOAD="$T/preload" ANZEN_PROC="$T/proc" run_compromise_check
     ! grep -qE $'^(FAIL|WARN)\t' "$FINDINGS_FILE"
 }
+
+@test "compromise: connection to a known malware server and loader files" {
+    printf 'ip\t203.0.113.66\ttest-2026\texfiltration server\thttps://example.com/a\n' > "$T/ioc.tsv"
+    mkdir -p "$T/src/app/.claude" "$T/src/site/.vscode" "$T/src/ok/.vscode" "$T/src/app/node_modules/.vscode"
+    echo 'evil()' > "$T/src/app/.claude/setup.mjs"
+    printf 'sha256\t%s\ttest-2026\tsetup.mjs (loader)\thttps://example.com/a\n' \
+        "$(sha256sum "$T/src/app/.claude/setup.mjs" | cut -d' ' -f1)" >> "$T/ioc.tsv"
+    echo 'other()' > "$T/src/site/.vscode/setup.mjs"
+    echo '{"tasks":[{"command":"node .vscode/setup.mjs","runOptions":{"runOn":"folderOpen"}}]}' > "$T/src/site/.vscode/tasks.json"
+    echo 'mine()' > "$T/src/ok/.vscode/setup.mjs"          # nothing starts it
+    echo 'evil()' > "$T/src/app/node_modules/.vscode/setup.mjs"   # pruned
+    # shellcheck disable=SC2329
+    ss() { printf '0 0 192.0.2.10:44321 203.0.113.66:8080\n0 0 [::ffff:192.0.2.10]:5000 [::ffff:198.51.100.3]:443\n'; }
+    ANZEN_IOC_FILE="$T/ioc.tsv" IOC_SCAN_DIRS="$T/src" _compromise_ioc_check
+    grep -q $'^FAIL\t.*Connection to a known malware server: 203.0.113.66 (test-2026, exfiltration server)' "$FINDINGS_FILE"
+    grep -q $'^FAIL\t.*Known malware file: .*/src/app/.claude/setup.mjs (test-2026, setup.mjs (loader))' "$FINDINGS_FILE"
+    grep -q $'^WARN\t.*Editor settings start a setup.mjs loader.*/src/site/.vscode/tasks.json' "$FINDINGS_FILE"
+    [ "$(grep -c 'setup.mjs' "$FINDINGS_FILE")" -eq 2 ]
+}
+
+@test "compromise: clean host has no supply-chain indicators; shipped ioc.tsv is well-formed" {
+    mkdir -p "$T/clean"
+    # shellcheck disable=SC2329
+    ss() { echo "0 0 192.0.2.10:44321 198.51.100.3:443"; }
+    IOC_SCAN_DIRS="$T/clean" _compromise_ioc_check
+    grep -q $'^OK\t.*No known malware servers or loader files' "$FINDINGS_FILE"
+    ! grep -vE '^(#|$)' "$ANZEN_DIR/lib/data/ioc.tsv" \
+        | grep -vE $'^(ip\t[0-9a-f.:]+|sha256\t[0-9a-f]{64})\t[a-z0-9-]+\t[^\t]+\thttps://[^\t]+$'
+}

@@ -24,6 +24,9 @@ Small, self-contained, no deep knowledge of the codebase needed.
 - **Distrusted certificates** — when a CA is compromised or distrusted, add its
   fingerprints to `lib/data/distrusted-certs.tsv` (one line per certificate,
   with a reference link).
+- **Indicators of compromise** — when a supply-chain worm or stealer campaign
+  is published, add its servers and file hashes to `lib/data/ioc.tsv` (one
+  line per indicator, with a reference link).
 - **Docs** — clearer explanations of why a finding matters, translations of
   the README.
 

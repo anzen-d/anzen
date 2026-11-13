@@ -6,6 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-13
+
+Checks for the security events of 2026, on the Linux edition.
+
+### Added
+- `ssh`: SSHole (CVE-2026-123158, November 2026) — sshd on musl libc that
+  checks passwords without PAM (Alpine and others) accepts an over-long
+  password for accounts whose password field is `*`. FAIL when the installed
+  OpenSSH lacks the fix (10.6p2, or the fixed Alpine package of each branch)
+  and the accounts make it exploitable, WARN or INFO when it is not reachable
+  today. Also a FAIL when the auth log shows a password login for an account
+  that has no password — a sign of past exploitation, reported even after
+  the update.
+- `modules`: kernel modules behind the 2026 page-cache root exploits — Copy
+  Fail (`algif_aead`), Dirty Frag and Fragnesia (`esp4`, `esp6`, `rxrpc`) —
+  that any user can still load on demand. Loaded modules, built-in ones and
+  hosts with IPsec tools are left out; only an `install` override counts as
+  blocked (a `blacklist` line does not stop on-demand loading).
+- `compromise`: supply-chain indicators from the new `lib/data/ioc.tsv` —
+  established connections to known malware servers (wfx-loot exfiltration
+  servers), and the `setup.mjs` loader the ChainDrop npm worm plants next to
+  `.claude/settings.json` and `.vscode/tasks.json` in project folders (FAIL
+  on a known hash, WARN when the settings start an unknown `setup.mjs`).
+  Folders: `IOC_SCAN_DIRS` (default `/home /root /srv /opt /var/www`).
+- `docker_security`: Docker Engine older than 29.3.1 with an authorization
+  plugin (CVE-2026-34040: an oversized API request skips the plugin).
+
 ## [0.27.0] - 2026-11-10
 
 ### Added

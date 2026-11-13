@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 The Anzen contributors
+# Indicators of compromise from public incident reports, used by the
+# compromise module (Linux). One indicator per line, tab-separated:
+#   TYPE  VALUE  INCIDENT  NAME  REFERENCE
+# TYPE is "ip" (server the malware talks to; matched against established
+# connections) or "sha256" (file hash; matched against loader files found in
+# project folders). Add new incidents at the end, with a reference link.
+#
+# ── ChainDrop, August 2026: self-propagating npm/PyPI worm (Mini Shai-Hulud
+# variant). Its loader setup.mjs is started by an npm preinstall hook and by
+# injected .claude/settings.json and .vscode/tasks.json files in repositories.
+sha256	54dc7ea54a1317cca0e890a2770630cf7fa6c97813e0cb9d2caa93012b350668	chaindrop-2026	setup.mjs (npm preinstall loader)	https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+sha256	fd3ca4007b225fdf8de7af4345a19179d5efa8c4bb9205f88cda806e5684b1eb	chaindrop-2026	setup.mjs (.claude / .vscode repository loader)	https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+sha256	9fc2570b7cef51c1b8df116d144d11ff4096357be7d2c4c6367cfc2509cf1bcc	chaindrop-2026	Math_*.js (payload)	https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+# ── wfx-loot, November 2026: CI secret stealer pushed through hijacked GitHub
+# accounts (workflows, shell scripts, npm postinstall hooks).
+ip	194.150.166.244	wfx-loot-2026	exfiltration server	https://www.ox.security/blog/thousands-of-github-accounts-hijacked-with-wfx-loot-ci-secret-stealing-malware-via-github-actions-npm/
+ip	18.143.168.96	wfx-loot-2026	exfiltration server	https://www.ox.security/blog/thousands-of-github-accounts-hijacked-with-wfx-loot-ci-secret-stealing-malware-via-github-actions-npm/
+sha256	89695abb392d5cfd4972672961e644bb46baa98aa1ed7173c2a2816c762735cf	wfx-loot-2026	stealer shell script	https://www.ox.security/blog/thousands-of-github-accounts-hijacked-with-wfx-loot-ci-secret-stealing-malware-via-github-actions-npm/

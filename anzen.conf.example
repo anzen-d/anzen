@@ -129,6 +129,11 @@
 # Dirs the host scan skips. Adding /home skips dev checkouts (slow, noisy):
 # CVE_SKIP_DIRS="/proc /sys /dev /run /tmp /var/tmp /var/lib/docker /var/lib/containerd /var/lib/containers /snap /home"
 
+# ── Indicators of compromise ─────────────────────────────────────────────────
+# Project folders searched for supply-chain worm loader files (lib/data/ioc.tsv)
+# IOC_SCAN_DIRS="/home /root /srv /opt /var/www"
+# IOC_SCAN_TIMEOUT=120             # seconds
+
 # ── Custom checks ─────────────────────────────────────────────────────────────
 # Site-specific modules kept outside the anzen tree: <name>.sh defining
 # run_<name>_check, using section/ok/warn/fail/info/remedy like built-in checks.

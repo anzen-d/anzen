@@ -35,6 +35,17 @@ _oci_daemon_checks() {
             info "No /etc/docker/daemon.json found"
         fi
 
+        # CVE-2026-34040: an oversized API request body reaches the daemon
+        # without the authorization plugin seeing it (fixed in 29.3.1)
+        local authz dver
+        authz=$(docker info --format '{{join .Plugins.Authorization " "}}' 2>/dev/null)
+        dver=$(docker version --format '{{.Server.Version}}' 2>/dev/null)
+        if [ -n "$authz" ] && [[ "$dver" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]] \
+           && [ "$(printf '%s\n' "${BASH_REMATCH[0]}" 29.3.1 | sort -V | head -1)" != "29.3.1" ]; then
+            warn "Docker Engine older than 29.3.1 with an authorization plugin: an oversized API request skips the plugin (CVE-2026-34040)"
+            remedy "# installed: $(_q "$dver"), plugin(s): $(_q "$authz") — update Docker Engine to 29.3.1 or later (a distribution package may carry the fix under an older number)"
+        fi
+
         [ "${DOCKER_CONTENT_TRUST:-0}" = "1" ] \
             && ok "DOCKER_CONTENT_TRUST=1  [CIS 4.5]" \
             || { warn "DOCKER_CONTENT_TRUST not set  [CIS 4.5]"

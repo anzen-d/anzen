@@ -110,3 +110,73 @@ _check() {
         else [[ "$line" == *"echo 'AllowUsers alice'"* ]]; fi
     done
 }
+
+# ── SSHole (CVE-2026-123158) ──────────────────────────────────────────────────
+# _sshole PKGVER "sshd -T lines" "shadow lines" — musl sshd with an Alpine package
+_sshole() {
+    APKVER=$1 SSHD_T=$2
+    printf '%s\n' "$3" > "$BATS_TEST_TMPDIR/shadow"
+    : > "$BATS_TEST_TMPDIR/log"
+    [ -n "${4:-}" ] && printf '%s\n' "$4" > "$BATS_TEST_TMPDIR/log"
+    # shellcheck disable=SC2329
+    sshd() { printf '%s\n' "$SSHD_T"; }
+    # shellcheck disable=SC2329
+    ldd() { echo "	/lib/ld-musl-x86_64.so.1 (0x7e53e7187000)"; }
+    # shellcheck disable=SC2329
+    apk() {
+        case "$1 $2" in
+            "info -e") [ "$4" = openssh-server ] && echo "openssh-server-$APKVER" ;;
+            "version -t") [ "$(printf '%s\n' "$3" "$4" | sort -V | head -1)" = "$3" ] && [ "$3" != "$4" ] && echo "<" || echo ">" ;;
+        esac
+    }
+    _priv() { "$@"; }
+    _SSHD_T_CACHE=""
+    section "SSH Configuration" > /dev/null
+    ANZEN_SHADOW="$BATS_TEST_TMPDIR/shadow" ANZEN_AUTH_LOGS="$BATS_TEST_TMPDIR/log" _ssh_sshole_check
+}
+
+@test "ssh: SSHole is a FAIL on an unfixed musl sshd with a passwordless and a hashed account" {
+    _sshole 10.0_p1-r10 "passwordauthentication yes" $'root:*::0:::::\nalice:$6$salt$hash:1::::::\nbob:!:1::::::'
+    grep -q $'^FAIL\tSSH Configuration\tOpenSSH password bypass SSHole (CVE-2026-123158).*no password set (1)' "$FINDINGS_FILE"
+    grep -q 'apk upgrade -U openssh && rc-service sshd restart' "$FINDINGS_FILE"
+}
+
+@test "ssh: SSHole fixed package, PAM, password logins off and harmless accounts are not a FAIL" {
+    _sshole 10.0_p1-r11 "passwordauthentication yes" $'root:*::0:::::\nalice:$6$salt$hash:1::::::'
+    grep -q $'^OK\t.*OpenSSH has the SSHole fix' "$FINDINGS_FILE"
+    : > "$FINDINGS_FILE"
+    _sshole 10.0_p1-r10 $'usepam yes\npasswordauthentication yes' $'root:*::0:::::\nalice:$6$salt$hash:1::::::'
+    [ ! -s "$FINDINGS_FILE" ]
+    _sshole 10.0_p1-r10 "passwordauthentication no" $'root:*::0:::::\nalice:$6$salt$hash:1::::::'
+    grep -q $'^INFO\t.*lacks the SSHole fix.*PasswordAuthentication is off' "$FINDINGS_FILE"
+    : > "$FINDINGS_FILE"
+    # Locked with "!" only, no "*" account
+    _sshole 9.7_p1-r5 "passwordauthentication yes" $'root:!::0:::::\nalice:$6$salt$hash:1::::::'
+    grep -q $'^WARN\t.*lacks the SSHole fix.*not exploitable with the current accounts' "$FINDINGS_FILE"
+    ! grep -q "^FAIL" "$FINDINGS_FILE"
+}
+
+@test "ssh: SSHole exploitation sign in the auth log is a FAIL even after the fix" {
+    _sshole 10.0_p1-r11 "passwordauthentication yes" $'root:*::0:::::\nalice:$6$salt$hash:1::::::' \
+        $'Nov  6 03:12:01 box auth.info sshd-session[4242]: Accepted password for root from 203.0.113.7 port 51234 ssh2\nNov  6 03:13:01 box auth.info sshd-session[4250]: Accepted password for alice from 203.0.113.7 port 51240 ssh2'
+    grep -q $'^FAIL\t.*Password login accepted for accounts that have no password (1)' "$FINDINGS_FILE"
+    grep -q 'accounts: root —' "$FINDINGS_FILE"
+}
+
+@test "ssh: SSHole on musl without apk compares the upstream version; glibc is skipped" {
+    printf 'root:*::0:::::\nalice:$6$salt$hash:1::::::\n' > "$BATS_TEST_TMPDIR/shadow"
+    # shellcheck disable=SC2329
+    sshd() { [ "$1" = "-V" ] && echo "OpenSSH_${SSHV}, OpenSSL 3.5.9" >&2; echo "passwordauthentication yes"; }
+    # shellcheck disable=SC2329
+    ldd() { echo "	/lib/ld-musl-aarch64.so.1 (0x1)"; }
+    _priv() { "$@"; }
+    command -v apk && skip "apk on this machine"
+    _go() { : > "$FINDINGS_FILE"; _SSHD_T_CACHE=""; ANZEN_SHADOW="$BATS_TEST_TMPDIR/shadow" ANZEN_AUTH_LOGS=/nonexistent _ssh_sshole_check; }
+    SSHV=10.6p1 _go; grep -q "^FAIL" "$FINDINGS_FILE"
+    SSHV=9.9p2  _go; grep -q "^FAIL" "$FINDINGS_FILE"
+    SSHV=10.6p2 _go; grep -q "^OK" "$FINDINGS_FILE"
+    SSHV=11.0p1 _go; grep -q "^OK" "$FINDINGS_FILE"
+    # shellcheck disable=SC2329
+    ldd() { echo "	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x1)"; }
+    SSHV=9.6p1 _go; [ ! -s "$FINDINGS_FILE" ]
+}

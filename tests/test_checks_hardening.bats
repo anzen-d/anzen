@@ -317,3 +317,41 @@ _services() {
     grep -q "^WARN	.*without a Subject Alternative Name: nosan" "$FINDINGS_FILE"
     ! grep -qE "withsan|theca" "$FINDINGS_FILE"
 }
+
+# ── modules: on-demand modules behind Copy Fail / Dirty Frag / Fragnesia ─────
+_ondemand() {
+    # shellcheck disable=SC1091
+    source "$ANZEN_DIR/lib/checks/modules.sh"
+    mkdir -p "$T/proc" "$T/modprobe.d"
+    printf '%s\n' "$1" > "$T/proc/modules"
+    # shellcheck disable=SC2329
+    modinfo() {
+        case $3 in
+            algif_aead|esp4|rxrpc) echo "/lib/modules/6.8.0/kernel/x/$3.ko.zst" ;;
+            esp6) echo "(builtin)" ;;
+            *) return 1 ;;
+        esac
+    }
+    # shellcheck disable=SC2329
+    _sysctl() { echo "${MODDIS:-0}"; }
+    section "Kernel Modules" > /dev/null
+    ANZEN_PROC="$T/proc" ANZEN_MODPROBE_DIRS="$T/modprobe.d" _modules_ondemand_check
+}
+
+@test "modules: unblocked on-demand exploit modules are a WARN; loaded and built-in ones are left out" {
+    mkdir -p "$T/modprobe.d"
+    echo "blacklist rxrpc" > "$T/modprobe.d/bl.conf"      # blacklist does not stop on-demand loading
+    _ondemand "esp4 16384 0 - Live 0x0"
+    grep -q $'^WARN\tKernel Modules\t.*load on demand for any user: algif_aead rxrpc\t' "$FINDINGS_FILE"
+    grep -q 'echo "install algif_aead /bin/false" >> /etc/modprobe.d/anzen-blacklist.conf; echo "install rxrpc /bin/false"' "$FINDINGS_FILE"
+}
+
+@test "modules: install overrides or modules_disabled make the on-demand check quiet" {
+    mkdir -p "$T/modprobe.d"
+    printf 'install algif-aead /bin/false\ninstall esp4 /bin/false\n  install rxrpc /bin/true\n' > "$T/modprobe.d/x.conf"
+    _ondemand ""
+    grep -q $'^OK\t.*page-cache root exploits are blocked' "$FINDINGS_FILE"
+    : > "$FINDINGS_FILE"; rm "$T/modprobe.d/x.conf"
+    MODDIS=1 _ondemand ""
+    [ ! -s "$FINDINGS_FILE" ]
+}

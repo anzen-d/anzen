@@ -3,6 +3,39 @@
 # Copyright (C) 2026 The Anzen contributors
 # checks/modules.sh — Kernel module security
 
+# Modules behind the 2026 page-cache root exploits: Copy Fail (CVE-2026-31431,
+# algif_aead), Dirty Frag (CVE-2026-43284 esp4/esp6, CVE-2026-43500 rxrpc) and
+# Fragnesia (CVE-2026-46300, esp4/esp6). The kernel loads them on demand for
+# an unprivileged user; hosts that do not use AF_ALG AEAD, AFS or IPsec lose
+# nothing by blocking them, patched kernel or not. A "blacklist" line does not
+# stop on-demand loading by name, only an "install" override does.
+_modules_ondemand_check() {
+    local proc="${ANZEN_PROC:-/proc}" dirs="${ANZEN_MODPROBE_DIRS:-/etc/modprobe.d /run/modprobe.d /usr/lib/modprobe.d /lib/modprobe.d}"
+    command -v modinfo &>/dev/null || return 0
+    [ -f /.dockerenv ] || [ -f /run/.containerenv ] && [ -z "${ANZEN_PROC:-}" ] && return 0
+    [ "$(_sysctl kernel.modules_disabled 2>/dev/null)" = "1" ] && return 0
+    local ipsec=false c
+    for c in swanctl ipsec charon strongswan pluto; do command -v "$c" &>/dev/null && ipsec=true; done
+
+    local m open=() pat file
+    # shellcheck disable=SC2086
+    for m in algif_aead esp4 esp6 rxrpc; do
+        case $m in esp*) [ "$ipsec" = true ] && continue ;; esac
+        grep -q "^$m " "$proc/modules" 2>/dev/null && continue       # in use
+        file=$(modinfo -F filename "$m" 2>/dev/null) || continue      # not built
+        case $file in /*) ;; *) continue ;; esac                      # built in: cannot be blocked
+        pat="^[[:space:]]*install[[:space:]]+${m//_/[_-]}[[:space:]]"
+        grep -rqsE "$pat" $dirs 2>/dev/null && continue
+        open+=("$m")
+    done
+    if [ "${#open[@]}" -gt 0 ]; then
+        warn "Kernel modules behind the 2026 page-cache root exploits (Copy Fail, Dirty Frag, Fragnesia) load on demand for any user: ${open[*]}"
+        remedy "$(printf 'echo "install %s /bin/false" >> /etc/modprobe.d/anzen-blacklist.conf; ' "${open[@]}")# unused here; skip esp4/esp6 if you plan IPsec, rxrpc for AFS. Keep the kernel updated either way"
+    else
+        ok "Modules behind the 2026 page-cache root exploits are blocked, in use or not loadable"
+    fi
+}
+
 run_modules_check() {
     section "Kernel Modules"
 
@@ -92,6 +125,8 @@ run_modules_check() {
     else
         ok "Uncommon network protocol modules blacklisted"
     fi
+
+    _modules_ondemand_check
 
     # Check kernel module signing
     local signing_pol

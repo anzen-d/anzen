@@ -8,7 +8,7 @@
 | System Info | `system` | Hostname, OS, kernel, arch, uptime, CPU/memory/disk usage, public IP, running service count |
 | Inventory | `inventory` | INFO only: hardware vendor/model and serial (root), virtualization, CPU, memory, package database age and package count, sudo/wheel/admin members, dm-crypt/LUKS volumes, Secure Boot / firmware |
 | Users & Accounts | `users` | Passwordless sudo (`NOPASSWD`), UID 0 accounts, empty passwords, world-writable home dirs, password aging policy, PAM lockout config, sudo logging |
-| SSH Hardening | `ssh` | `PermitRootLogin`, `PasswordAuthentication`, port, `MaxAuthTries`, `X11Forwarding`, `AllowTcpForwarding`, `PermitTunnel`, `GatewayPorts`, `PermitUserEnvironment`, `HostbasedAuthentication`, `IgnoreRhosts`, `AllowAgentForwarding` (INFO), `ClientAliveInterval`, `LoginGraceTime`, `AllowUsers`/`AllowGroups`, ciphers/MACs/KexAlgorithms, `authorized_keys` permissions |
+| SSH Hardening | `ssh` | `PermitRootLogin`, `PasswordAuthentication`, port, `MaxAuthTries`, `X11Forwarding`, `AllowTcpForwarding`, `PermitTunnel`, `GatewayPorts`, `PermitUserEnvironment`, `HostbasedAuthentication`, `IgnoreRhosts`, `AllowAgentForwarding` (INFO), `ClientAliveInterval`, `LoginGraceTime`, `AllowUsers`/`AllowGroups`, ciphers/MACs/KexAlgorithms, `authorized_keys` permissions, SSHole password bypass on musl without PAM (CVE-2026-123158) and its trace in the auth log |
 | Firewall & Ports | `network` | UFW/firewalld/nftables/iptables status, high-risk open ports (IPv4 + IPv6), RPC portmapper |
 | Advanced Network | `network2` | Promiscuous interfaces, IPv6 privacy extensions, tunnel/VPN interfaces |
 | Package Updates | `packages` | Pending security/package updates, package list staleness, unattended-upgrades daemon |
@@ -18,17 +18,17 @@
 | TLS Certificates | `tls` | Certificate expiry (files + live ports), RSA keys < 2048 bits, SHA-1/MD5 signatures, CA-issued certificates without a Subject Alternative Name, TLSv1.0 on live ports |
 | Compilers & Tools | `compiler` | Compiler/build tools present, offensive security tools (nmap, metasploit, etc.), packet capture tools |
 | PATH Security | `path_check` | Empty/relative PATH entries, `.` in PATH, world-writable PATH dirs, `LD_PRELOAD` set, potential PATH injection in shell configs |
-| Kernel Modules | `modules` | `modules_disabled` sysctl, risky loaded modules, module blacklist entries, `usb-storage` |
+| Kernel Modules | `modules` | `modules_disabled` sysctl, risky loaded modules, module blacklist entries, `usb-storage`, on-demand modules behind Copy Fail / Dirty Frag / Fragnesia (`algif_aead`, `esp4`, `esp6`, `rxrpc`) without an `install` override |
 | Services | `services` | Docker group membership, privileged/host-network containers, fail2ban/CrowdSec, exposed databases, Redis without a password, Memcached (TCP and UDP amplification), MongoDB, Elasticsearch / CouchDB / etcd / Solr / ZooKeeper / Kafka answering over HTTP without authentication and RabbitMQ accepting the default guest login (local probe), Samba/SMB |
 | Login History | `logins` | Root crontab contents, cron file permissions, recent/failed login history, account password expiry |
 | Kernel Hardening | `kernel` | ASLR, SYN cookies, IP forwarding, ICMP redirects, source routing, martian packet logging, core dumps, unprivileged eBPF, Yama `ptrace_scope`, `dev.tty.ldisc_autoload`, `kexec_load_disabled` (INFO), AppArmor/SELinux status |
 | Audit Daemon | `auditd` | auditd running + rules loaded, NTP/time sync, TCP wrappers, rkhunter/chkrootkit |
-| Container Security | `docker_security` | Docker, Podman, nerdctl, LXD, LXC, Kubernetes: privileged containers, root user, host network/PID/IPC, dangerous added capabilities, seccomp/AppArmor disabled, sensitive mounts (Docker socket), memory limits, **secrets in environment variables** (names only), **ports published past ufw/firewalld** |
+| Container Security | `docker_security` | Docker, Podman, nerdctl, LXD, LXC, Kubernetes: privileged containers, root user, host network/PID/IPC, dangerous added capabilities, seccomp/AppArmor disabled, sensitive mounts (Docker socket), memory limits, **secrets in environment variables** (names only), **ports published past ufw/firewalld**, authorization plugin on a Docker Engine older than 29.3.1 (CVE-2026-34040) |
 | Container Images | `images` | Running images: age, `:latest`/untagged, containers not recreated after a pull, newer digest upstream |
 | Trust stores | `truststore` | Distrusted / compromised CA certificates in system bundles, Java `cacerts`, Python `certifi`, local anchors and running containers |
 | Vulnerabilities | `cve` | Known CVEs in host packages and running container images (needs trivy), actively exploited ones (CISA KEV) first |
 | Changes since last run | `drift` | New accounts, UID 0 accounts, SSH keys, cron files, systemd units, sudoers files, SUID binaries, listening ports and `ld.so.preload` since the previous full run — see [Drift](#drift) |
-| Indicators of compromise | `compromise` | `/etc/ld.so.preload`, processes running from `/tmp`/`/dev/shm` or from memory, cryptominers and mining-pool connections, kernel modules without a file on disk |
+| Indicators of compromise | `compromise` | `/etc/ld.so.preload`, processes running from `/tmp`/`/dev/shm` or from memory, cryptominers and mining-pool connections, kernel modules without a file on disk, connections to known malware servers and supply-chain worm loader files (`lib/data/ioc.tsv`) |
 | Local Pentest | `pentest` | Active self-pentest: port scan, service banner grabbing, local HTTP sensitive path enumeration, HTTP security headers |
 | External Pentest | `pentest_external` | Active pentest of a remote endpoint (requires `--target`): DNS recon, port scan with service fingerprinting, TLS/SSL analysis, HTTP security headers, content-aware sensitive path enumeration, CORS, HTTP methods, open redirect, clickjacking, information disclosure |
 

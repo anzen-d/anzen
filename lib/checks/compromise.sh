@@ -11,6 +11,60 @@
 _IOC_MINERS='^(xmrig|xmr-stak|kdevtmpfsi|kinsing|minerd|cpuminer|nbminer|t-rex|lolminer|phoenixminer|ethminer|xmrig-notls)$'
 _IOC_POOL_PORTS=' 3333 4444 5555 7777 14433 14444 45560 45700 '
 
+# Known-bad servers and files from lib/data/ioc.tsv (supply-chain worms).
+# Connections: every established TCP peer against the "ip" lines. Files: the
+# loader the ChainDrop worm plants next to editor/agent settings
+# (.claude/setup.mjs, .vscode/setup.mjs) in project folders under IOC_SCAN_DIRS.
+_compromise_ioc_check() {
+    local data="${ANZEN_IOC_FILE:-$ANZEN_DIR/lib/data/ioc.tsv}" hits=0
+    [ -r "$data" ] || return 0
+    local type value incident name _ref
+
+    if command -v ss &>/dev/null; then
+        local peers
+        # Peer column of "ss state established", without port, brackets, v4-mapped prefix
+        peers=$(ss -Htn state established 2>/dev/null | awk '{ print $4 }' \
+                | sed -E 's/:[0-9]+$//; s/^\[//; s/\]$//; s/^::ffff://' | sort -u)
+        while IFS=$'\t' read -r type value incident name _ref; do
+            [ "$type" = "ip" ] || continue
+            grep -qxF "$value" <<< "$peers" || continue
+            fail "Connection to a known malware server: $value ($incident, $name)"
+            remedy "ss -tnp state established | grep -F $(_q "$value")  # find the process, isolate the host, rotate every credential it could read"
+            hits=$((hits + 1))
+        done < "$data"
+    fi
+
+    local dirs="${IOC_SCAN_DIRS:-/home /root /srv /opt /var/www}" roots=() d f sum cfg
+    for d in $dirs; do [ -d "$d" ] && roots+=("$d"); done
+    if [ "${#roots[@]}" -gt 0 ] && command -v sha256sum &>/dev/null; then
+        while IFS= read -r f; do
+            sum=$(sha256sum "$f" 2>/dev/null | cut -d' ' -f1)
+            incident=$(awk -F'\t' -v h="$sum" '$1 == "sha256" && $2 == h { print $3 ", " $4; exit }' "$data")
+            if [ -n "$incident" ]; then
+                fail "Known malware file: $f ($incident)"
+                remedy "# do not open the project in an editor or agent; delete $(_q "${f%/*}")/setup.mjs and the hook that starts it, rotate npm/GitHub/cloud credentials used on this host"
+                hits=$((hits + 1))
+                continue
+            fi
+            # Unknown hash: only suspicious when the settings next to it start it
+            cfg=""
+            case $f in
+                */.claude/setup.mjs) cfg="${f%/*}/settings.json" ;;
+                */.vscode/setup.mjs) cfg="${f%/*}/tasks.json" ;;
+            esac
+            if [ -n "$cfg" ] && grep -qs 'setup\.mjs' "$cfg"; then
+                warn "Editor settings start a setup.mjs loader, as the ChainDrop worm does: $cfg"
+                remedy "# read $(_q "$f") and $(_q "$cfg"); if you did not write them, treat the project and its credentials as compromised"
+                hits=$((hits + 1))
+            fi
+        done < <(timeout "${IOC_SCAN_TIMEOUT:-120}" find "${roots[@]}" -xdev -maxdepth 8 \
+                    \( -name node_modules -o -name .git -o -name proc \) -prune -o \
+                    -type f -name setup.mjs \( -path '*/.claude/*' -o -path '*/.vscode/*' \) -print 2>/dev/null)
+    fi
+    [ "$hits" -eq 0 ] && ok "No known malware servers or loader files (supply-chain indicators)"
+    return 0
+}
+
 run_compromise_check() {
     section "Indicators of Compromise"
     # Overridable for tests
@@ -25,6 +79,8 @@ run_compromise_check() {
     else
         ok "No libraries preloaded via $preload"
     fi
+
+    _compromise_ioc_check
 
     if [ "$EUID" -ne 0 ] && [ -z "${ANZEN_PROC:-}" ]; then
         info "Process checks need root — skipped"

@@ -42,6 +42,7 @@ cp anzen.conf.example anzen.conf
 | `NOTIFY_ON_FAIL_ONLY` | `false` | Legacy: `true` is the same as `NOTIFY_ON=fail` |
 | `NOTIFY_NTFY_TOKEN` | — | Bearer token for the ntfy topic |
 | `HEARTBEAT_URL` | — | Fetched after every run (dead-man switch) |
+| `IOC_SCAN_DIRS` | `/home /root /srv /opt /var/www` | Project folders the `compromise` module searches for supply-chain worm loader files (`IOC_SCAN_TIMEOUT`, default 120 seconds) |
 | `CUSTOM_CHECKS_DIR` | — | Directory of site-specific check modules |
 | `PLUGINS` | — | [Plugins](../plugins/README.md) to enable by name, e.g. `"backup_age cert_expiry"` |
 

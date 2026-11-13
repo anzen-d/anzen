@@ -54,3 +54,22 @@ teardown() { rm -f "$FINDINGS_FILE" "${FINDINGS_FILE}.tmp"; }
     _oci_container_checks docker >/dev/null
     grep -q $'^WARN\t.*web publishes 8080/tcp on all interfaces — Docker.s rules bypass ufw' "$FINDINGS_FILE"
 }
+
+@test "docker: authorization plugin on an Engine older than 29.3.1 is a WARN (CVE-2026-34040)" {
+    # shellcheck disable=SC2329
+    docker() {
+        case "$1" in
+            info) echo "$AUTHZ" ;;
+            version) echo "$DVER" ;;
+        esac
+    }
+    AUTHZ="opa-docker-authz" DVER="28.5.2" _oci_daemon_checks docker >/dev/null
+    grep -q $'^WARN\t.*Docker Engine older than 29.3.1 with an authorization plugin.*CVE-2026-34040' "$FINDINGS_FILE"
+    : > "$FINDINGS_FILE"
+    AUTHZ="opa-docker-authz" DVER="29.3.1" _oci_daemon_checks docker >/dev/null
+    ! grep -q "CVE-2026-34040" "$FINDINGS_FILE"
+    AUTHZ="" DVER="27.0.3-0ubuntu1" _oci_daemon_checks docker >/dev/null
+    ! grep -q "CVE-2026-34040" "$FINDINGS_FILE"
+    AUTHZ="opa-docker-authz" DVER="30.0.0" _oci_daemon_checks docker >/dev/null
+    ! grep -q "CVE-2026-34040" "$FINDINGS_FILE"
+}
