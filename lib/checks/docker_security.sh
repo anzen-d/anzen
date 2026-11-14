@@ -24,6 +24,7 @@ run_docker_security_check() {
         info "Runtime detected: $rt"
         _oci_daemon_checks  "$rt"
         _oci_container_checks "$rt"
+        _oci_sshole_checks "$rt"
     done
 
     # ── LXD ───────────────────────────────────────────────────────────────────

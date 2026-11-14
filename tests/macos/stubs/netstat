@@ -6,3 +6,5 @@ tcp4       0      0  *.22                   *.*                    LISTEN
 tcp4       0      0  *.5900                 *.*                    LISTEN
 tcp4       0      0  127.0.0.1.631          *.*                    LISTEN
 OUT
+[ -n "${STUB_PEER:-}" ] && printf 'tcp4       0      0  192.0.2.10.52344       %s        ESTABLISHED\n' "$STUB_PEER"
+exit 0

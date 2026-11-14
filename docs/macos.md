@@ -36,6 +36,7 @@ checks were limited.
 | `extensions` | Third-party kernel extensions loaded (WARN), active system extensions (INFO) |
 | `profiles` | Inventory: MDM enrollment, configuration profiles (as root), Find My Mac, Lockdown Mode |
 | `truststore` | [Distrusted CA certificates](modules.md#trust-stores) (same list as Linux and Windows). **Keychains:** Apple blocks the compromised chain in TLS trust evaluation (Safari, `URLSession`, `nscurl`) while the root stays in `SystemRootCertificates.keychain`. No local command shows that block (`security verify-cert` still reports the root as trusted), so a match there is INFO. A listed certificate that someone added to the System or login keychain is a FAIL. **`/etc/ssl/cert.pem`**, used by `curl`, `git` and `openssl`, does not get Apple's block, so a listed root there is a FAIL. The same goes for Homebrew's bundles, Python `certifi` and Java `cacerts` |
+| `compromise` | Supply-chain indicators (same list as Linux, `lib/data/ioc.tsv`): established connections to known malware servers, the ChainDrop `setup.mjs` loader in `.claude` / `.vscode` project folders under `/Users` |
 
 Options: `--check=MODULE`, `--json`, `--html`, `--txt`, `--sarif`, `--csv`, `--output=FILE`, `--history=DIR`,
 `--accept=FILE`, `--quiet`, `--no-color`, `--strict`, `--list`, `--version`.

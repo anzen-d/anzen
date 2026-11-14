@@ -113,6 +113,7 @@
 # DISTRUSTED_CERTS_FILE="/etc/anzen/distrusted-certs.tsv"
 # Also check the CA bundle inside every running container (docker cp, read-only)
 # TRUSTSTORE_SCAN_CONTAINERS=true
+# SSHOLE_SCAN_CONTAINERS=true      # SSHole (CVE-2026-123158) in containers running sshd
 
 # ── CVE scanning (cve module, needs trivy — https://trivy.dev) ────────────────
 # Scans host packages (OS + installed language packages) and every running

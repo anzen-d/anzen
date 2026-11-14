@@ -117,7 +117,7 @@ SH
         --remote=admin@win1 --check=defender --strict --quiet --no-color
     [ "$status" -eq 1 ]
     ls "$T"/hist/desktop-win11/*.json
-    cut -f1 "$T/stdin" | sort | tr '\n' ' ' | grep -qx 'lib/data/controls.tsv lib/data/distrusted-certs.tsv windows/anzen.accept windows/anzen.ps1 '
+    cut -f1 "$T/stdin" | sort | tr '\n' ' ' | grep -qx 'lib/data/controls.tsv lib/data/distrusted-certs.tsv lib/data/ioc.tsv windows/anzen.accept windows/anzen.ps1 '
     grep "^windows/anzen.accept	" "$T/stdin" | cut -f2 | base64 -d | grep -q containers-security-0123abcd
     grep -q '"-Check"; $a += "defender"' "$T/ps.log"
     grep -q 'if ("1" -eq "1") { $a += "-Strict" }' "$T/ps.log"

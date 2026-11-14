@@ -459,3 +459,48 @@ Describe 'Null sessions, WSUS and task scripts' {
         ($script:Findings | Where-Object message -like 'Updates come from WSUS over plain HTTP*').level | Should -Be 'FAIL'
     }
 }
+
+Describe 'Supply-chain indicators' {
+    BeforeAll {
+        if (-not (Get-Command Get-NetTCPConnection -ErrorAction SilentlyContinue)) { New-Item -Path 'function:global:Get-NetTCPConnection' -Value { } | Out-Null }
+    }
+    BeforeEach { Reset-Findings }
+    AfterEach { $env:ANZEN_IOC_FILE = $null; $env:ANZEN_IOC_SCAN_DIRS = $null }
+
+    It 'flags a malware server connection, a known loader and settings that start an unknown one' {
+        $root = Join-Path $TestDrive 'Users'
+        foreach ($d in 'a/app/.claude', 'a/site/.vscode', 'a/ok/.vscode', 'a/app/node_modules/.vscode') {
+            New-Item -ItemType Directory -Force -Path (Join-Path $root $d) | Out-Null
+        }
+        $evil = [IO.Path]::Combine($root, 'a', 'app', '.claude', 'setup.mjs')
+        [IO.File]::WriteAllText($evil, 'evil()')
+        [IO.File]::WriteAllText([IO.Path]::Combine($root, 'a', 'app', 'node_modules', '.vscode', 'setup.mjs'), 'evil()')
+        [IO.File]::WriteAllText([IO.Path]::Combine($root, 'a', 'site', '.vscode', 'setup.mjs'), 'other()')
+        $tasks = [IO.Path]::Combine($root, 'a', 'site', '.vscode', 'tasks.json')
+        [IO.File]::WriteAllText($tasks, '{"tasks":[{"command":"node .vscode/setup.mjs"}]}')
+        [IO.File]::WriteAllText([IO.Path]::Combine($root, 'a', 'ok', '.vscode', 'setup.mjs'), 'mine()')
+        $ioc = Join-Path $TestDrive 'ioc.tsv'
+        [IO.File]::WriteAllText($ioc, "# test`nip`t203.0.113.66`ttest-2026`texfiltration server`thttps://example.com/a`nsha256`t$(Get-FileSha256 $evil)`ttest-2026`tsetup.mjs (loader)`thttps://example.com/a`n")
+        $env:ANZEN_IOC_FILE = $ioc; $env:ANZEN_IOC_SCAN_DIRS = $root
+        Mock Get-NetTCPConnection { @(
+            [pscustomobject]@{ RemoteAddress = '198.51.100.3'; OwningProcess = 4 },
+            [pscustomobject]@{ RemoteAddress = '203.0.113.66'; OwningProcess = 4 }) }
+        Invoke-CompromiseCheck 6>$null
+        $f = $script:Findings
+        ($f | Where-Object message -eq 'Connection to a known malware server: 203.0.113.66 (test-2026, exfiltration server)').level | Should -Be 'FAIL'
+        ($f | Where-Object message -eq "Known malware file: $evil (test-2026, setup.mjs (loader))").level | Should -Be 'FAIL'
+        ($f | Where-Object message -eq "Editor settings start a setup.mjs loader, as the ChainDrop worm does: $tasks").level | Should -Be 'WARN'
+        @($f | Where-Object { $_.level -in 'FAIL', 'WARN' }).Count | Should -Be 3
+    }
+
+    It 'is quiet on a clean machine with the shipped list' {
+        $clean = Join-Path $TestDrive 'clean'
+        New-Item -ItemType Directory -Force -Path $clean | Out-Null
+        $env:ANZEN_IOC_SCAN_DIRS = $clean
+        Mock Get-NetTCPConnection { @([pscustomobject]@{ RemoteAddress = '198.51.100.3'; OwningProcess = 4 }) }
+        Invoke-CompromiseCheck 6>$null
+        ($script:Findings | Where-Object message -eq 'No known malware servers or loader files (supply-chain indicators)').level | Should -Be 'OK'
+        @($script:Findings | Where-Object { $_.level -in 'FAIL', 'WARN' }).Count | Should -Be 0
+    }
+}
+

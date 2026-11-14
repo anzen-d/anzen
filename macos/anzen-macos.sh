@@ -17,7 +17,7 @@
 
 set -u
 
-ANZEN_VERSION="0.28.0"
+ANZEN_VERSION="0.29.0"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 FAIL_PENALTY=10
@@ -33,8 +33,11 @@ XPROTECT_DIR="${ANZEN_XPROTECT_DIR:-/Library/Apple/System/Library/CoreServices}"
 # Unquoted on use: the /Users/* glob expands to every user's agents
 LAUNCHD_DIRS="${ANZEN_LAUNCHD_DIRS:-/Library/LaunchDaemons /Library/LaunchAgents /Users/*/Library/LaunchAgents}"
 ROOT_UID="${ANZEN_ROOT_UID:-0}"   # tests run as a normal user
+# Project folders searched for supply-chain worm loader files (lib/data/ioc.tsv)
+IOC_SCAN_DIRS="${ANZEN_IOC_SCAN_DIRS:-/Users}"
+IOC_FILE="${ANZEN_IOC_FILE:-$ROOT_DIR/lib/data/ioc.tsv}"
 
-MODULES="system inventory updates xprotect filevault sip gatekeeper firewall sharing accounts screenlock ssh launchd extensions profiles truststore"
+MODULES="system inventory updates xprotect filevault sip gatekeeper firewall sharing accounts screenlock ssh launchd extensions profiles truststore compromise"
 
 usage() {
     cat <<EOF
@@ -98,7 +101,7 @@ else
 fi
 
 FINDINGS=$(mktemp "${TMPDIR:-/tmp}/anzen-macos.XXXXXX")
-trap 'rm -f "$FINDINGS" "$FINDINGS.tmp"' EXIT
+trap 'rm -f "$FINDINGS" "$FINDINGS.tmp" "$FINDINGS.ioc"' EXIT
 SECTION="General"
 
 # ── Finding IDs (same scheme as lib/output.sh _finding_id) ───────────────────
@@ -178,6 +181,55 @@ IS_ROOT=false; [ "$(id -u)" -eq 0 ] && IS_ROOT=true
 _defaults() { defaults read "$1" "$2" 2>/dev/null; }
 
 # ── Checks ───────────────────────────────────────────────────────────────────
+
+# Supply-chain indicators from lib/data/ioc.tsv (shared with the Linux edition):
+# established connections to known malware servers, and the setup.mjs loader the
+# ChainDrop npm worm plants next to .claude/settings.json and .vscode/tasks.json
+_file_sha256() { if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" 2>/dev/null | cut -d' ' -f1; else sha256sum "$1" 2>/dev/null | cut -d' ' -f1; fi; }
+
+check_compromise() {
+    section "Indicators of Compromise"
+    if [ ! -f "$IOC_FILE" ]; then info "Indicator list not found"; return 0; fi
+    local hits=0 peers type value incident name ref f sum cfg d roots=""
+    info "Indicator list: $(grep -vcE '^[[:space:]]*(#|$)' "$IOC_FILE") entries"
+
+    # netstat prints the peer as address.port (IPv4 and IPv6)
+    peers=$(netstat -an -p tcp 2>/dev/null | awk '$NF == "ESTABLISHED" { sub(/\.[0-9]+$/, "", $5); print $5 }' | sort -u)
+    while IFS='	' read -r type value incident name ref; do
+        [ "$type" = "ip" ] || continue
+        printf '%s\n' "$peers" | grep -qxF "$value" || continue
+        fail "Connection to a known malware server: $value ($incident, $name)" "lsof -nP -iTCP@$value  # find the process, disconnect the Mac, rotate every credential it could read"
+        hits=$((hits + 1))
+    done < "$IOC_FILE"
+
+    # shellcheck disable=SC2086  # IOC_SCAN_DIRS is a space-separated list
+    for d in $IOC_SCAN_DIRS; do [ -d "$d" ] && roots="$roots $d"; done
+    if [ -n "$roots" ]; then
+        # shellcheck disable=SC2086
+        find $roots -maxdepth 8 \( -name node_modules -o -name .git -o -name Library \) -prune -o \
+            -type f -name setup.mjs \( -path '*/.claude/*' -o -path '*/.vscode/*' \) -print 2>/dev/null > "$FINDINGS.ioc"
+        while IFS= read -r f; do
+            sum=$(_file_sha256 "$f")
+            incident=$(awk -F'\t' -v h="$sum" '$1 == "sha256" && $2 == h { print $3 ", " $4; exit }' "$IOC_FILE")
+            if [ -n "$incident" ]; then
+                fail "Known malware file: $f ($incident)" "# do not open the project in an editor or agent; delete \"$f\" and the hook that starts it, rotate npm/GitHub/cloud credentials used on this Mac"
+                hits=$((hits + 1)); continue
+            fi
+            cfg=""
+            case $f in
+                */.claude/setup.mjs) cfg="${f%/*}/settings.json" ;;
+                */.vscode/setup.mjs) cfg="${f%/*}/tasks.json" ;;
+            esac
+            if [ -n "$cfg" ] && grep -qs 'setup\.mjs' "$cfg"; then
+                warn "Editor settings start a setup.mjs loader, as the ChainDrop worm does: $cfg" "# read \"$f\" and \"$cfg\"; if you did not write them, treat the project and its credentials as compromised"
+                hits=$((hits + 1))
+            fi
+        done < "$FINDINGS.ioc"
+        rm -f "$FINDINGS.ioc"
+    fi
+    [ "$hits" -eq 0 ] && ok "No known malware servers or loader files (supply-chain indicators)"
+    return 0
+}
 check_system() {
     section "System Information"
     info "macOS $(sw_vers -productVersion 2>/dev/null) (build $(sw_vers -buildVersion 2>/dev/null)) on $(uname -m)"

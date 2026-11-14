@@ -220,3 +220,22 @@ _oci_container_checks() {
     [ -n "$fw" ] && $docker_user && info "[$rt] DOCKER-USER chain has rules — make sure they cover the published ports"
     return 0
 }
+
+# SSHole (CVE-2026-123158) inside running containers: Alpine images are the
+# usual home of a musl sshd without PAM, and a patched host does not fix them.
+# Only containers with a running sshd are looked into (lib/checks/ssh.sh)
+_oci_sshole_checks() {
+    local rt=$1 cid cname n=0
+    [ "${SSHOLE_SCAN_CONTAINERS:-true}" = "true" ] || return 0
+    # shellcheck source=/dev/null
+    declare -F _ssh_sshole_check >/dev/null || source "$ANZEN_DIR/lib/checks/ssh.sh"
+    while IFS=' ' read -r cid cname; do
+        [ -z "$cid" ] && continue
+        "$rt" top "$cid" 2>/dev/null | grep -q 'sshd' || continue
+        n=$((n + 1))
+        _SSHOLE_RT=$rt _SSHOLE_CTR=$cid _ssh_sshole_check "$cname"
+    done < <("$rt" ps --format '{{.ID}} {{.Names}}' 2>/dev/null)
+    [ "$n" -gt 0 ] && info "[$rt] Containers running an SSH server: $n"
+    return 0
+}
+

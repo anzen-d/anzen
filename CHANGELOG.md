@@ -6,6 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-11-14
+
+### Added
+- macOS and Windows `compromise` (new module): the supply-chain indicators
+  of the Linux edition, from the same `lib/data/ioc.tsv` — an established
+  connection to a known malware server (FAIL), a `setup.mjs` loader with a
+  known hash in a `.claude` or `.vscode` project folder (FAIL), and editor
+  settings that start an unknown `setup.mjs` (WARN). Searched: `/Users` on
+  macOS, the profiles folder on Windows (`node_modules`, `.git`, `Library`
+  and `AppData` are not entered). Fleet runs ship the indicator list to
+  Windows hosts (SSH and WinRM).
+- `docker_security`: SSHole (CVE-2026-123158) inside running containers.
+  Every container with a running `sshd` gets the check of the `ssh` module
+  (musl, no PAM, package version, password logins, accounts), reported as
+  "Container NAME: ...". Alpine images are where this bug lives, and a
+  patched host does not fix them. Turn off with `SSHOLE_SCAN_CONTAINERS=false`.
+
 ## [0.28.0] - 2026-11-13
 
 Checks for the security events of 2026, on the Linux edition.

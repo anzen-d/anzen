@@ -40,6 +40,7 @@ powershell -ExecutionPolicy Bypass -File .\windows\anzen.ps1 -Json
 | `secureboot` | Secure Boot |
 | `network` | Risky ports (SMB, RDP, WinRM, Telnet…) listening on all interfaces |
 | `truststore` | Distrusted CA certificates (same list as Linux) in machine and user stores, unless blocked by the Disallowed store |
+| `compromise` | Supply-chain indicators (same list as Linux, `lib/data/ioc.tsv`): established connections to known malware servers, the ChainDrop `setup.mjs` loader in `.claude` / `.vscode` project folders under the profiles folder |
 
 Options: `-Check`, `-Json`, `-Html`, `-Txt`, `-Sarif`, `-Csv`, `-Output`, `-History`,
 `-AcceptFile`, `-Quiet`, `-Strict`, `-Remote`, `-Credential`, `-NtfyUrl`,

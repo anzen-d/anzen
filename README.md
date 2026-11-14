@@ -157,8 +157,8 @@ sudo ./anzen.sh --config=/etc/anzen/anzen.conf --parallel --schedule=weekly:04:3
 | Vulnerabilities | `cve` (Trivy, CISA KEV) |
 | Compromise detection | `drift`, `compromise` |
 | Active testing | `pentest`, `pentest_external` |
-| Windows | `system`, `inventory`, `updates`, `defender`, `firewall`, `accounts`, `passwords`, `uac`, `bitlocker`, `smb`, `rdp`, `credentials`, `laps`, `asr`, `nameres`, `privesc`, `auditpol`, `appcontrol`, `powershell`, `secureboot`, `network`, `truststore` |
-| macOS | `system`, `inventory`, `updates`, `xprotect`, `filevault`, `sip`, `gatekeeper`, `firewall`, `sharing`, `accounts`, `ssh`, `launchd`, `extensions`, `profiles`, `truststore` |
+| Windows | `system`, `inventory`, `updates`, `defender`, `firewall`, `accounts`, `passwords`, `uac`, `bitlocker`, `smb`, `rdp`, `credentials`, `laps`, `asr`, `nameres`, `privesc`, `auditpol`, `appcontrol`, `powershell`, `secureboot`, `network`, `truststore`, `compromise` |
+| macOS | `system`, `inventory`, `updates`, `xprotect`, `filevault`, `sip`, `gatekeeper`, `firewall`, `sharing`, `accounts`, `ssh`, `launchd`, `extensions`, `profiles`, `truststore`, `compromise` |
 
 Every finding is **FAIL** (fix it), **WARN** (review it), **OK** or **INFO**,
 mostly with a copy-paste fix. Full list in [docs/modules.md](docs/modules.md).

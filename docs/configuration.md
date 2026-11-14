@@ -31,6 +31,7 @@ cp anzen.conf.example anzen.conf
 | `IMAGE_WARN_LATEST` | `true` | `images`: WARN for `:latest` / untagged images |
 | `DISTRUSTED_CERTS_FILE` | — | `truststore`: extra distrusted certificates, same format as `lib/data/distrusted-certs.tsv` |
 | `TRUSTSTORE_SCAN_CONTAINERS` | `true` | `truststore`: also check the CA bundle in every running container |
+| `SSHOLE_SCAN_CONTAINERS` | `true` | `docker_security`: check running containers that have an SSH server for SSHole (CVE-2026-123158) |
 | `FAIL_AS_WARN` | — | Substrings; matching FAILs are downgraded to WARN |
 | `ACCEPT_FILE` | `anzen.accept` | Accepted-risk file, see [Accepted Risks](reports.md#accepted-risks) |
 | `HISTORY_DIR` | — | Save every run under `<dir>/<host>/` |

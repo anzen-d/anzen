@@ -25,13 +25,32 @@ _ssh_val() {
 # Fixed in OpenSSH 10.6p2; Alpine backported the fix to these package versions.
 _SSHOLE_ALPINE_FIXED='10.6_p2-r0 10.3_p1-r2 10.2_p1-r1 10.0_p1-r11 9.9_p2-r1 9.7_p1-r6 9.6_p1-r3 9.3_p2-r4 9.1_p1-r7 9.0_p1-r6'
 
+# The check runs against the host, or inside a running container when
+# _SSHOLE_CTR (container ID) and _SSHOLE_RT (docker/podman/nerdctl) are set
+_sx() {
+    if [ -n "${_SSHOLE_CTR:-}" ]; then "$_SSHOLE_RT" exec -u 0 "$_SSHOLE_CTR" "$@"; else "$@"; fi
+}
+_sx_priv() {
+    if [ -n "${_SSHOLE_CTR:-}" ]; then _sx "$@"; else _priv "$@"; fi
+}
+_sx_has() {
+    if [ -n "${_SSHOLE_CTR:-}" ]; then _sx sh -c "command -v $1" &>/dev/null; else command -v "$1" &>/dev/null; fi
+}
+_sx_val() {
+    if [ -n "${_SSHOLE_CTR:-}" ]; then
+        grep -i "^${1} " <<< "$_SSHOLE_CFG" | awk '{print $2}' | tail -1
+    else
+        _ssh_val "$1"
+    fi
+}
+
 # 0 = this sshd still has the bug, 1 = fixed. Sets _SSHOLE_VER for the remedy.
 _ssh_sshole_unfixed() {
     local pkg fixed f v
     _SSHOLE_VER=""
-    if command -v apk &>/dev/null; then
+    if _sx_has apk; then
         for pkg in openssh-server-pam openssh-server; do
-            v=$(apk info -e -v "$pkg" 2>/dev/null | head -1)
+            v=$(_sx apk info -e -v "$pkg" 2>/dev/null | head -1)
             [ -n "$v" ] && { _SSHOLE_VER=${v#"$pkg"-}; break; }
         done
     fi
@@ -40,11 +59,11 @@ _ssh_sshole_unfixed() {
         for f in $_SSHOLE_ALPINE_FIXED; do
             [ "${f%-r*}" = "${_SSHOLE_VER%-r*}" ] && fixed=$f
         done
-        [ "$(apk version -t "$_SSHOLE_VER" "$fixed" 2>/dev/null)" = "<" ]
+        [ "$(_sx apk version -t "$_SSHOLE_VER" "$fixed" 2>/dev/null)" = "<" ]
         return
     fi
     # Other musl systems: upstream version from "OpenSSH_10.6p2, OpenSSL ..."
-    v=$(sshd -V 2>&1 | grep -o 'OpenSSH_[0-9][0-9.]*p[0-9]*' | head -1)
+    v=$(_sx sshd -V 2>&1 | grep -o 'OpenSSH_[0-9][0-9.]*p[0-9]*' | head -1)
     _SSHOLE_VER=${v#OpenSSH_}
     [ -n "$_SSHOLE_VER" ] || return 1
     local maj min pl
@@ -52,27 +71,38 @@ _ssh_sshole_unfixed() {
     [ $((10#$maj * 10000 + 10#$min * 100 + 10#${pl:-0})) -lt 100602 ]
 }
 
+# _ssh_sshole_check [CONTAINER_NAME] — messages get a "Container NAME: " prefix
 _ssh_sshole_check() {
     local shadow="${ANZEN_SHADOW:-/etc/shadow}" logs="${ANZEN_AUTH_LOGS:-/var/log/messages /var/log/auth.log}"
-    local bin; bin=$(command -v sshd 2>/dev/null) || return 0
-    ldd "$bin" 2>&1 | grep -q musl || return 0
-    [ "$(_ssh_val UsePAM | tr 'A-Z' 'a-z')" = "yes" ] && return 0
+    local pre="" bin
+    if [ -n "${_SSHOLE_CTR:-}" ]; then
+        pre="Container $1: "
+        bin=$(_sx sh -c 'command -v sshd' 2>/dev/null) || return 0
+        _SSHOLE_CFG=$(_sx sshd -T 2>/dev/null || true)
+    else
+        bin=$(command -v sshd 2>/dev/null) || return 0
+    fi
+    [ -n "$bin" ] || return 0
+    _sx ldd "$bin" 2>&1 | grep -q musl || return 0
+    [ "$(_sx_val UsePAM | tr 'A-Z' 'a-z')" = "yes" ] && return 0
 
     # Accounts with "*" as password field, and whether a $5$/$6$ hash exists
-    local star=() hashed=false readable=false u h
-    if _priv test -r "$shadow" 2>/dev/null; then
+    local star=() hashed=false readable=false u h content
+    content=$(_sx_priv cat "$shadow" 2>/dev/null)
+    if [ -n "$content" ]; then
         readable=true
         while IFS=: read -r u h _; do
             case $h in
                 '*') star+=("$u") ;;
                 '$5$'*|'$6$'*) hashed=true ;;
             esac
-        done < <(_priv cat "$shadow" 2>/dev/null)
+        done <<< "$content"
     fi
 
     # Past exploitation: a password login for an account that has no password
+    # (host only: containers log to the runtime, not to a file)
     local f hits=()
-    if [ "${#star[@]}" -gt 0 ]; then
+    if [ "${#star[@]}" -gt 0 ] && [ -z "${_SSHOLE_CTR:-}" ]; then
         for f in $logs; do
             _priv test -r "$f" 2>/dev/null || continue
             for u in "${star[@]}"; do
@@ -86,22 +116,23 @@ _ssh_sshole_check() {
         remedy "# accounts: ${who}— grep 'Accepted password for' $logs; treat the host as compromised unless every login is explained"
     fi
 
-    local pw; pw=$(_ssh_val PasswordAuthentication | tr 'A-Z' 'a-z')
+    local pw; pw=$(_sx_val PasswordAuthentication | tr 'A-Z' 'a-z')
     if ! _ssh_sshole_unfixed; then
-        ok "OpenSSH has the SSHole fix (CVE-2026-123158)"
+        ok "${pre}OpenSSH has the SSHole fix (CVE-2026-123158)"
         return 0
     fi
     local fix
     fix="# update OpenSSH to 10.6p2 or a fixed distribution package (installed: $(_q "$_SSHOLE_VER")) and restart sshd"
-    command -v apk &>/dev/null && fix="apk upgrade -U openssh && rc-service sshd restart  # installed: $(_q "$_SSHOLE_VER"); the upgrade alone does not replace the running sshd"
+    _sx_has apk && fix="apk upgrade -U openssh && rc-service sshd restart  # installed: $(_q "$_SSHOLE_VER"); the upgrade alone does not replace the running sshd"
+    [ -n "${_SSHOLE_CTR:-}" ] && fix="# pull or rebuild the image of $(_q "$1") from a fixed base and recreate the container (installed: $(_q "$_SSHOLE_VER")); a fix made inside the container is lost on recreate"
     if [ "${pw:-yes}" != "yes" ]; then
-        info "OpenSSH lacks the SSHole fix (CVE-2026-123158) — not reachable while PasswordAuthentication is off"
+        info "${pre}OpenSSH lacks the SSHole fix (CVE-2026-123158) — not reachable while PasswordAuthentication is off"
         remedy "$fix"
     elif [ "$readable" = true ] && { [ "${#star[@]}" -eq 0 ] || [ "$hashed" = false ]; }; then
-        warn "OpenSSH lacks the SSHole fix (CVE-2026-123158) — not exploitable with the current accounts, one new password or key-only account changes that"
+        warn "${pre}OpenSSH lacks the SSHole fix (CVE-2026-123158) — not exploitable with the current accounts, one new password or key-only account changes that"
         remedy "$fix"
     else
-        fail "OpenSSH password bypass SSHole (CVE-2026-123158): sshd on musl without PAM accepts an over-long password for accounts with no password set (${#star[@]})"
+        fail "${pre}OpenSSH password bypass SSHole (CVE-2026-123158): sshd on musl without PAM accepts an over-long password for accounts with no password set (${#star[@]})"
         remedy "$fix  # until then: PasswordAuthentication no. Accounts: ${star[*]:-unknown, /etc/shadow not readable}"
     fi
 }
@@ -333,5 +364,5 @@ run_ssh_check() {
     done
     [ "$KEY_COUNT" -eq 0 ] && info "No authorized_keys files found"
 
-    _ssh_sshole_check
+    _ssh_sshole_check ""
 }

@@ -81,7 +81,7 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Continue'
 
-$AnzenVersion = '0.28.0'
+$AnzenVersion = '0.29.0'
 $ScriptPath   = $MyInvocation.MyCommand.Path
 $ScriptDir    = Split-Path -Parent $ScriptPath
 $FailPenalty  = 10
@@ -738,6 +738,87 @@ function Invoke-TrustStoreCheck {
     if (-not $found) { Ok "No distrusted CA certificates trusted ($checked certificates checked)" }
 }
 
+# Supply-chain indicators from lib/data/ioc.tsv (shared with the Linux and macOS
+# editions): established connections to known malware servers, and the
+# setup.mjs loader the ChainDrop npm worm plants next to .claude\settings.json
+# and .vscode\tasks.json in project folders
+function Get-IocList([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path)) { return @() }
+    foreach ($line in Get-Content -LiteralPath $Path) {
+        if ($line -match '^\s*(#|$)') { continue }
+        $f = $line -split "`t"
+        if ($f.Count -ge 4) { [pscustomobject]@{ Type = $f[0]; Value = $f[1].ToLowerInvariant(); Incident = $f[2]; Name = $f[3] } }
+    }
+}
+
+function Get-FileSha256([string]$Path) {
+    try {
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        $fs = [IO.File]::OpenRead($Path)
+        try { return (-join ($sha.ComputeHash($fs) | ForEach-Object { $_.ToString('x2') })) } finally { $fs.Dispose() }
+    } catch { return '' }
+}
+
+# setup.mjs files inside a .claude or .vscode folder, at most $Depth levels down;
+# node_modules, .git and AppData are not entered
+function Find-LoaderFile([string]$Root, [int]$Depth = 7) {
+    if ($Depth -lt 0) { return }
+    foreach ($d in @([IO.Directory]::GetDirectories($Root))) {
+        $n = [IO.Path]::GetFileName($d)
+        if ($n -in 'node_modules', '.git', 'AppData') { continue }
+        try {
+            if ((([IO.File]::GetAttributes($d)) -band [IO.FileAttributes]::ReparsePoint)) { continue }
+            if ($n -in '.claude', '.vscode') {
+                $f = [IO.Path]::Combine($d, 'setup.mjs')
+                if ([IO.File]::Exists($f)) { $f }
+            }
+            Find-LoaderFile $d ($Depth - 1)
+        } catch { continue }
+    }
+}
+
+function Invoke-CompromiseCheck {
+    Section 'Indicators of Compromise'
+    $listPath = if ($env:ANZEN_IOC_FILE) { $env:ANZEN_IOC_FILE } else { [IO.Path]::Combine((Split-Path -Parent $ScriptDir), 'lib', 'data', 'ioc.tsv') }
+    $list = @(Get-IocList $listPath)
+    if (-not $list.Count) { Info "Indicator list not found ($listPath)"; return }
+    Info "Indicator list: $($list.Count) entries"
+    $hits = 0
+
+    if (Get-Command Get-NetTCPConnection -ErrorAction SilentlyContinue) {
+        $conns = @(Get-NetTCPConnection -State Established -ErrorAction SilentlyContinue)
+        foreach ($e in @($list | Where-Object Type -eq 'ip')) {
+            $c = @($conns | Where-Object { "$($_.RemoteAddress)".ToLowerInvariant() -eq $e.Value }) | Select-Object -First 1
+            if (-not $c) { continue }
+            $proc = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue | Select-Object -ExpandProperty ProcessName -ErrorAction SilentlyContinue
+            Fail "Connection to a known malware server: $($e.Value) ($($e.Incident), $($e.Name))" "Get-NetTCPConnection -RemoteAddress '$($e.Value)' | Select-Object OwningProcess, LocalPort, RemotePort  # process: $proc; isolate the PC, rotate every credential it could read"
+            $hits++
+        }
+    }
+
+    $roots = if ($env:ANZEN_IOC_SCAN_DIRS) { $env:ANZEN_IOC_SCAN_DIRS -split [IO.Path]::PathSeparator } elseif ($env:USERPROFILE) { @((Split-Path -Parent $env:USERPROFILE)) } else { @() }
+    $known = @{}
+    foreach ($e in @($list | Where-Object Type -eq 'sha256')) { $known[$e.Value] = "$($e.Incident), $($e.Name)" }
+    foreach ($root in $roots) {
+        if (-not $root -or -not (Test-Path -LiteralPath $root)) { continue }
+        foreach ($f in @(Find-LoaderFile $root)) {
+            $sum = Get-FileSha256 $f
+            if ($sum -and $known.ContainsKey($sum)) {
+                Fail "Known malware file: $f ($($known[$sum]))" "# do not open the project in an editor or agent; delete '$($f -replace "'", "''")' and the hook that starts it, rotate npm/GitHub/cloud credentials used on this PC"
+                $hits++
+                continue
+            }
+            $dir = Split-Path -Parent $f
+            $cfg = if ((Split-Path -Leaf $dir) -eq '.claude') { [IO.Path]::Combine($dir, 'settings.json') } else { [IO.Path]::Combine($dir, 'tasks.json') }
+            if ((Test-Path -LiteralPath $cfg) -and (Select-String -LiteralPath $cfg -Pattern 'setup\.mjs' -Quiet)) {
+                Warn "Editor settings start a setup.mjs loader, as the ChainDrop worm does: $cfg" "# read '$($f -replace "'", "''")' and '$($cfg -replace "'", "''")'; if you did not write them, treat the project and its credentials as compromised"
+                $hits++
+            }
+        }
+    }
+    if (-not $hits) { Ok 'No known malware servers or loader files (supply-chain indicators)' }
+}
+
 # Windows LAPS (built in since April 2023) or legacy Microsoft LAPS on joined machines
 function Invoke-LapsCheck {
     Section 'LAPS'
@@ -984,6 +1065,7 @@ $Modules = [ordered]@{
     secureboot  = 'Invoke-SecureBootCheck'
     network     = 'Invoke-NetworkCheck'
     truststore  = 'Invoke-TrustStoreCheck'
+    compromise  = 'Invoke-CompromiseCheck'
 }
 
 # ── Scores and report ────────────────────────────────────────────────────────
@@ -1373,7 +1455,7 @@ function Send-Heartbeat {
 # Runs on the remote host: write this script, the distrusted list and the accept
 # file to a temp dir, audit with the requested formats, return the reports, clean up
 $script:RemoteAudit = {
-    param($Src, $Tsv, $Accept, $Checks, $Formats, $ControlsTsv)
+    param($Src, $Tsv, $Accept, $Checks, $Formats, $ControlsTsv, $IocTsv)
     $d = Join-Path ([IO.Path]::GetTempPath()) ('anzen.' + [guid]::NewGuid().ToString('N').Substring(0, 12))
     New-Item -ItemType Directory -Force -Path (Join-Path $d 'windows'), (Join-Path $d 'lib\data') | Out-Null
     $noBom = New-Object Text.UTF8Encoding $false
@@ -1382,6 +1464,7 @@ $script:RemoteAudit = {
     if ($Tsv)    { [IO.File]::WriteAllText((Join-Path $d 'lib\data\distrusted-certs.tsv'), $Tsv, $noBom) }
     if ($Accept) { [IO.File]::WriteAllText((Join-Path $d 'windows\anzen.accept'), $Accept, $noBom) }
     if ($ControlsTsv) { [IO.File]::WriteAllText((Join-Path $d 'lib\data\controls.tsv'), $ControlsTsv, $noBom) }
+    if ($IocTsv) { [IO.File]::WriteAllText((Join-Path $d 'lib\data\ioc.tsv'), $IocTsv, $noBom) }
     $a = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $d 'windows\anzen.ps1'),
            '-Quiet', '-Offline', '-Output', (Join-Path $d 'out.json'))
     foreach ($fmt in $Formats -split ',') {
@@ -1417,6 +1500,8 @@ function Invoke-Fleet([string[]]$Hosts, [string[]]$Formats, [string[]]$Checks) {
     $acc = if ($AcceptFile -and (Test-Path -LiteralPath $AcceptFile)) { [IO.File]::ReadAllText($AcceptFile) } else { '' }
     $ctlPath = [IO.Path]::Combine((Split-Path -Parent $ScriptDir), 'lib', 'data', 'controls.tsv')
     $ctl = if (Test-Path -LiteralPath $ctlPath) { [IO.File]::ReadAllText($ctlPath) } else { '' }
+    $iocPath = [IO.Path]::Combine((Split-Path -Parent $ScriptDir), 'lib', 'data', 'ioc.tsv')
+    $ioc = if (Test-Path -LiteralPath $iocPath) { [IO.File]::ReadAllText($iocPath) } else { '' }
     $wanted = @('json') + @($Formats | Where-Object { $_ -ne 'json' })
     $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
     $worst = 0
@@ -1424,7 +1509,7 @@ function Invoke-Fleet([string[]]$Hosts, [string[]]$Formats, [string[]]$Checks) {
         Write-Host ''
         Write-Host "━━━ $h ━━━" -ForegroundColor Cyan
         $ic = @{ ComputerName = $h; ScriptBlock = $script:RemoteAudit; ErrorAction = 'Stop'
-                 ArgumentList = @($src, $tsv, $acc, ($Checks -join ','), ($wanted -join ','), $ctl) }
+                 ArgumentList = @($src, $tsv, $acc, ($Checks -join ','), ($wanted -join ','), $ctl, $ioc) }
         if ($Credential) { $ic['Credential'] = $Credential }
         try { $r = Invoke-Command @ic } catch { Write-Warning "${h}: $($_.Exception.Message)"; $worst = 255; continue }
         if (-not $r -or -not $r['json']) { Write-Warning "${h}: no JSON report produced"; $worst = 255; continue }

@@ -180,3 +180,42 @@ _sshole() {
     ldd() { echo "	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x1)"; }
     SSHV=9.6p1 _go; [ ! -s "$FINDINGS_FILE" ]
 }
+
+@test "ssh: SSHole inside a running container is reported with the container name" {
+    # shellcheck disable=SC1091
+    source "$ANZEN_DIR/lib/checks/runtimes/oci.sh"
+    # shellcheck disable=SC2329
+    docker() {
+        case "$1" in
+            ps) printf 'c1 web\nc2 db\n' ;;
+            top) [ "$2" = c1 ] && echo "root 1 0 sshd: /usr/sbin/sshd -D [listener]" || echo "postgres 1 0 postgres" ;;
+            exec)
+                shift 4   # exec -u 0 ID
+                case "$*" in
+                    "sh -c command -v sshd") echo /usr/sbin/sshd ;;
+                    "sh -c command -v apk") echo /sbin/apk ;;
+                    "sshd -T") echo "passwordauthentication $CPW" ;;
+                    "ldd /usr/sbin/sshd") echo "	/lib/ld-musl-x86_64.so.1 (0x1)" ;;
+                    "apk info -e -v openssh-server") echo "openssh-server-$CVER" ;;
+                    "apk info -e -v"*) return 1 ;;
+                    "apk version -t"*) [ "$4" != "$5" ] && [ "$(printf '%s\n' "$4" "$5" | sort -V | head -1)" = "$4" ] && echo "<" || echo ">" ;;
+                    "cat /etc/shadow") printf 'root:*::0:::::\ngit:$6$salt$hash:1::::::\n' ;;
+                esac ;;
+        esac
+    }
+    section "Container Security" > /dev/null
+    CVER=9.7_p1-r5 CPW=yes _oci_sshole_checks docker > /dev/null
+    grep -q $'^FAIL\tContainer Security\tContainer web: OpenSSH password bypass SSHole (CVE-2026-123158).*no password set (1)' "$FINDINGS_FILE"
+    grep -q 'pull or rebuild the image of web' "$FINDINGS_FILE"
+    ! grep -q 'Container db' "$FINDINGS_FILE"
+    grep -q $'^INFO\t.*Containers running an SSH server: 1' "$FINDINGS_FILE"
+    : > "$FINDINGS_FILE"
+    CVER=9.7_p1-r5 CPW=no _oci_sshole_checks docker > /dev/null
+    grep -q $'^INFO\t.*Container web: OpenSSH lacks the SSHole fix.*PasswordAuthentication is off' "$FINDINGS_FILE"
+    : > "$FINDINGS_FILE"
+    CVER=9.7_p1-r6 CPW=yes _oci_sshole_checks docker > /dev/null
+    grep -q $'^OK\t.*Container web: OpenSSH has the SSHole fix' "$FINDINGS_FILE"
+    : > "$FINDINGS_FILE"
+    SSHOLE_SCAN_CONTAINERS=false CVER=9.7_p1-r5 CPW=yes _oci_sshole_checks docker > /dev/null
+    [ ! -s "$FINDINGS_FILE" ]
+}

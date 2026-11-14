@@ -217,3 +217,25 @@ ts_env() {
     grep -q '^host,date,level,section,id,message,remedy,controls' "$BATS_TEST_TMPDIR/inv.csv"
     grep -q '"FileVault is off — the disk is readable by anyone with physical access","sudo fdesetup enable","NIST SC-28; CIS 3.11"' "$BATS_TEST_TMPDIR/inv.csv"
 }
+
+@test "macos: supply-chain indicators — malware server connection and loader files" {
+    local t="$BATS_TEST_TMPDIR" k='	'
+    mkdir -p "$t/Users/a/app/.claude" "$t/Users/a/site/.vscode" "$t/Users/a/ok/.vscode" "$t/Users/a/Library/x/.vscode"
+    echo 'evil()' > "$t/Users/a/app/.claude/setup.mjs"
+    echo 'other()' > "$t/Users/a/site/.vscode/setup.mjs"
+    echo '{"tasks":[{"command":"node .vscode/setup.mjs"}]}' > "$t/Users/a/site/.vscode/tasks.json"
+    echo 'mine()' > "$t/Users/a/ok/.vscode/setup.mjs"
+    echo 'evil()' > "$t/Users/a/Library/x/.vscode/setup.mjs"
+    local sum; sum=$( (shasum -a 256 "$t/Users/a/app/.claude/setup.mjs" 2>/dev/null || sha256sum "$t/Users/a/app/.claude/setup.mjs") | cut -d' ' -f1)
+    printf '%s\n' "ip${k}203.0.113.66${k}test-2026${k}exfiltration server${k}https://example.com/a" \
+        "sha256${k}${sum}${k}test-2026${k}setup.mjs (loader)${k}https://example.com/a" > "$t/ioc.tsv"
+    ANZEN_IOC_FILE="$t/ioc.tsv" ANZEN_IOC_SCAN_DIRS="$t/Users" STUB_PEER=203.0.113.66.8080 mac --check=compromise
+    [[ "$output" == *"[FAIL] Connection to a known malware server: 203.0.113.66 (test-2026, exfiltration server)"* ]]
+    [[ "$output" == *"[FAIL] Known malware file: $t/Users/a/app/.claude/setup.mjs (test-2026, setup.mjs (loader))"* ]]
+    [[ "$output" == *"[WARN] Editor settings start a setup.mjs loader, as the ChainDrop worm does: $t/Users/a/site/.vscode/tasks.json"* ]]
+    [[ "$output" != *"/ok/.vscode"* ]]
+    [[ "$output" != *"/Library/x"* ]]
+    # Clean Mac, shipped list
+    ANZEN_IOC_SCAN_DIRS="$t/Users/a/ok" STUB_PEER=198.51.100.3.443 mac --check=compromise
+    [[ "$output" == *"[ OK ] No known malware servers or loader files (supply-chain indicators)"* ]]
+}

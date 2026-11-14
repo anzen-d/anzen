@@ -106,7 +106,7 @@ _fleet_run_windows() {
             json|html|txt|sarif.json|csv) printf '%s' "$b64" | base64 -d > "$work/out.$name" 2>/dev/null ;;
         esac
     done < <({
-        for f in windows/anzen.ps1 lib/data/distrusted-certs.tsv lib/data/controls.tsv; do
+        for f in windows/anzen.ps1 lib/data/distrusted-certs.tsv lib/data/controls.tsv lib/data/ioc.tsv; do
             [ -f "$ANZEN_DIR/$f" ] && printf '%s\t%s\n' "$f" "$(base64 < "$ANZEN_DIR/$f" | tr -d '\n')"
         done
         if [ -n "${ACCEPT_FILE:-}" ] && [ -f "$ACCEPT_FILE" ]; then
