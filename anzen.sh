@@ -247,6 +247,8 @@ source "$ANZEN_DIR/lib/report_json.sh"
 source "$ANZEN_DIR/lib/report_sarif.sh"
 source "$ANZEN_DIR/lib/report_csv.sh"
 source "$ANZEN_DIR/lib/controls.sh"
+# shellcheck source=lib/lessons.sh
+source "$ANZEN_DIR/lib/lessons.sh"
 source "$ANZEN_DIR/lib/baseline.sh"
 source "$ANZEN_DIR/lib/remediate.sh"
 source "$ANZEN_DIR/lib/notify.sh"

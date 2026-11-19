@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Lessons in the HTML report: under a `FAIL` or `WARN` finding that has one,
+  "Why it matters" opens three short parts — why the finding matters, what
+  the fix can break and how to undo it, and one command that shows the fix
+  worked. The first 13 cover root and password logins over SSH, pending and
+  automatic updates, actively exploited CVEs, a missing firewall, exposed
+  databases, privileged containers, the Docker socket, containers running as
+  root, readable secrets, expiring certificates and sudo without a password.
+  They live in `lib/data/lessons.tsv`, matched by section and message like
+  `controls.tsv`; `ANZEN_LESSONS_FILE` points to another file. A test fails
+  when a lesson no longer matches any check.
+
 ### Security
 - `--remediate`: fixes that can lock you out or restart the machine are no
   longer run by the generated script. A reboot, a firewall switched on, an

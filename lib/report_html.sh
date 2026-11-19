@@ -136,6 +136,21 @@ details[open] .chevron { transform: rotate(180deg); }
 .remedy-cmd:hover { border-color: #38bdf8; }
 .remedy-copied { font-size: 0.65rem; color: var(--ok-text); margin-left: 4px; opacity: 0; transition: opacity .3s; }
 
+/* Lesson under a finding (lib/data/lessons.tsv) */
+details.lesson { background: none; border: none; border-left: 2px solid #38bdf860; border-radius: 0;
+                 margin: 0.5rem 0 0.15rem; overflow: visible; }
+details.lesson > summary { display: block; padding: 0 0 0 0.6rem; font-size: 0.75rem; color: #38bdf8; }
+details.lesson > summary:hover { background: none; text-decoration: underline; }
+details.lesson > summary::before { content: "▸ "; }
+details.lesson[open] > summary::before { content: "▾ "; }
+.lesson-ref { display: block; margin: 0.5rem 0 0.15rem; padding-left: 0.6rem; font-size: 0.75rem;
+              color: #38bdf8; text-decoration: none; border-left: 2px solid #38bdf860; }
+.lesson-ref:hover { text-decoration: underline; }
+.lesson-body { padding: 0.2rem 0 0.2rem 0.6rem; max-width: 46rem; line-height: 1.5; }
+.lesson-body p { margin: 0.45rem 0; color: var(--text); font-size: 0.82rem; }
+.lesson-step { display: block; font-size: 0.65rem; font-weight: 700; letter-spacing: .05em;
+               text-transform: uppercase; color: var(--text-muted); }
+
 .footer { text-align: center; padding: 1.5rem; color: var(--text-muted); font-size: 0.75rem;
           border-top: 1px solid var(--border); }
 .footer a { color: #38bdf8; text-decoration: none; }
@@ -145,6 +160,7 @@ details[open] .chevron { transform: rotate(180deg); }
     .header-actions, .filters, .btn { display: none; }
     details { border: 1px solid #ccc; break-inside: avoid; }
     details:not([open]) { display: none; }
+    details.lesson { border-left: 2px solid #ccc; }
     .finding { break-inside: avoid; }
     .remedy-cmd { color: #0369a1; background: #f0f9ff; border-color: #bae6fd; }
 }
@@ -222,9 +238,11 @@ SECTION
         section_fail=0; section_warn=0; section_ok=0
     }
 
-    # Controls come on fd 3, one line per finding (lib/controls.sh)
-    local ctl ctl_html
-    while IFS=$'\t' read -r level sec msg id remedy && IFS= read -r ctl <&3; do
+    # Controls come on fd 3 and lessons on fd 4, one line per finding
+    # (lib/controls.sh, lib/lessons.sh)
+    type _findings_lessons >/dev/null 2>&1 || _findings_lessons() { awk '{ print "" }' "$FINDINGS_FILE"; }
+    local ctl ctl_html les lesson_html l_title l_why l_risk l_verify l_ref lesson_n=0 lesson_seen=""
+    while IFS=$'\t' read -r level sec msg id remedy && IFS= read -r ctl <&3 && IFS= read -r les <&4; do
         if [ "$sec" != "$prev_section" ]; then
             _flush_section
             prev_section="$sec"
@@ -240,14 +258,28 @@ SECTION
             remedy_html="<div class=\"remedy\"><span class=\"remedy-label\">Fix:</span><code class=\"remedy-cmd\" onclick=\"copyRemedyInline(this)\" title=\"Click to copy\">$escaped_remedy</code><span class=\"remedy-copied\">✓ copied</span></div>"
         fi
 
-        section_html+="      <div class=\"finding\" data-level=\"$level\"><span class=\"badge $level\">$level</span><div class=\"finding-body\"><div class=\"finding-msg\">$escaped_msg</div><div class=\"finding-id\">$id$ctl_html</div>$remedy_html</div></div>"$'\n'
+        lesson_html=""
+        if [ -n "$les" ] && [ "$level" != "OK" ] && [ "$level" != "INFO" ]; then
+            IFS=$'\t' read -r l_title l_why l_risk l_verify <<< "$les"
+            # The text of a lesson goes into the page once: later findings on the
+            # same topic link to it (a host with 90 containers has 90 of them)
+            l_ref=$(printf '%s' "$lesson_seen" | awk -F'\t' -v t="$l_title" '$2 == t { print $1; exit }')
+            if [ -n "$l_ref" ]; then
+                lesson_html="<a class=\"lesson-ref\" href=\"#lesson-$l_ref\" onclick=\"return showLesson('lesson-$l_ref')\">Why it matters: $(_html_escape "$l_title") ↑</a>"
+            else
+                lesson_n=$((lesson_n + 1)); lesson_seen+="$lesson_n"$'\t'"$l_title"$'\n'
+                lesson_html="<details class=\"lesson\" id=\"lesson-$lesson_n\"><summary>Why it matters: $(_html_escape "$l_title")</summary><div class=\"lesson-body\"><p><span class=\"lesson-step\">1 · Why it matters</span>$(_html_escape "$l_why")</p><p><span class=\"lesson-step\">2 · Before you change it</span>$(_html_escape "$l_risk")</p><p><span class=\"lesson-step\">3 · Check that it worked</span><code class=\"remedy-cmd\" onclick=\"copyRemedyInline(this)\" title=\"Click to copy\">$(_html_escape "$l_verify")</code><span class=\"remedy-copied\">✓ copied</span></p></div></details>"
+            fi
+        fi
+
+        section_html+="      <div class=\"finding\" data-level=\"$level\"><span class=\"badge $level\">$level</span><div class=\"finding-body\"><div class=\"finding-msg\">$escaped_msg</div><div class=\"finding-id\">$id$ctl_html</div>$remedy_html$lesson_html</div></div>"$'\n'
 
         case "$level" in
             FAIL) section_fail=$((section_fail+1)) ;;
             WARN) section_warn=$((section_warn+1)) ;;
             OK)   section_ok=$((section_ok+1)) ;;
         esac
-    done < "$FINDINGS_FILE" 3< <(_findings_controls)
+    done < "$FINDINGS_FILE" 3< <(_findings_controls) 4< <(_findings_lessons)
 
     _flush_section
 
@@ -272,12 +304,25 @@ function filterFindings(level) {
         el.style.display = (level === 'ALL' || el.dataset.level === level) ? '' : 'none';
     });
     // Hide sections where all findings are hidden
-    document.querySelectorAll('details').forEach(details => {
+    document.querySelectorAll('details:not(.lesson)').forEach(details => {
         const visible = [...details.querySelectorAll('.finding')].some(el => el.style.display !== 'none');
         details.style.display = visible ? '' : 'none';
     });
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     document.querySelector('[data-filter="' + level + '"]').classList.add('active');
+}
+
+// Open a lesson that another finding links to: its section may be closed
+// and its finding filtered out
+function showLesson(id) {
+    const lesson = document.getElementById(id);
+    if (!lesson) return true;
+    const finding = lesson.closest('.finding'), sec = lesson.parentElement.closest('details');
+    if (finding && finding.style.display === 'none') filterFindings('ALL');
+    if (sec) sec.open = true;
+    lesson.open = true;
+    lesson.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return false;
 }
 
 // Copy remedy command inline

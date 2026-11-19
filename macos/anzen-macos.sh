@@ -764,6 +764,8 @@ _write_report() {
 }
 # shellcheck source=../lib/controls.sh
 . "$ROOT_DIR/lib/controls.sh"
+# shellcheck source=../lib/lessons.sh
+. "$ROOT_DIR/lib/lessons.sh"
 $HTML  && _write_report HTML html generate_html_report report_html.sh
 $TXT   && _write_report Text txt generate_txt_report report_txt.sh
 $JSON  && _write_report JSON json write_json ""

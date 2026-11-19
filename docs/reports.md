@@ -168,6 +168,37 @@ HEARTBEAT_URL="https://kuma.example.com/api/push/XXXX?status=up"
 sudo ./anzen.sh --config=/etc/anzen/anzen.conf --parallel --schedule=weekly:04:30
 ```
 
+## Lessons
+
+For the most common findings the HTML report explains more than the fix
+command. Under the finding, **Why it matters** opens three short parts:
+
+1. **Why it matters** — what an attacker does with this weakness.
+2. **Before you change it** — what the fix can break, what to check first,
+   and how to undo it.
+3. **Check that it worked** — one command and the result to expect. Click
+   it to copy. The next anzen run confirms it: the finding is gone from the
+   report and shows as fixed in the dashboard.
+
+The text of a lesson is in the page once. When more findings share a topic
+(ten containers that run as root), the later ones link to it.
+
+Lessons are plain text in `lib/data/lessons.tsv`, one line per topic:
+
+```
+SECTION_REGEX<TAB>MESSAGE_REGEX<TAB>TITLE<TAB>WHY<TAB>BEFORE_YOU_CHANGE<TAB>VERIFY
+```
+
+The regexes work as in `controls.tsv`: the section regex matches the whole
+section name, the message regex any part of the message, and the first
+matching line wins. A lesson covers a topic, not one message, so it keeps
+working for every container, port or file the finding names. Set
+`ANZEN_LESSONS_FILE` to use your own file, for example with lessons for your
+custom checks.
+
+Lessons are written and checked by people and shipped with the release.
+anzen never fetches them and never generates them at run time.
+
 ## Remediation
 
 `--remediate` generates a shell script with fix commands for each `FAIL` and `WARN` finding that has a known remedy:

@@ -12,6 +12,11 @@ Small, self-contained, no deep knowledge of the codebase needed.
   Gentoo, Void) and report crashes or false positives.
 - **Report false positives** — a finding that is wrong on your system is a
   bug. Use the "False positive" issue template.
+- **Write a lesson** — `lib/data/lessons.tsv` holds the "why it matters /
+  before you change it / check that it worked" text the HTML report shows
+  under a finding. One line per topic; see [docs/reports.md](docs/reports.md#lessons).
+  Wanted first: sysctl hardening, SUID binaries, stale container images,
+  and the Windows and macOS sections.
 - **Improve a remedy** — many findings print a fix command; make them more
   precise for a distro family, or add one where it is missing.
 - **New single checks** in an existing module, for example:
