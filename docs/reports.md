@@ -170,7 +170,7 @@ sudo ./anzen.sh --config=/etc/anzen/anzen.conf --parallel --schedule=weekly:04:3
 
 ## Remediation
 
-`--remediate` generates a shell script with fix commands for each `FAIL` finding that has a known remedy:
+`--remediate` generates a shell script with fix commands for each `FAIL` and `WARN` finding that has a known remedy:
 
 ```bash
 sudo ./anzen.sh --remediate
@@ -186,6 +186,26 @@ sudo bash reports/remediate_*.sh
 Each command runs on its own: one that fails prints `FAILED: <finding>` and
 the rest still run; the script exits 1 at the end if any failed. Lines that
 are advice only (starting with `#`) are kept as comments.
+
+Some fixes are never run by the script. They are written as comments marked
+`MANUAL`, with the reason, and the script tells you at the end how many it
+left for you:
+
+- a reboot or shutdown;
+- switching on a firewall or a default-drop policy (it can cut the session
+  you are working in);
+- SSH changes that decide who can log in (`Port`, `PasswordAuthentication no`,
+  `PermitRootLogin no`, `AllowUsers`);
+- killing a process.
+
+Run those yourself, one at a time. For SSH and firewall changes keep a second
+session open and test a new login before you close it.
+
+Before a command edits a file under `/etc` (`sed -i` or `>>`), the script
+copies that file to `/var/backups/anzen-remediate-<timestamp>/` with the same
+path below it. After each `sshd_config` change it runs `sshd -t`; when sshd
+rejects the file, the copy is put back. The script file itself is readable
+by its owner only.
 
 ---
 

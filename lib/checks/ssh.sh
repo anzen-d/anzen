@@ -145,7 +145,8 @@ run_ssh_check() {
         return
     fi
 
-    _sshd_reload() { echo "systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null"; }
+    # sshd -t first: a reload with a config sshd rejects is how SSH access is lost
+    _sshd_reload() { echo "sshd -t && { systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null; }"; }
 
     _SSHD_T_CACHE=""
 

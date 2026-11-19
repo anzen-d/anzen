@@ -18,10 +18,20 @@ _port_name() {
     esac
 }
 
+# Port sshd listens on, for firewall remedies: the rule that keeps SSH open
+# must be in place before the firewall starts dropping
+_fw_ssh_port() {
+    local p
+    p=$(_priv sshd -T 2>/dev/null | awk '$1 == "port" { print $2; exit }')
+    case "$p" in ''|*[!0-9]*) p=22 ;; esac
+    echo "$p"
+}
+
 run_network_check() {
     section "Firewall"
 
-    local fw_active=false
+    local fw_active=false ssh_port
+    ssh_port=$(_fw_ssh_port)
 
     if command -v ufw &>/dev/null; then
         UFW_STATUS=$(_priv ufw status 2>/dev/null | head -1)
@@ -30,7 +40,7 @@ run_network_check() {
             fw_active=true
         else
             fail "UFW installed but INACTIVE"
-            remedy "ufw enable"
+            remedy "ufw allow $ssh_port/tcp && ufw enable  # the allow rule keeps SSH reachable"
         fi
     fi
 
@@ -59,13 +69,13 @@ run_network_check() {
             fw_active=true
         else
             warn "iptables present but INPUT chain appears default-ACCEPT"
-            remedy "iptables -P INPUT DROP && iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT && iptables -A INPUT -p tcp --dport 22 -j ACCEPT"
+            remedy "iptables -A INPUT -i lo -j ACCEPT && iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT && iptables -A INPUT -p tcp --dport $ssh_port -j ACCEPT && iptables -P INPUT DROP  # allow rules first, drop policy last"
         fi
     fi
 
     if ! $fw_active; then
         fail "No active firewall detected (checked: ufw, firewalld, nftables, iptables)"
-        remedy "apt-get install -y ufw && ufw allow ssh && ufw enable"
+        remedy "apt-get install -y ufw && ufw allow $ssh_port/tcp && ufw enable"
     fi
 
     section "Open Ports & Services"

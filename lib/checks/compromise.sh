@@ -111,7 +111,7 @@ run_compromise_check() {
         esac
         if [[ "$comm" =~ $_IOC_MINERS ]]; then
             fail "Cryptominer process: $comm (pid $pid) $exe"
-            remedy "kill $pid; then find the cron job, unit or container that starts it"
+            remedy "kill $pid  # then find the cron job, unit or container that starts it"
             miners=$((miners + 1))
         fi
     done

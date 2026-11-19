@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Security
+- `--remediate`: fixes that can lock you out or restart the machine are no
+  longer run by the generated script. A reboot, a firewall switched on, an
+  SSH change that decides who can log in (`Port`, `PasswordAuthentication no`,
+  `PermitRootLogin no`, `AllowUsers`) and a `kill` are written as comments
+  marked `MANUAL` with the reason, and counted at the end.
+- `--remediate`: a file under `/etc` is copied to
+  `/var/backups/anzen-remediate-<timestamp>/` before a command edits it; after
+  an `sshd_config` change the script runs `sshd -t` and puts the copy back
+  when sshd rejects the file. The script is now mode 700.
+- Firewall remedies allow the port sshd really listens on before the firewall
+  starts (`ufw enable` alone, and an iptables drop policy set before its
+  allow rules, could cut an SSH session). SSH remedies run `sshd -t` before
+  the reload.
+
+### Fixed
+- `--remediate`: the remedy for a cryptominer process was not valid shell
+  (`kill PID; then ...`), so the whole generated script failed to parse when
+  that finding was present.
+- Docs said `--remediate` covers `FAIL` findings only; it covers `WARN` too.
+
 ## [0.29.0] - 2026-11-14
 
 ### Added
