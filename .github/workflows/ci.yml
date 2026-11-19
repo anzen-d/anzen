@@ -46,7 +46,7 @@ jobs:
       - name: bats
         run: |
           docker run --rm -v "$PWD":/code -w /code --entrypoint sh bats/bats:1.11.1 -c \
-            'apk add -q python3 bash coreutils curl findutils grep tar >/dev/null && bats tests/'
+            'apk add -q python3 bash coreutils curl findutils grep tar openssl >/dev/null && bats tests/'
       - name: Packages build and install (.deb on Debian, .rpm on Fedora)
         run: |
           docker run --rm -v "$PWD":/code -w /code ubuntu:24.04 bash -c \
