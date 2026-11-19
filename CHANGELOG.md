@@ -33,7 +33,22 @@ All notable changes to this project are documented here. The format follows
   allow rules, could cut an SSH session). SSH remedies run `sshd -t` before
   the reload.
 
+- A remedy is now always one line: a newline inside a value (a file name can
+  hold one) can no longer end the note it sits in and run the rest as root.
+  More values taken from the system are shell-quoted in remedies: network
+  interface, systemd unit, `/etc/ld.so.preload` entries, kernel module, LXD
+  container, Kubernetes binding and namespace, image reference.
+
+### Changed
+- SSH remedies put the setting on line 1 of `sshd_config`
+  (`sed -i '1i PermitRootLogin no'`). sshd uses the first value it reads, so
+  the fix now also works when the option was not in the file, when a drop-in
+  in `sshd_config.d` sets it, and it can no longer land inside a `Match`
+  block as an appended line could.
+
 ### Fixed
+- Image remedies ran `recreate <names>` after the pull, which is not a
+  command, so the step always reported a failure. It is a note now.
 - `--remediate`: the remedy for a cryptominer process was not valid shell
   (`kill PID; then ...`), so the whole generated script failed to parse when
   that finding was present.

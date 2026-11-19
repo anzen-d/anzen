@@ -13,7 +13,7 @@ run_network2_check() {
         FLAGS=$(ip link show "$iface" 2>/dev/null | grep -o 'PROMISC')
         if [ -n "$FLAGS" ]; then
             fail "Interface in promiscuous mode: $iface"
-            remedy "ip link set $iface promisc off"
+            remedy "ip link set $(_q "$iface") promisc off"
             promisc_found=$((promisc_found+1))
         fi
     done < <(ip -o link show 2>/dev/null | awk '{print $2}')

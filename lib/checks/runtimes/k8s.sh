@@ -31,7 +31,7 @@ _k8s_checks() {
                 cluster-admin|system:masters|kubeadm:cluster-admins) continue ;;
             esac
             warn "[k8s] cluster-admin binding: $binding ($subjects)"
-            remedy "kubectl delete clusterrolebinding '$binding'  # review first"
+            remedy "kubectl delete clusterrolebinding $(_q "$binding")  # review first"
         done <<< "$admin_bindings"
     else
         ok "[k8s] No unexpected cluster-admin bindings"
@@ -108,7 +108,7 @@ _k8s_checks() {
         while IFS= read -r ns; do
             [ -z "$ns" ] && continue
             warn "[k8s] Default SA token automount enabled in namespace: $ns  [CIS 5.1.6]"
-            remedy "kubectl patch serviceaccount default -n $ns -p '{\"automountServiceAccountToken\": false}'"
+            remedy "kubectl patch serviceaccount default -n $(_q "$ns") -p '{\"automountServiceAccountToken\": false}'"
         done <<< "$automount_ns"
     else
         ok "[k8s] Default SA token automount disabled in all namespaces"
@@ -146,7 +146,7 @@ _k8s_checks() {
         while IFS=$'\t' read -r ns _; do
             [ -z "$ns" ] && continue
             warn "[k8s] No Pod Security Standard label on namespace: $ns  [CIS 5.2]"
-            remedy "kubectl label namespace $ns pod-security.kubernetes.io/enforce=baseline"
+            remedy "kubectl label namespace $(_q "$ns") pod-security.kubernetes.io/enforce=baseline"
         done <<< "$no_pss_ns"
     else
         ok "[k8s] All namespaces have Pod Security Standard labels"

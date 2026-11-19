@@ -71,11 +71,13 @@ run_compromise_check() {
     local preload="${ANZEN_LD_SO_PRELOAD:-/etc/ld.so.preload}" proc="${ANZEN_PROC:-/proc}"
 
     # 1. /etc/ld.so.preload: every program loads these libraries first
-    local libs
+    local libs qlibs="" _l
     libs=$(grep -vE '^[[:space:]]*(#|$)' "$preload" 2>/dev/null | tr '\n' ' ')
     if [ -n "$libs" ]; then
+        # The file is written by whoever planted it: every word is quoted
+        for _l in $libs; do qlibs+=" $(_q "$_l")"; done
         fail "$preload preloads into every program: $libs— a common rootkit technique"
-        remedy "ls -l $libs; dpkg -S $libs || rpm -qf $libs  # remove $preload unless you know why it exists"
+        remedy "ls -l$qlibs; dpkg -S$qlibs || rpm -qf$qlibs  # remove $(_q "$preload") unless you know why it exists"
     else
         ok "No libraries preloaded via $preload"
     fi
@@ -130,7 +132,7 @@ run_compromise_check() {
             # A local service on one of these ports is not a pool
             case $peer in 127.*|"[::1]"*|"[::ffff:127."*) continue ;; esac
             warn "Outbound connection to a typical mining-pool port: $peer $(grep -o 'users:(("[^"]*"' <<< "$line" | cut -d'"' -f2)"
-            remedy "ss -tnp state established | grep ':$rport'  # check what this process is and why it connects there"
+            remedy "ss -tnp state established | grep ':${rport//[!0-9]/}'  # check what this process is and why it connects there"
             miners=$((miners + 1))
         done < <(ss -Htnp state established 2>/dev/null)
     fi
@@ -147,7 +149,7 @@ run_compromise_check() {
         done < "$proc/modules"
         if [ "${#missing[@]}" -gt 0 ]; then
             warn "Loaded kernel module(s) with no file on disk: ${missing[*]} — rootkit, or a module whose file was removed"
-            remedy "cat /sys/module/${missing[0]}/taint 2>/dev/null; dmesg | grep -i ${missing[0]}  # verify where it came from"
+            remedy "cat /sys/module/$(_q "${missing[0]}")/taint 2>/dev/null; dmesg | grep -i -- $(_q "${missing[0]}")  # verify where it came from"
         else
             ok "Every loaded kernel module has a file on disk"
         fi

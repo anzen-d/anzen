@@ -106,8 +106,8 @@ _check() {
             run_ssh_check >/dev/null
         "
         line=$(grep "AllowUsers/AllowGroups not set" "$FINDINGS_FILE")
-        if [ "$who" = root ]; then [[ "$line" == *"# echo 'AllowUsers <your-admin-user>'"* ]]
-        else [[ "$line" == *"echo 'AllowUsers alice'"* ]]; fi
+        if [ "$who" = root ]; then [[ "$line" == *"# sed -i '1i AllowUsers <your-admin-user>'"* ]]
+        else [[ "$line" == *"sed -i '1i AllowUsers alice'"* ]]; fi
     done
 }
 

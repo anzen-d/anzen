@@ -86,7 +86,7 @@ run_modules_check() {
     if [ "${#loaded_risky[@]}" -gt 0 ]; then
         for mod in "${loaded_risky[@]}"; do
             warn "Potentially unneeded kernel module loaded: $mod"
-            remedy "rmmod '$mod' && echo 'blacklist $mod' >> /etc/modprobe.d/anzen-blacklist.conf"
+            remedy "rmmod $(_q "$mod") && echo $(_q "blacklist $mod") >> /etc/modprobe.d/anzen-blacklist.conf"
         done
     else
         ok "No risky kernel modules loaded"

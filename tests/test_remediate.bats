@@ -132,7 +132,7 @@ teardown() {
     fail "miner";          remedy "kill 4242  # then find the cron job"
     fail "ssh port";       remedy "sed -i 's/^#*Port.*/Port 2222/' /etc/ssh/sshd_config && sshd -t"
     fail "ssh passwords";  remedy "sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config && sshd -t"
-    fail "ssh allowusers"; remedy "echo 'AllowUsers admin' >> /etc/ssh/sshd_config && sshd -t"
+    fail "ssh allowusers"; remedy "sed -i '1i AllowUsers admin' /etc/ssh/sshd_config && sshd -t"
     fail "harmless";       remedy "echo harmless-ran"
     generate_remediate_script "$REMEDIATE_OUT" >/dev/null
     bash -n "$REMEDIATE_OUT"
@@ -206,4 +206,40 @@ teardown() {
     fail "issue"; remedy "echo fix"
     generate_remediate_script "$REMEDIATE_OUT" >/dev/null
     [ "$(stat -c %a "$REMEDIATE_OUT")" = "700" ]
+}
+
+@test "remediate: a newline in a value cannot start a new command" {
+    # A file name can hold a newline; in a "# note" it would end the comment
+    local name=$'/etc/ssl/x.pem\ntouch '"$BATS_TEST_TMPDIR/pwned"
+    fail "cert expires"; remedy "echo renew  # expires soon: $name"
+    [ "$(wc -l < "$FINDINGS_FILE")" -eq 1 ]
+    generate_remediate_script "$REMEDIATE_OUT" >/dev/null
+    run bash "$REMEDIATE_OUT"
+    [ "$status" -eq 0 ]
+    [ ! -e "$BATS_TEST_TMPDIR/pwned" ]
+}
+
+@test "remediate: every value a check puts into a command goes through _q" {
+    # A variable may stand after the "  # " note, inside $(_q ...), or be one
+    # of the names below, which the check itself sets from fixed values
+    run python3 - "$ANZEN_DIR" <<'PY'
+import glob, re, sys
+known = r'\$\{?(expected|rt|ssh_port|port|svc|_SYSCTL_CONF|key|fix|bl_cmd|upg|_qd|qlibs|rport|_u|_suite|found_dev|found_recon|d|pid)\b[^ "]*|\$\((_sshd_reload|printf )[^)]*\)'
+bad = []
+files = glob.glob(sys.argv[1] + '/lib/checks/**/*.sh', recursive=True) + glob.glob(sys.argv[1] + '/plugins/*.sh')
+for f in files:
+    for n, line in enumerate(open(f), 1):
+        m = re.search(r'remedy "([^#].*)"', line)
+        if not m:
+            continue
+        cmd = m.group(1).split('  # ')[0]
+        cmd = re.sub(r'\$\(_q "[^"]*"\)', '', cmd)
+        cmd = re.sub(known, '', cmd)
+        if '$' in cmd:
+            bad.append('%s:%d: %s' % (f, n, cmd.strip()))
+print('\n'.join(bad))
+sys.exit(1 if bad else 0)
+PY
+    echo "$output"
+    [ "$status" -eq 0 ]
 }

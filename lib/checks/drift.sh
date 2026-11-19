@@ -107,7 +107,7 @@ _drift_compare() {
                              *) warn "New SUID/SGID binary: $key" ;;
                          esac
                          remedy "ls -l $(_q "$key"); dpkg -S $(_q "$key") || rpm -qf $(_q "$key")" ;;
-                port)    warn "New listening port: $key ($val)"; remedy "ss -ltnup | grep ':${key##*:} '" ;;
+                port)    warn "New listening port: $key ($val)"; remedy "ss -ltnup | grep -F -- $(_q ":${key##*:} ")" ;;
             esac
         elif [ "$prev" != "$val" ]; then
             n=$((n + 1))

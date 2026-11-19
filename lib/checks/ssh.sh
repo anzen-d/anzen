@@ -145,6 +145,10 @@ run_ssh_check() {
         return
     fi
 
+    # Remedies put the setting on line 1 of sshd_config: sshd uses the first
+    # value it reads, so line 1 wins over a later line and over a drop-in in
+    # sshd_config.d, and it cannot land inside a Match block (an appended
+    # line could, and a sed on a line that is not there changes nothing).
     # sshd -t first: a reload with a config sshd rejects is how SSH access is lost
     _sshd_reload() { echo "sshd -t && { systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null; }"; }
 
@@ -155,7 +159,7 @@ run_ssh_check() {
     UNPRIV_START=$(_sysctl net.ipv4.ip_unprivileged_port_start 2>/dev/null || echo 1024)
     if [ "$SSH_PORT" = "22" ]; then
         warn "SSH on default port 22"
-        remedy "sed -i 's/^#*Port.*/Port 2222/' /etc/ssh/sshd_config && $(_sshd_reload)"
+        remedy "sed -i '1i Port 2222' /etc/ssh/sshd_config && $(_sshd_reload)"
     elif [ "$((10#$SSH_PORT))" -ge "$((10#$UNPRIV_START))" ] 2>/dev/null; then
         warn "SSH port $SSH_PORT is in unprivileged range (>= $UNPRIV_START)"
     else
@@ -166,7 +170,7 @@ run_ssh_check() {
     VAL=$(_ssh_val "PermitRootLogin"); VAL=${VAL:-yes}
     if echo "$VAL" | grep -qi "^yes$"; then
         fail "PermitRootLogin: yes — direct root SSH login allowed"
-        remedy "sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && $(_sshd_reload)"
+        remedy "sed -i '1i PermitRootLogin no' /etc/ssh/sshd_config && $(_sshd_reload)"
     elif echo "$VAL" | grep -qi "prohibit-password\|without-password"; then
         ok "PermitRootLogin: $VAL (key-only root)"
     else
@@ -177,7 +181,7 @@ run_ssh_check() {
     VAL=$(_ssh_val "PasswordAuthentication"); VAL=${VAL:-yes}
     if echo "$VAL" | grep -qi "^yes$"; then
         warn "PasswordAuthentication: yes — password logins allowed (prefer keys)"
-        remedy "sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config && $(_sshd_reload)"
+        remedy "sed -i '1i PasswordAuthentication no' /etc/ssh/sshd_config && $(_sshd_reload)"
     else
         ok "PasswordAuthentication: $VAL"
     fi
@@ -186,7 +190,7 @@ run_ssh_check() {
     VAL=$(_ssh_val "PermitEmptyPasswords"); VAL=${VAL:-no}
     if echo "$VAL" | grep -qi "^yes$"; then
         fail "PermitEmptyPasswords: yes"
-        remedy "sed -i 's/^#*PermitEmptyPasswords.*/PermitEmptyPasswords no/' /etc/ssh/sshd_config && $(_sshd_reload)"
+        remedy "sed -i '1i PermitEmptyPasswords no' /etc/ssh/sshd_config && $(_sshd_reload)"
     else
         ok "PermitEmptyPasswords: $VAL"
     fi
@@ -195,7 +199,7 @@ run_ssh_check() {
     VAL=$(_ssh_val "X11Forwarding"); VAL=${VAL:-no}
     if echo "$VAL" | grep -qi "^yes$"; then
         warn "X11Forwarding: yes — disable unless needed"
-        remedy "sed -i 's/^#*X11Forwarding.*/X11Forwarding no/' /etc/ssh/sshd_config && $(_sshd_reload)"
+        remedy "sed -i '1i X11Forwarding no' /etc/ssh/sshd_config && $(_sshd_reload)"
     else
         ok "X11Forwarding: $VAL"
     fi
@@ -205,7 +209,7 @@ run_ssh_check() {
     VAL=$(_ssh_val "AllowTcpForwarding"); VAL=${VAL:-yes}
     if echo "$VAL" | grep -qiE "^(yes|all|remote)$"; then
         warn "AllowTcpForwarding: $VAL — SSH users can tunnel past the firewall"
-        remedy "echo 'AllowTcpForwarding no' >> /etc/ssh/sshd_config && $(_sshd_reload)  # or Match User <admin> to keep it for one user"
+        remedy "sed -i '1i AllowTcpForwarding no' /etc/ssh/sshd_config && $(_sshd_reload)  # or Match User <admin> to keep it for one user"
     else
         ok "AllowTcpForwarding: $VAL"
     fi
@@ -216,7 +220,7 @@ run_ssh_check() {
         ok "PermitTunnel: no"
     else
         warn "PermitTunnel: $VAL — SSH users can create a VPN tunnel into this network"
-        remedy "sed -i 's/^#*PermitTunnel.*/PermitTunnel no/' /etc/ssh/sshd_config && $(_sshd_reload)"
+        remedy "sed -i '1i PermitTunnel no' /etc/ssh/sshd_config && $(_sshd_reload)"
     fi
 
     # GatewayPorts — remote forwards bound to all interfaces publish services
@@ -224,7 +228,7 @@ run_ssh_check() {
     VAL=$(_ssh_val "GatewayPorts"); VAL=${VAL:-no}
     if echo "$VAL" | grep -qiE "^(yes|clientspecified)$"; then
         warn "GatewayPorts: $VAL — remote port forwards can listen on all interfaces"
-        remedy "sed -i 's/^#*GatewayPorts.*/GatewayPorts no/' /etc/ssh/sshd_config && $(_sshd_reload)"
+        remedy "sed -i '1i GatewayPorts no' /etc/ssh/sshd_config && $(_sshd_reload)"
     else
         ok "GatewayPorts: $VAL"
     fi
@@ -236,7 +240,7 @@ run_ssh_check() {
         ok "PermitUserEnvironment: no"
     else
         warn "PermitUserEnvironment: $VAL — users can set LD_PRELOAD and other variables for sshd sessions"
-        remedy "sed -i 's/^#*PermitUserEnvironment.*/PermitUserEnvironment no/' /etc/ssh/sshd_config && $(_sshd_reload)"
+        remedy "sed -i '1i PermitUserEnvironment no' /etc/ssh/sshd_config && $(_sshd_reload)"
     fi
 
     # AllowAgentForwarding — root (or an attacker as root) on this host can use
@@ -253,14 +257,14 @@ run_ssh_check() {
     VAL=$(_ssh_val "HostbasedAuthentication"); VAL=${VAL:-no}
     if echo "$VAL" | grep -qi "^yes$"; then
         warn "HostbasedAuthentication: yes — logins are trusted by client host instead of a user key"
-        remedy "sed -i 's/^#*HostbasedAuthentication.*/HostbasedAuthentication no/' /etc/ssh/sshd_config && $(_sshd_reload)"
+        remedy "sed -i '1i HostbasedAuthentication no' /etc/ssh/sshd_config && $(_sshd_reload)"
     else
         ok "HostbasedAuthentication: no"
     fi
     VAL=$(_ssh_val "IgnoreRhosts"); VAL=${VAL:-yes}
     if echo "$VAL" | grep -qi "^no$"; then
         warn "IgnoreRhosts: no — ~/.rhosts and ~/.shosts files are honoured"
-        remedy "sed -i 's/^#*IgnoreRhosts.*/IgnoreRhosts yes/' /etc/ssh/sshd_config && $(_sshd_reload)"
+        remedy "sed -i '1i IgnoreRhosts yes' /etc/ssh/sshd_config && $(_sshd_reload)"
     else
         ok "IgnoreRhosts: $VAL"
     fi
@@ -269,7 +273,7 @@ run_ssh_check() {
     VAL=$(_ssh_val "MaxAuthTries"); VAL=${VAL:-6}
     if [ "$VAL" -gt 4 ] 2>/dev/null; then
         warn "MaxAuthTries: $VAL (recommended: 3)"
-        remedy "sed -i 's/^#*MaxAuthTries.*/MaxAuthTries 3/' /etc/ssh/sshd_config && $(_sshd_reload)"
+        remedy "sed -i '1i MaxAuthTries 3' /etc/ssh/sshd_config && $(_sshd_reload)"
     else
         ok "MaxAuthTries: $VAL"
     fi
@@ -278,7 +282,7 @@ run_ssh_check() {
     VAL=$(_ssh_val "Protocol")
     if [ "$VAL" = "1" ]; then
         fail "SSH Protocol 1 enabled — insecure"
-        remedy "sed -i 's/^Protocol.*/Protocol 2/' /etc/ssh/sshd_config && $(_sshd_reload)"
+        remedy "sed -i '1i Protocol 2' /etc/ssh/sshd_config && $(_sshd_reload)"
     else
         ok "SSH Protocol: ${VAL:-2 (default)}"
     fi
@@ -287,7 +291,7 @@ run_ssh_check() {
     VAL=$(_ssh_val "ClientAliveInterval"); VAL=${VAL:-0}
     if [ "$((10#$VAL))" -eq 0 ] 2>/dev/null; then
         warn "ClientAliveInterval: 0 — idle sessions never time out"
-        remedy "echo 'ClientAliveInterval 300' >> /etc/ssh/sshd_config && echo 'ClientAliveCountMax 2' >> /etc/ssh/sshd_config && $(_sshd_reload)"
+        remedy "sed -i '1i ClientAliveInterval 300' /etc/ssh/sshd_config && sed -i '1i ClientAliveCountMax 2' /etc/ssh/sshd_config && $(_sshd_reload)"
     elif [ "$((10#$VAL))" -le 300 ] 2>/dev/null; then
         ok "ClientAliveInterval: ${VAL}s"
     else
@@ -298,7 +302,7 @@ run_ssh_check() {
     VAL=$(_ssh_val "LoginGraceTime"); VAL=${VAL:-120}
     if [ "$((10#$VAL))" -gt 60 ] 2>/dev/null; then
         warn "LoginGraceTime: ${VAL}s (recommended ≤ 60)"
-        remedy "sed -i 's/^#*LoginGraceTime.*/LoginGraceTime 30/' /etc/ssh/sshd_config && $(_sshd_reload)"
+        remedy "sed -i '1i LoginGraceTime 30' /etc/ssh/sshd_config && $(_sshd_reload)"
     else
         ok "LoginGraceTime: ${VAL}s"
     fi
@@ -307,7 +311,7 @@ run_ssh_check() {
     VAL=$(_ssh_val "UseDNS"); VAL=${VAL:-yes}
     if echo "$VAL" | grep -qi "^yes$"; then
         warn "UseDNS: yes — can slow logins"
-        remedy "echo 'UseDNS no' >> /etc/ssh/sshd_config && $(_sshd_reload)"
+        remedy "sed -i '1i UseDNS no' /etc/ssh/sshd_config && $(_sshd_reload)"
     else
         ok "UseDNS: $VAL"
     fi
@@ -324,9 +328,9 @@ run_ssh_check() {
         # Never suggest "AllowUsers root": with PermitRootLogin no it locks everyone out
         local _u; _u=$(_invoking_user)
         if [ "$_u" = root ]; then
-            remedy "# echo 'AllowUsers <your-admin-user>' >> /etc/ssh/sshd_config && $(_sshd_reload)"
+            remedy "# sed -i '1i AllowUsers <your-admin-user>' /etc/ssh/sshd_config && $(_sshd_reload)"
         else
-            remedy "echo 'AllowUsers $_u' >> /etc/ssh/sshd_config && $(_sshd_reload)"
+            remedy "sed -i '1i AllowUsers $_u' /etc/ssh/sshd_config && $(_sshd_reload)"
         fi
     fi
 
@@ -338,7 +342,7 @@ run_ssh_check() {
         ok "Ciphers/MACs/KexAlgorithms explicitly configured"
         if echo "$CIPHERS" | grep -qiE "arcfour|3des|blowfish|cast|rc4"; then
             fail "Weak ciphers in SSH config: $CIPHERS"
-            remedy "sed -i 's/^Ciphers.*/Ciphers aes256-gcm@openssh.com,chacha20-poly1305@openssh.com,aes128-gcm@openssh.com/' /etc/ssh/sshd_config && $(_sshd_reload)"
+            remedy "sed -i '1i Ciphers aes256-gcm@openssh.com,chacha20-poly1305@openssh.com,aes128-gcm@openssh.com' /etc/ssh/sshd_config && $(_sshd_reload)"
         fi
         if echo "$MACS" | grep -qiE "md5|sha1$|umac-64@"; then
             warn "Potentially weak MACs: $MACS"
@@ -347,7 +351,7 @@ run_ssh_check() {
         warn "Ciphers/MACs/KexAlgorithms not explicitly set — using OpenSSH defaults"
         # One line: remediate.sh prints remedies verbatim, so a "\n" heredoc
         # never ended and swallowed every later command into sshd_config
-        remedy "echo 'Ciphers aes256-gcm@openssh.com,chacha20-poly1305@openssh.com' >> /etc/ssh/sshd_config && echo 'MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com' >> /etc/ssh/sshd_config && echo 'KexAlgorithms curve25519-sha256,diffie-hellman-group16-sha512' >> /etc/ssh/sshd_config && $(_sshd_reload)"
+        remedy "sed -i '1i Ciphers aes256-gcm@openssh.com,chacha20-poly1305@openssh.com' /etc/ssh/sshd_config && sed -i '1i MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com' /etc/ssh/sshd_config && sed -i '1i KexAlgorithms curve25519-sha256,diffie-hellman-group16-sha512' /etc/ssh/sshd_config && $(_sshd_reload)"
     fi
 
     # Authorized keys

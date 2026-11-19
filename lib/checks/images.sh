@@ -90,7 +90,7 @@ run_images_check() {
         cur_id=$("$rt" image inspect --format '{{.Id}}' "$ref" 2>/dev/null)
         if [ -n "$cur_id" ] && [ "$cur_id" != "$running" ]; then
             warn "Containers run an older image than the pulled $ref [$names]"
-            remedy "$rt compose up -d  # or recreate: $names"
+            remedy "$rt compose up -d  # in the project directory; or recreate: $names"
             stale=$((stale + 1))
         fi
 
@@ -102,7 +102,7 @@ run_images_check() {
             age=$(( (now - created) / 86400 ))
             if [ "$age" -gt "$max_age" ]; then
                 warn "Image $ref is $age days old (limit $max_age) [$names]"
-                remedy "$rt pull $ref && recreate $names  # or move to a maintained tag"
+                remedy "$rt pull $(_q "$ref")  # then recreate $names, or move to a maintained tag"
                 old=$((old + 1))
             fi
         fi
@@ -113,7 +113,7 @@ run_images_check() {
             remote=$(_image_remote_digest "$ref")
             if [ -n "$remote" ] && [ -n "$digests" ] && [[ " $digests " != *"@$remote "* ]]; then
                 warn "Newer image published for $ref [$names]"
-                remedy "$rt pull $ref && recreate $names"
+                remedy "$rt pull $(_q "$ref")  # then recreate $names"
                 newer=$((newer + 1))
             fi
         fi

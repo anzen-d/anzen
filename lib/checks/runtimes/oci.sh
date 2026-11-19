@@ -64,7 +64,7 @@ _oci_daemon_checks() {
             local sm; sm=$(stat -c "%a" "$sock" 2>/dev/null)
             [ $((8#${sm:-0} & 8#002)) -ne 0 ] \
                 && { fail "Podman socket world-writable: $sock"
-                     remedy "chmod 660 '$sock'"; } \
+                     remedy "chmod 660 $(_q "$sock")"; } \
                 || ok "Podman socket permissions OK"
         fi
         ;;
@@ -75,7 +75,7 @@ _oci_daemon_checks() {
             local sm; sm=$(stat -c "%a" "$sock" 2>/dev/null)
             [ $((8#${sm:-0} & 8#002)) -ne 0 ] \
                 && { fail "containerd socket world-writable"
-                     remedy "chmod 660 $sock"; } \
+                     remedy "chmod 660 $(_q "$sock")"; } \
                 || ok "containerd socket permissions OK"
         fi
         local cfg="/etc/containerd/config.toml"

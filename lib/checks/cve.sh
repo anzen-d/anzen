@@ -276,7 +276,8 @@ _cve_scan_all() {
         if ! _cve_scan image "$image" "$rows"; then
             warn "CVE scan failed for $image: ${_CVE_ERR:-trivy exited non-zero}"
         else
-            _cve_report "$image [$names]" "$rt pull ${image//%/%%} && recreate ${names//%/%%}  # %s" image < "$rows"
+            local _qi; _qi=$(_q "$image")
+            _cve_report "$image [$names]" "$rt pull ${_qi//%/%%}  # then recreate ${names//%/%%}; %s" image < "$rows"
             [ "$_CVE_N" -eq 0 ] && clean=$((clean + 1))
         fi
     done < <("$rt" ps --format '{{.Image}}\t{{.Names}}' 2>/dev/null \

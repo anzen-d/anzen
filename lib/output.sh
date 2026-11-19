@@ -104,8 +104,12 @@ _q() { printf '%q' "$1"; }
 # Append a remediation command to the most recent finding (amends last line)
 remedy() {
     [ -s "$FINDINGS_FILE" ] || return 0
+    # One line, always: a newline inside a value (a file name can hold one)
+    # would end the "# note" it sits in, and the next line would run as root
+    local r=$1
+    r="${r//$'\n'/ }"; r="${r//$'\r'/ }"; r="${r//$'\t'/ }"
     # Passed via ENVIRON: awk -v would expand backslash escapes in the command
-    ANZEN_REMEDY=$1 awk 'BEGIN{FS=OFS="\t"; r=ENVIRON["ANZEN_REMEDY"]} NR>1{print prev} {prev=$0} END{
+    ANZEN_REMEDY=$r awk 'BEGIN{FS=OFS="\t"; r=ENVIRON["ANZEN_REMEDY"]} NR>1{print prev} {prev=$0} END{
         # Fill the 5th (remedy) field of the last finding
         split(prev, f, "\t")
         print f[1], f[2], f[3], f[4], r

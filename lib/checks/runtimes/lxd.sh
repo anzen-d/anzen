@@ -15,13 +15,13 @@ _lxd_checks() {
         priv=$(lxc config get "$cname" security.privileged 2>/dev/null)
         [ "$priv" = "true" ] && {
             fail "[lxd] Privileged container: $cname"
-            remedy "lxc config set $cname security.privileged false"; }
+            remedy "lxc config set $(_q "$cname") security.privileged false"; }
 
         local nesting
         nesting=$(lxc config get "$cname" security.nesting 2>/dev/null)
         [ "$nesting" = "true" ] && {
             warn "[lxd] Nesting enabled: $cname"
-            remedy "lxc config set $cname security.nesting false"; }
+            remedy "lxc config set $(_q "$cname") security.nesting false"; }
 
         local idmap
         idmap=$(lxc config get "$cname" raw.idmap 2>/dev/null)

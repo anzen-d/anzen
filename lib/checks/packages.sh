@@ -110,7 +110,7 @@ run_packages_check() {
             | grep -c "^CVE" || true)
         if [ "$((10#${_vuln_count:-0}))" -gt 0 ]; then
             warn "$_vuln_count CVE(s) reported by debsecan"
-            remedy "debsecan${_suite:+ --suite $_suite} --format detail | less"
+            remedy "debsecan${_suite:+ --suite $(_q "$_suite")} --format detail | less"
         else
             ok "No known CVEs (debsecan)"
         fi

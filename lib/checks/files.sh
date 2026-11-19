@@ -25,10 +25,10 @@ run_files_check() {
         elif [ $(( extra & 8#0007 )) -ne 0 ] || [ $(( extra & 8#0222 )) -ne 0 ]; then
             # Readable/writable by everyone, or writable beyond intent
             fail "$file — $actual (expected $expected or stricter)"
-            remedy "chmod $expected $file"
+            remedy "chmod $expected $(_q "$file")"
         else
             warn "$file — $actual (expected $expected or stricter)"
-            remedy "chmod $expected $file"
+            remedy "chmod $expected $(_q "$file")"
         fi
     }
 

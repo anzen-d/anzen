@@ -50,7 +50,7 @@ run_systemd_hardening_check() {
         done
         if [ "${#missing[@]}" -gt 2 ]; then
             warn "$svc missing hardening: ${missing[*]}"
-            remedy "systemctl edit $svc  # add [Service] NoNewPrivileges=yes PrivateTmp=yes ProtectSystem=strict ProtectHome=yes"
+            remedy "systemctl edit $(_q "$svc")  # add [Service] NoNewPrivileges=yes PrivateTmp=yes ProtectSystem=strict ProtectHome=yes"
             unprotected=$((unprotected+1))
         fi
     done <<< "$services"
@@ -76,7 +76,7 @@ run_systemd_hardening_check() {
     if [ -n "$root_services" ]; then
         while IFS= read -r svc; do
             warn "Service running as root (consider DynamicUser=yes): $svc"
-            remedy "systemctl edit $svc  # add [Service] DynamicUser=yes"
+            remedy "systemctl edit $(_q "$svc")  # add [Service] DynamicUser=yes"
         done <<< "$root_services"
     fi
 }
