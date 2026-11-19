@@ -44,6 +44,7 @@ tool: know the whole state of your machines and stop worrying about them.
 - **Windows and macOS editions:** Defender, firewall, BitLocker, SMB, RDP/NLA, LSA and Credential Guard, LAPS, ASR rules, LLMNR/NetBIOS, privilege-escalation paths and audit policy on Windows, with HTML/SARIF reports, ntfy alerts and `-Remote` over WinRM; FileVault, SIP, Gatekeeper, firewall, sharing services, XProtect age, launch daemons and kernel extensions on macOS. The Linux fleet audits both over SSH, and all three use the same report format.
 - **History and dashboard:** per-host score trends, new and fixed problems, findings across hosts, tag filter, all in one static HTML page.
 - **Alerts only when something new breaks**, via ntfy or any command, plus a dead-man switch.
+- **Lessons, not only commands:** under the most common findings the HTML report explains [why it matters, what the fix can break and how to check it worked](docs/reports.md#lessons).
 - **Accepted risks with expiry dates**, so known exceptions stay quiet but never forever.
 - **Fleet mode:** `--remote=host1,host2` audits Linux, macOS and Windows hosts over SSH without installing anything there.
 - **HTML, TXT, JSON, SARIF and CSV reports** with NIST SP 800-53 / CIS Controls references, a per-host inventory, plus a generated `remediate.sh` with the fix commands.

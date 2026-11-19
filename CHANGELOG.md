@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-11-19
+
 ### Added
 - Lessons in the HTML report: under a `FAIL` or `WARN` finding that has one,
   "Why it matters" opens three short parts — why the finding matters, what
