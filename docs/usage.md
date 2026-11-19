@@ -52,6 +52,14 @@ sudo ./anzen.sh --html
 | `--schedule=FREQ` | Install cron job (`daily`\|`weekly`\|`monthly`) |
 | `--history=DIR` | Save this run to `DIR/<host>/` (overrides `HISTORY_DIR`) |
 | `--dashboard=FILE` | Build the static dashboard from the history dir and exit |
+| `--enrol=URL` | Host: enrol as a [push agent](fleet.md#push-agents) of the controller at `URL` |
+| `--receiver` | Controller: take report uploads from push agents |
+| `--agent-list` | Controller: pending and approved push agents with their codes |
+| `--agent-approve=CODE[:NAME]` | Controller: accept the host that printed `CODE` |
+| `--agent-revoke=NAME` | Controller: stop accepting a push agent |
+| `--agent-rename=OLD:NEW` | Controller: rename a push agent and its history |
+| `--agent-scan=NAME` | Controller: ask a host for a full audit at its next poll |
+| `--agent-poll` | Host: ask the controller for a scan request (cron, every 5 minutes) |
 | `--version`, `-v` | Print version and exit |
 | `--help`, `-h` | Show help |
 

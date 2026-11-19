@@ -47,6 +47,7 @@ tool: know the whole state of your machines and stop worrying about them.
 - **Lessons, not only commands:** under the most common findings the HTML report explains [why it matters, what the fix can break and how to check it worked](docs/reports.md#lessons).
 - **Accepted risks with expiry dates**, so known exceptions stay quiet but never forever.
 - **Fleet mode:** `--remote=host1,host2` audits Linux, macOS and Windows hosts over SSH without installing anything there.
+- **Push agents:** hosts behind NAT enrol with one `curl` line, you approve the code they print, and they upload their own signed reports. The controller never logs in to them. A web controller shows every host and has the approve, revoke and "Scan now" buttons.
 - **HTML, TXT, JSON, SARIF and CSV reports** with NIST SP 800-53 / CIS Controls references, a per-host inventory, plus a generated `remediate.sh` with the fix commands.
 - **No dependencies:** plain Bash and standard tools; Trivy, curl and Docker only unlock extra checks.
 

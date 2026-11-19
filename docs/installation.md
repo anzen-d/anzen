@@ -13,6 +13,8 @@
 | `trivy` | Optional — `cve` module ([trivy.dev](https://trivy.dev)); without it, `debsecan` is used on Debian |
 | `docker` / `podman` | Optional — container modules (`docker_security`, `images`, `cve` image scans) |
 | `ssh` | `--remote` only — key-based access to the audited hosts |
+| `openssl` | TLS checks; push agent keys and signatures (`--enrol`, `--receiver`) |
+| `python3` | `--receiver` only — the controller side of [push agents](fleet.md#push-agents) |
 
 ## Installation
 
@@ -92,6 +94,7 @@ them off:
 | Newer image digests (HEAD requests) | the image's registry | `images`, `IMAGE_CHECK_UPDATES` |
 | Notifications and heartbeat | only what you configure | `NOTIFY_*`, `HEARTBEAT_URL` |
 | Remote certificate expiry | the endpoints you list | `cert_expiry` plugin, `CERT_EXPIRY_HOSTS` |
+| Report upload of an enrolled host | the controller you enrolled with | `--enrol=URL`, see [Push agents](fleet.md#push-agents) |
 
 The `services` module sends `PING` to a local Redis to see whether it needs a
 password. The active `pentest` modules connect to localhost and to `--target`, and only

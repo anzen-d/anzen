@@ -38,6 +38,9 @@ HISTORY_ARG=""
 DASHBOARD_ONLY=""
 DEBUG=false
 OFFLINE=false
+# Push agent (lib/agent.sh): enrol | list | approve | revoke | receiver | op
+AGENT_MODE=""
+AGENT_ARG=""
 
 for arg in "$@"; do
     case $arg in
@@ -67,6 +70,16 @@ for arg in "$@"; do
         --schedule=*)    SCHEDULE="${arg#*=}" ;;
         --history=*)     HISTORY_ARG="${arg#*=}" ;;
         --dashboard=*)   DASHBOARD_ONLY="${arg#*=}" ;;
+        --enrol=*|--enroll=*) AGENT_MODE=enrol;  AGENT_ARG="${arg#*=}" ;;
+        --receiver)        AGENT_MODE=receiver ;;
+        --agent-list)      AGENT_MODE=list ;;
+        --agent-approve=*) AGENT_MODE=approve; AGENT_ARG="${arg#*=}" ;;
+        --agent-revoke=*)  AGENT_MODE=revoke;  AGENT_ARG="${arg#*=}" ;;
+        --agent-rename=*)  AGENT_MODE=rename;  AGENT_ARG="${arg#*=}" ;;
+        --agent-scan=*)    AGENT_MODE=scan;    AGENT_ARG="${arg#*=}" ;;
+        --agent-poll)      AGENT_MODE=poll ;;
+        # Internal: lib/receiver.py calls back with the request in ANZEN_AGENT_*
+        --agent-op=*)      AGENT_MODE=op;      AGENT_ARG="${arg#*=}" ;;
         --help|-h)
             cat <<EOF
 Anzen $ANZEN_VERSION — Linux Security Audit Tool
@@ -121,6 +134,20 @@ History & dashboard:
   --history=DIR        Save this run to DIR/<host>/ (default: HISTORY_DIR in anzen.conf)
   --dashboard=FILE     Build a static HTML dashboard from the history dir and exit
   --version, -v        Print version and exit
+
+Push agent (hosts upload their own report; the controller never logs in):
+  --enrol=URL          On a host: make a key, ask the controller at URL for approval;
+                       every full run then uploads its signed report
+  --receiver           On the controller: take uploads (needs python3, HISTORY_DIR,
+                       AGENT_PUBLIC_URL; listens on AGENT_LISTEN, default 127.0.0.1:8787)
+  --agent-list         Pending and approved agents with their codes
+  --agent-approve=CODE[:NAME]  Accept the host that printed CODE
+  --agent-revoke=NAME  Stop accepting an agent (or drop a pending CODE)
+  --agent-rename=OLD:NEW  Rename an agent and its history
+  --agent-scan=NAME    Ask a host for a full audit at its next --agent-poll
+  --agent-poll         On a host: ask the controller for a scan request (cron, every 5 min)
+                       The receiver also serves a web controller for all of this on
+                       AGENT_ADMIN_LISTEN (default 127.0.0.1:8788)
 
 Examples:
   ./anzen.sh --html --txt
@@ -226,7 +253,8 @@ fi
 source "$ANZEN_DIR/lib/config.sh"
 
 # ── Privilege check ───────────────────────────────────────────────────────────
-if [ "$EUID" -ne 0 ] && ! sudo -n true 2>/dev/null; then
+# (not for the receiver's internal calls: their stdout is the HTTP answer)
+if [ "$AGENT_MODE" != op ] && [ "$EUID" -ne 0 ] && ! sudo -n true 2>/dev/null; then
     echo "[WARN] Not running as root and no passwordless sudo — some checks may be incomplete."
 fi
 
@@ -253,6 +281,7 @@ source "$ANZEN_DIR/lib/baseline.sh"
 source "$ANZEN_DIR/lib/remediate.sh"
 source "$ANZEN_DIR/lib/notify.sh"
 source "$ANZEN_DIR/lib/history.sh"
+source "$ANZEN_DIR/lib/agent.sh"
 
 [ -n "$HISTORY_ARG" ] && HISTORY_DIR="$HISTORY_ARG"
 # A --check run covers a few modules: saved to history it would make the next
@@ -270,6 +299,28 @@ if [ -n "$DASHBOARD_ONLY" ]; then
     generate_dashboard "$HISTORY_DIR" "$DASHBOARD_ONLY" || exit 1
     echo "Dashboard: $DASHBOARD_ONLY"
     exit 0
+fi
+
+# ── Push agent modes (run no checks) ──────────────────────────────────────────
+if [ -n "$AGENT_MODE" ]; then
+    case "$AGENT_MODE:$AGENT_ARG" in
+        enrol:*)    agent_enrol "$AGENT_ARG" ;;
+        receiver:*) agent_receiver ;;
+        list:*)     agent_list ;;
+        approve:*)  agent_approve "$AGENT_ARG" ;;
+        revoke:*)   agent_revoke "$AGENT_ARG" ;;
+        rename:*:*) agent_rename "${AGENT_ARG%%:*}" "${AGENT_ARG#*:}" ;;
+        scan:*)     agent_scan_request "$AGENT_ARG" ;;
+        poll:*)     agent_poll ;;
+        op:state)   agent_state ;;
+        op:poll)    agent_poll_receive "${ANZEN_AGENT_ID:-}" "${ANZEN_AGENT_SIG:-}" "${ANZEN_AGENT_BODY:-}" ;;
+        op:script)  agent_enrol_script ;;
+        op:tarball) agent_tarball ;;
+        op:enrol)   agent_enrol_receive "${ANZEN_AGENT_BODY:-}" "${ANZEN_AGENT_NAME:-}" ;;
+        op:report)  agent_report_receive "${ANZEN_AGENT_ID:-}" "${ANZEN_AGENT_SIG:-}" "${ANZEN_AGENT_BODY:-}" ;;
+        *)          echo "Unknown --agent-op: $AGENT_ARG" >&2; false ;;
+    esac
+    exit $?
 fi
 
 # ── Remote / fleet mode (--remote=host1,host2) ────────────────────────────────
@@ -453,6 +504,15 @@ if ! $PARTIAL_RUN; then
     notify_run "$_nf" "$(_overall_score)" "$NEW_FAILS"
     unset _nf
     heartbeat
+fi
+
+# ── Push agent: an enrolled host uploads this run to its controller ───────────
+if ! $PARTIAL_RUN && [ "$OFFLINE" != true ] && agent_enrolled; then
+    _pj=$(umask 077; mktemp)
+    generate_json_report "$_pj"
+    _pu=$(agent_push "$_pj") && echo -e "${BOLD}${CYAN}  Pushed    : $_pu${NC}"
+    rm -f "$_pj"
+    unset _pj _pu
 fi
 
 mkdir -p "$REPORT_DIR"

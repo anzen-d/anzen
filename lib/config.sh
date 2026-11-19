@@ -96,6 +96,15 @@ KEV_URL="${KEV_URL:-https://www.cisa.gov/sites/default/files/feeds/known_exploit
 KEV_CACHE_DIR="${KEV_CACHE_DIR:-}"   # default: /var/cache/anzen (root) or ~/.cache/anzen
 CVE_SKIP_DIRS="${CVE_SKIP_DIRS:-/proc /sys /dev /run /tmp /var/tmp /var/lib/docker /var/lib/containerd /var/lib/containers /snap}"
 
+# Push agent (lib/agent.sh). Host: key and controller URL. Controller: the
+# keys of pending and approved hosts, and where --receiver listens
+AGENT_DIR="${AGENT_DIR:-/etc/anzen/agent}"
+AGENT_STATE_DIR="${AGENT_STATE_DIR:-/var/lib/anzen/agents}"
+AGENT_PUBLIC_URL="${AGENT_PUBLIC_URL:-}"
+AGENT_LISTEN="${AGENT_LISTEN:-127.0.0.1:8787}"
+# Web controller of --receiver; set it empty to turn it off
+AGENT_ADMIN_LISTEN="${AGENT_ADMIN_LISTEN-127.0.0.1:8788}"
+
 # Drift module state (what the previous full run saw)
 DRIFT_STATE_DIR="${DRIFT_STATE_DIR:-/var/lib/anzen/state}"
 

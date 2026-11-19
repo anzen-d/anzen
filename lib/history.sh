@@ -75,6 +75,45 @@ history_save() {
     return "$rc"
 }
 
+# _dashboard_run_obj FILE FULL — one history file as a JS object (FULL=1 keeps
+# its findings); fails when any line is not exactly what anzen writes. Also the
+# gate for reports that arrive from push agents (lib/agent.sh)
+_dashboard_run_obj() {
+    # The lines are pasted into the page's script as they are, so every
+    # line must have exactly the shape anzen writes. Fleet reports come
+    # from the remote host: a compromised one must not inject script
+    # S: a JSON string. Via ENVIRON: awk -v would eat the backslashes
+    S='"([^"\\]|\\.)*"' awk -v full="$2" '
+        BEGIN { S = ENVIRON["S"] }
+        function chk(re) { if ($0 !~ re) bad = 1 }
+        /^  "hostname": /  { chk("^  \"hostname\": " S ",?$"); sub(/,$/, ""); host = $0 }
+        /^  "date": /      { chk("^  \"date\": " S ",?$"); sub(/,$/, ""); date = $0 }
+        /^  "os": /        { chk("^  \"os\": " S ",?$"); sub(/,$/, ""); os = $0 }
+        /^  "version": /   { chk("^  \"version\": " S ",?$"); sub(/,$/, ""); ver = $0 }
+        /^  "summary": /   { chk("^  \"summary\": \\{\"fail\": [0-9]+, \"warn\": [0-9]+, \"ok\": [0-9]+, \"info\": [0-9]+, \"score\": [0-9]+\\},?$")
+                             sub(/,$/, ""); summ = $0 }
+        /^  "sections": \[/ { in_s = 1; next }
+        /^  "findings": \[/ { in_f = 1; next }
+        /^  \]/            { in_s = 0; in_f = 0; next }
+        in_s { chk("^    \\{\"name\": " S ", \"fail\": [0-9]+, \"warn\": [0-9]+, \"ok\": [0-9]+, \"score\": [0-9]+\\},?$")
+               sub(/,$/, ""); secs = secs (secs == "" ? "" : ",") $0 }
+        in_f { chk("^    \\{\"id\": " S ", \"level\": \"(FAIL|WARN|OK|INFO)\", \"section\": " S ", \"message\": " S ", \"remedy\": " S "\\},?$") }
+        # FAIL/WARN IDs of every run, for "since" and the cross-host view;
+        # only plain anzen IDs (lowercase, digits, dashes) are kept
+        in_f && /"level": "(FAIL|WARN)"/ && match($0, /^    \{"id": "[a-z0-9-]+"/) {
+            ids = ids (ids == "" ? "" : ",") substr($0, RSTART + 11, RLENGTH - 11)
+        }
+        in_f && full == 1 && $0 !~ /"level": "OK"/ {
+            sub(/,$/, ""); fnd = fnd (fnd == "" ? "" : ",") $0
+        }
+        END {
+            if (bad || host == "" || date == "" || summ == "") exit 1
+            printf "{%s,%s,%s,%s,%s,\"sections\":[%s],\"ids\":[%s],\"findings\":%s}\n", \
+                host, date, (os == "" ? "\"os\": \"\"" : os), (ver == "" ? "\"version\": \"\"" : ver), summ, secs, ids, \
+                (full == 1 ? "[" fnd "]" : "null")
+        }' "$1"
+}
+
 # _dashboard_runs DIR — JS array literal: one object per history file with
 # host, date, summary and sections; findings only for each host's two newest
 _dashboard_runs() {
@@ -86,39 +125,7 @@ _dashboard_runs() {
         n=${#files[@]}
         for (( i = 0; i < n; i++ )); do
             f=${files[$i]}
-            # The lines are pasted into the page's script as they are, so every
-            # line must have exactly the shape anzen writes. Fleet reports come
-            # from the remote host: a compromised one must not inject script
-            # S: a JSON string. Via ENVIRON: awk -v would eat the backslashes
-            obj=$(S='"([^"\\]|\\.)*"' awk -v full="$(( i >= n - 2 ))" '
-                BEGIN { S = ENVIRON["S"] }
-                function chk(re) { if ($0 !~ re) bad = 1 }
-                /^  "hostname": /  { chk("^  \"hostname\": " S ",?$"); sub(/,$/, ""); host = $0 }
-                /^  "date": /      { chk("^  \"date\": " S ",?$"); sub(/,$/, ""); date = $0 }
-                /^  "os": /        { chk("^  \"os\": " S ",?$"); sub(/,$/, ""); os = $0 }
-                /^  "version": /   { chk("^  \"version\": " S ",?$"); sub(/,$/, ""); ver = $0 }
-                /^  "summary": /   { chk("^  \"summary\": \\{\"fail\": [0-9]+, \"warn\": [0-9]+, \"ok\": [0-9]+, \"info\": [0-9]+, \"score\": [0-9]+\\},?$")
-                                     sub(/,$/, ""); summ = $0 }
-                /^  "sections": \[/ { in_s = 1; next }
-                /^  "findings": \[/ { in_f = 1; next }
-                /^  \]/            { in_s = 0; in_f = 0; next }
-                in_s { chk("^    \\{\"name\": " S ", \"fail\": [0-9]+, \"warn\": [0-9]+, \"ok\": [0-9]+, \"score\": [0-9]+\\},?$")
-                       sub(/,$/, ""); secs = secs (secs == "" ? "" : ",") $0 }
-                in_f { chk("^    \\{\"id\": " S ", \"level\": \"(FAIL|WARN|OK|INFO)\", \"section\": " S ", \"message\": " S ", \"remedy\": " S "\\},?$") }
-                # FAIL/WARN IDs of every run, for "since" and the cross-host view;
-                # only plain anzen IDs (lowercase, digits, dashes) are kept
-                in_f && /"level": "(FAIL|WARN)"/ && match($0, /^    \{"id": "[a-z0-9-]+"/) {
-                    ids = ids (ids == "" ? "" : ",") substr($0, RSTART + 11, RLENGTH - 11)
-                }
-                in_f && full == 1 && $0 !~ /"level": "OK"/ {
-                    sub(/,$/, ""); fnd = fnd (fnd == "" ? "" : ",") $0
-                }
-                END {
-                    if (bad || host == "" || date == "" || summ == "") exit 1
-                    printf "{%s,%s,%s,%s,%s,\"sections\":[%s],\"ids\":[%s],\"findings\":%s}\n", \
-                        host, date, (os == "" ? "\"os\": \"\"" : os), (ver == "" ? "\"version\": \"\"" : ver), summ, secs, ids, \
-                        (full == 1 ? "[" fnd "]" : "null")
-                }' "$f") || {
+            obj=$(_dashboard_run_obj "$f" "$(( i >= n - 2 ))") || {
                 echo "[WARN] Dashboard: skipping $f (not an anzen report)" >&2
                 continue
             }

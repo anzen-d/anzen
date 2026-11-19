@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Push agents: a host enrols with `anzen --enrol=URL` (or
+  `curl -fsSL URL/enrol | sudo sh`), prints a code, and after
+  `--agent-approve=CODE` on the controller uploads the signed JSON report of
+  every full run. The controller side is `anzen --receiver` (needs `python3`);
+  reports land in `HISTORY_DIR/<name>/` with alerts and dashboard like
+  `--remote` hosts. Outbound HTTPS only; the controller cannot run anything
+  on a host. `--agent-list`, `--agent-revoke=NAME`. Linux hosts.
+- Web controller for push agents, served by `--receiver` on its own port
+  (`AGENT_ADMIN_LISTEN`): approve or reject pending hosts, rename, revoke,
+  status of every host, activity log. Token sign-in, CSRF value on every
+  change, `audit.log`.
+- "Scan now": `--agent-scan=NAME` or the button sets a flag that the host
+  fetches with a signed `--agent-poll` and answers with a normal full audit.
+
 ## [0.30.0] - 2026-11-19
 
 ### Added

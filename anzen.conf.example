@@ -98,6 +98,16 @@
 # (Uptime Kuma push monitor, healthchecks.io, ...)
 # HEARTBEAT_URL="https://kuma.example.com/api/push/XXXX?status=up&msg=OK"
 
+# ── Push agents (controller) ──────────────────────────────────────────────────
+# Hosts upload their own signed report to "anzen.sh --receiver" (docs/fleet.md).
+# The URL hosts use to reach it, through your TLS reverse proxy:
+# AGENT_PUBLIC_URL="https://anzen.example.com"
+# Where the receiver listens (plain HTTP) and keeps the hosts' public keys
+# AGENT_LISTEN="127.0.0.1:8787"
+# Web controller for the admin (own port; "" turns it off)
+# AGENT_ADMIN_LISTEN="127.0.0.1:8788"
+# AGENT_STATE_DIR="/var/lib/anzen/agents"
+
 # ── Container images (images module) ──────────────────────────────────────────
 # WARN for running images older than this many days (by build date)
 # IMAGE_MAX_AGE_DAYS=180

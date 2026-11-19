@@ -1,0 +1,391 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later — Copyright (C) 2026 The Anzen contributors -->
+<!-- lib/controller.html — web controller of "anzen --receiver", served by lib/receiver.py,
+     which fills in the nonce, the view (login | app) and the CSRF value. No data from a
+     host is ever put into the page as markup: everything goes through textContent. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>anzen controller</title>
+<style nonce="__NONCE__">
+:root {
+  --bg: #f6f7f9; --surface: #ffffff; --border: #e3e6eb; --text: #1b1f24; --muted: #5f6b7a;
+  --fail: #c62828; --warn: #b26a00; --ok: #2e7d32; --line: #3b6fd8; --on-line: #ffffff;
+  --mono: ui-monospace, "SF Mono", "Fira Code", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1216; --surface: #171b21; --border: #262c35; --text: #e6e9ee; --muted: #8e99a8;
+    --fail: #ef5350; --warn: #ffb74d; --ok: #66bb6a; --line: #7aa2ff; --on-line: #0f1216;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+       font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+[hidden] { display: none !important; }
+header { display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+         border-bottom: 1px solid var(--border); background: var(--surface); }
+header h1 { font-size: 1rem; margin: 0; font-weight: 650; }
+header h1 span { color: var(--muted); font-weight: 400; }
+header .grow { flex: 1; }
+main { max-width: 1040px; margin: 0 auto; padding: 20px 16px 60px; display: grid; gap: 20px; }
+section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; }
+h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+     margin: 0 0 12px; font-weight: 650; }
+p { margin: 0 0 10px; }
+.muted { color: var(--muted); }
+.small { font-size: .85rem; }
+code, .mono { font-family: var(--mono); }
+button { font: inherit; border: 1px solid var(--border); background: var(--surface); color: var(--text);
+         border-radius: 7px; padding: 6px 12px; cursor: pointer; min-height: 34px; }
+button:hover:not(:disabled) { border-color: var(--line); }
+button:disabled { opacity: .55; cursor: default; }
+button.primary { background: var(--line); border-color: var(--line); color: var(--on-line); font-weight: 600; }
+button.danger { color: var(--fail); }
+:focus-visible { outline: 2px solid var(--line); outline-offset: 2px; }
+input[type=text], input[type=password] {
+  font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border);
+  border-radius: 7px; padding: 6px 10px; min-height: 34px; width: 100%; }
+label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
+
+.cmd { display: flex; gap: 8px; align-items: stretch; }
+.cmd code { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 7px;
+            padding: 8px 12px; overflow-x: auto; white-space: nowrap; }
+ol.steps { margin: 12px 0 0; padding-left: 20px; color: var(--muted); font-size: .9rem; }
+
+#pending { border-color: var(--warn); }
+.req { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: end;
+       padding: 14px 0; border-top: 1px solid var(--border); }
+.req:first-of-type { border-top: 0; padding-top: 0; }
+.req .code { font-family: var(--mono); font-size: 1.35rem; font-weight: 700; letter-spacing: .04em; }
+.req .acts { display: flex; gap: 8px; }
+
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em;
+     color: var(--muted); font-weight: 650; padding: 0 10px 8px 0; }
+td { padding: 10px 10px 10px 0; border-top: 1px solid var(--border); vertical-align: middle; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.acts { text-align: right; white-space: nowrap; padding-right: 0; }
+td.acts button { margin-left: 6px; }
+.name { font-weight: 650; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 600;
+        padding: 2px 9px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.pill.ok { color: var(--ok); } .pill.warn { color: var(--warn); } .pill.none { color: var(--muted); }
+.fail { color: var(--fail); font-weight: 650; } .warnc { color: var(--warn); font-weight: 650; }
+.empty { color: var(--muted); padding: 6px 0; }
+
+ul.log { list-style: none; margin: 0; padding: 0; font-size: .85rem; max-height: 260px; overflow-y: auto; }
+ul.log li { display: grid; grid-template-columns: 150px 1fr auto; gap: 10px; padding: 5px 0;
+            border-top: 1px solid var(--border); }
+ul.log li:first-child { border-top: 0; }
+
+dialog { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text);
+         padding: 22px; width: min(440px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(0, 0, 0, .5); }
+dialog h3 { margin: 0 0 10px; font-size: 1.05rem; }
+dialog .big { font-family: var(--mono); font-size: 1.5rem; font-weight: 700; text-align: center;
+              padding: 12px; margin: 12px 0; background: var(--bg); border-radius: 8px; letter-spacing: .05em; }
+dialog .row { display: flex; flex-direction: row-reverse; justify-content: flex-start; gap: 8px; margin-top: 18px; }
+#toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); max-width: calc(100vw - 32px);
+         background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: .9rem; }
+#toast.bad { background: var(--fail); color: #fff; }
+
+.login { max-width: 400px; margin: 12vh auto 0; }
+.login .err { color: var(--fail); font-weight: 600; min-height: 1.5em; }
+.login button { width: 100%; margin-top: 12px; }
+
+@media (max-width: 720px) {
+  .req { grid-template-columns: 1fr; align-items: stretch; }
+  thead { display: none; }
+  table, tbody, tr, td { display: block; }
+  tr { border-top: 1px solid var(--border); padding: 10px 0; }
+  td { border: 0; padding: 3px 0; }
+  td.num { text-align: left; }
+  td[data-l]::before { content: attr(data-l) ": "; color: var(--muted); font-size: .85rem; }
+  td.acts { text-align: left; white-space: normal; padding-top: 8px; }
+  td.acts button { margin: 0 6px 6px 0; }
+  ul.log li { grid-template-columns: 1fr; gap: 0; }
+}
+@media (prefers-reduced-motion: no-preference) { button { transition: border-color .12s; } }
+</style>
+</head>
+<body data-view="__VIEW__" data-csrf="__CSRF__">
+
+<header>
+  <h1>anzen <span>controller</span></h1>
+  <div class="grow"></div>
+  <span id="updated" class="muted small" hidden></span>
+  <button id="signout" type="button" hidden>Sign out</button>
+</header>
+
+<main id="login" class="login" hidden>
+  <section>
+    <h2>Sign in</h2>
+    <form method="post" action="login">
+      <label for="token">Admin token</label>
+      <input id="token" name="token" type="password" autocomplete="current-password" required autofocus>
+      <p class="err" role="alert">__ERROR__</p>
+      <p class="muted small">The token is in <code>admin.token</code> in the controller's
+        agent state directory (default <code>/var/lib/anzen/agents</code>), readable by root.</p>
+      <button class="primary" type="submit">Sign in</button>
+    </form>
+  </section>
+</main>
+
+<main id="app" hidden>
+  <section id="pending" hidden aria-labelledby="h-pending">
+    <h2 id="h-pending">Waiting for your approval</h2>
+    <div id="requests"></div>
+  </section>
+
+  <section aria-labelledby="h-hosts">
+    <h2 id="h-hosts">Hosts</h2>
+    <table id="hosts" hidden>
+      <thead><tr>
+        <th scope="col">Host</th><th scope="col">Status</th><th scope="col" class="num">Score</th>
+        <th scope="col" class="num">Fail</th><th scope="col" class="num">Warn</th>
+        <th scope="col">Last report</th><th scope="col">Last poll</th><th scope="col"><span class="muted">Actions</span></th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    <p id="nohosts" class="empty" hidden>No approved hosts yet. Add one with the command below.</p>
+  </section>
+
+  <section aria-labelledby="h-add">
+    <h2 id="h-add">Add a host</h2>
+    <div class="cmd"><code id="enrol"></code><button id="copy" type="button">Copy</button></div>
+    <ol class="steps">
+      <li>Run the command as root on the new host. It prints a code.</li>
+      <li>The host appears above. Compare the code, then approve.</li>
+      <li>The host uploads its report after every audit. This controller never logs in to it.</li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="h-log">
+    <h2 id="h-log">Activity</h2>
+    <ul id="log" class="log"></ul>
+    <p id="nolog" class="empty" hidden>Nothing yet.</p>
+  </section>
+</main>
+
+<dialog id="dlg" aria-labelledby="dlg-title">
+  <form method="dialog">
+    <h3 id="dlg-title"></h3>
+    <p id="dlg-text"></p>
+    <div id="dlg-big" class="big" hidden></div>
+    <div id="dlg-field" hidden>
+      <label for="dlg-input">New name</label>
+      <input id="dlg-input" type="text" maxlength="40" pattern="[A-Za-z0-9_-]{1,40}" autocomplete="off">
+    </div>
+    <div class="row">
+      <!-- OK first in the source: Enter in the name field must not mean Cancel -->
+      <button id="dlg-ok" value="ok" type="submit" class="primary"></button>
+      <button value="cancel" type="submit" formnovalidate>Cancel</button>
+    </div>
+  </form>
+</dialog>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+
+<script nonce="__NONCE__">
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var view = document.body.dataset.view, csrf = document.body.dataset.csrf;
+  $(view === 'app' ? 'app' : 'login').hidden = false;
+  if (view !== 'app') return;
+  $('signout').hidden = false;
+
+  var NAME = /^[A-Za-z0-9_-]{1,40}$/;
+  var last = '', now = Date.now();
+
+  // h(tag, {props}, children...) — elements are built, never parsed from strings
+  function h(tag, props) {
+    var e = document.createElement(tag), i, c;
+    for (var k in props || {}) {
+      if (k === 'on') e.addEventListener('click', props[k]);
+      else if (k === 'data') e.setAttribute('data-l', props[k]);
+      else e[k] = props[k];
+    }
+    for (i = 2; i < arguments.length; i++) {
+      c = arguments[i];
+      if (c !== null && c !== undefined) e.append(c);
+    }
+    return e;
+  }
+
+  function ago(iso) {
+    if (!iso) return '';
+    var s = Math.max(0, (now - Date.parse(iso)) / 1000);
+    if (s < 90) return 'just now';
+    if (s < 5400) return Math.round(s / 60) + ' min ago';
+    if (s < 129600) return Math.round(s / 3600) + ' h ago';
+    return Math.round(s / 86400) + ' days ago';
+  }
+  function when(iso, none) {
+    if (!iso) return h('span', { className: 'muted' }, none);
+    return h('time', { dateTime: iso, title: iso.replace('T', ' ').replace('Z', ' UTC') }, ago(iso));
+  }
+  function age(iso) { return iso ? (now - Date.parse(iso)) / 86400000 : Infinity; }
+
+  var toastTimer;
+  function toast(msg, bad) {
+    var t = $('toast');
+    t.textContent = msg; t.className = bad ? 'bad' : ''; t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.hidden = true; }, bad ? 8000 : 4000);
+  }
+
+  // ask({title, text, big, ok, danger, input}) — resolves to true, or to the typed name
+  function ask(o) {
+    var d = $('dlg'), inp = $('dlg-input');
+    $('dlg-title').textContent = o.title;
+    $('dlg-text').textContent = o.text;
+    $('dlg-big').hidden = !o.big; $('dlg-big').textContent = o.big || '';
+    $('dlg-field').hidden = o.input === undefined;
+    inp.required = o.input !== undefined; inp.value = o.input || '';
+    $('dlg-ok').textContent = o.ok;
+    $('dlg-ok').className = o.danger ? 'danger' : 'primary';
+    d.returnValue = 'cancel';
+    d.showModal();
+    return new Promise(function (resolve) {
+      d.addEventListener('close', function () {
+        if (d.returnValue !== 'ok') return resolve(false);
+        resolve(o.input === undefined ? true : inp.value.trim());
+      }, { once: true });
+    });
+  }
+
+  function post(action, body) {
+    return fetch('api/' + action, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-Anzen-Csrf': csrf },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      if (r.status === 403) { location.reload(); throw new Error('Signed out'); }
+      return r.json();
+    }).then(function (j) {
+      toast(j.message, !j.ok);
+      return refresh(true);
+    }).catch(function (e) { toast(e.message || 'The controller did not answer', true); });
+  }
+
+  function approve(a, input) {
+    var name = input.value.trim();
+    if (!NAME.test(name)) { input.focus(); return toast('Name: letters, digits, _ or -, at most 40', true); }
+    ask({ title: 'Approve ' + name + '?', big: a.code, ok: 'Codes match, approve',
+          text: 'Check that the host printed exactly this code. After approval its reports are stored as "' + name + '".'
+    }).then(function (yes) { if (yes) post('approve', { code: a.code, name: name }); });
+  }
+  function reject(a) {
+    ask({ title: 'Reject this request?', big: a.code, ok: 'Reject', danger: true,
+          text: 'The host can ask again by enrolling again.'
+    }).then(function (yes) { if (yes) post('reject', { code: a.code }); });
+  }
+  function revoke(a) {
+    ask({ title: 'Revoke ' + a.name + '?', ok: 'Revoke', danger: true,
+          text: 'Its uploads are refused from now on. Its history stays. To come back the host must enrol and be approved again.'
+    }).then(function (yes) { if (yes) post('revoke', { name: a.name }); });
+  }
+  function rename(a) {
+    ask({ title: 'Rename ' + a.name, ok: 'Rename', input: a.name,
+          text: 'The history and the dashboard follow the new name.'
+    }).then(function (n) {
+      if (n === false || n === a.name) return;
+      if (!NAME.test(n)) return toast('Name: letters, digits, _ or -, at most 40', true);
+      post('rename', { name: a.name, new: n });
+    });
+  }
+
+  function status(a) {
+    if (!a.last) return h('span', { className: 'pill none' }, 'No report yet');
+    if (age(a.last) > 8) return h('span', { className: 'pill warn' }, 'Silent');
+    return h('span', { className: 'pill ok' }, 'Reporting');
+  }
+
+  function render(d) {
+    var pend = d.agents.filter(function (a) { return a.state === 'pending'; });
+    var appr = d.agents.filter(function (a) { return a.state === 'approved'; });
+
+    $('pending').hidden = !pend.length;
+    $('requests').replaceChildren.apply($('requests'), pend.map(function (a, i) {
+      var id = 'req-name-' + i;
+      var input = h('input', { type: 'text', id: id, value: a.name, maxLength: 40, autocomplete: 'off' });
+      return h('div', { className: 'req' },
+        h('div', null, h('div', { className: 'muted small' }, 'Code shown on the host'),
+          h('div', { className: 'code' }, a.code)),
+        h('div', null, h('label', { htmlFor: id }, 'Name on this controller · asked ' + ago(a.last)), input),
+        h('div', { className: 'acts' },
+          h('button', { type: 'button', className: 'primary', on: function () { approve(a, input); } }, 'Approve'),
+          h('button', { type: 'button', on: function () { reject(a); } }, 'Reject')));
+    }));
+
+    $('hosts').hidden = !appr.length;
+    $('nohosts').hidden = !!appr.length;
+    var body = $('hosts').tBodies[0];
+    body.replaceChildren.apply(body, appr.map(function (a) {
+      var polls = age(a.seen) < 15 / 1440;
+      return h('tr', null,
+        h('td', { className: 'name' }, a.name, h('div', { className: 'muted small mono' }, a.code)),
+        h('td', null, status(a)),
+        h('td', { className: 'num', data: 'Score' }, a.score || '–'),
+        h('td', { className: 'num', data: 'Fail' },
+          h('span', { className: +a.fail ? 'fail' : '' }, a.fail || '–')),
+        h('td', { className: 'num', data: 'Warn' },
+          h('span', { className: +a.warn ? 'warnc' : '' }, a.warn || '–')),
+        h('td', { data: 'Last report' }, when(a.last, 'never')),
+        h('td', { data: 'Last poll' }, when(a.seen, 'never')),
+        h('td', { className: 'acts' },
+          h('button', { type: 'button', disabled: a.scan,
+                        title: polls ? 'Starts within 5 minutes' : 'This host has not polled lately: the scan starts when it does',
+                        on: function () { post('scan', { name: a.name }); } }, a.scan ? 'Scan queued' : 'Scan now'),
+          h('button', { type: 'button', on: function () { rename(a); } }, 'Rename'),
+          h('button', { type: 'button', className: 'danger', on: function () { revoke(a); } }, 'Revoke')));
+    }));
+
+    $('enrol').textContent = d.enrol;
+    $('nolog').hidden = !!d.log.length;
+    $('log').replaceChildren.apply($('log'), d.log.map(function (l) {
+      return h('li', null, when(l.time), h('span', null, l.action + ' ' + l.target,
+        h('span', { className: 'muted' }, '  ' + l.who)),
+        h('span', { className: l.result === 'ok' ? 'muted' : 'fail' }, l.result));
+    }));
+  }
+
+  // refresh(force) — redraw only when something changed, and never under the
+  // admin's hands (a name being typed, an open dialog)
+  function refresh(force) {
+    return fetch('api/state', { credentials: 'same-origin' }).then(function (r) {
+      if (r.status === 401) { location.reload(); throw new Error('Signed out'); }
+      return r.json();
+    }).then(function (d) {
+      now = Date.parse(d.now);
+      $('updated').hidden = false;
+      $('updated').textContent = 'Live';
+      var busy = $('dlg').open || (document.activeElement && document.activeElement.tagName === 'INPUT');
+      if (busy && !force) return;
+      var key = JSON.stringify([d.agents, d.log, d.enrol, Math.floor(now / 60000)]);
+      if (key === last) return;
+      last = key;
+      render(d);
+    }).catch(function () { $('updated').textContent = 'No answer from the controller'; });
+  }
+
+  $('copy').addEventListener('click', function () {
+    navigator.clipboard.writeText($('enrol').textContent).then(
+      function () { toast('Copied'); }, function () { toast('Select the command and copy it by hand', true); });
+  });
+  $('signout').addEventListener('click', function () {
+    fetch('logout', { method: 'POST', credentials: 'same-origin', headers: { 'X-Anzen-Csrf': csrf } })
+      .then(function () { location.reload(); });
+  });
+
+  refresh(true);
+  setInterval(function () { if (!document.hidden) refresh(false); }, 10000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(false); });
+})();
+</script>
+</body>
+</html>

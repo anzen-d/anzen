@@ -43,6 +43,11 @@ cp anzen.conf.example anzen.conf
 | `NOTIFY_ON_FAIL_ONLY` | `false` | Legacy: `true` is the same as `NOTIFY_ON=fail` |
 | `NOTIFY_NTFY_TOKEN` | — | Bearer token for the ntfy topic |
 | `HEARTBEAT_URL` | — | Fetched after every run (dead-man switch) |
+| `AGENT_PUBLIC_URL` | — | Controller: the `https://` URL hosts use to reach `--receiver`, see [Push agents](fleet.md#push-agents) |
+| `AGENT_LISTEN` | `127.0.0.1:8787` | Controller: address and port of `--receiver` (plain HTTP, for a TLS proxy) |
+| `AGENT_ADMIN_LISTEN` | `127.0.0.1:8788` | Controller: address and port of the [web controller](fleet.md#web-controller); empty turns it off |
+| `AGENT_STATE_DIR` | `/var/lib/anzen/agents` | Controller: public keys of pending and approved hosts, `admin.token`, `audit.log` |
+| `AGENT_DIR` | `/etc/anzen/agent` | Host: its key pair and the controller URL |
 | `IOC_SCAN_DIRS` | `/home /root /srv /opt /var/www` | Project folders the `compromise` module searches for supply-chain worm loader files (`IOC_SCAN_TIMEOUT`, default 120 seconds) |
 | `CUSTOM_CHECKS_DIR` | — | Directory of site-specific check modules |
 | `PLUGINS` | — | [Plugins](../plugins/README.md) to enable by name, e.g. `"backup_age cert_expiry"` |

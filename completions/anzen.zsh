@@ -54,7 +54,15 @@ _anzen() {
         '--config=[Load config from file]:file:_files' \
         '*--check=[Run specific module]:module:(($modules))' \
         '--remote=[Run on remote host via SSH]:host:_hosts' \
-        '--schedule=[Install cron job]:frequency:(daily weekly monthly)'
+        '--schedule=[Install cron job]:frequency:(daily weekly monthly)' \
+        '--enrol=[Enrol this host as a push agent of the controller at URL]:url:' \
+        '--receiver[Take report uploads from push agents]' \
+        '--agent-list[List pending and approved push agents]' \
+        '--agent-approve=[Approve the host that printed CODE]:code:' \
+        '--agent-revoke=[Stop accepting a push agent]:name:' \
+        '--agent-rename=[Rename a push agent (OLD:NEW)]:names:' \
+        '--agent-scan=[Ask a host for a full audit at its next poll]:name:' \
+        '--agent-poll[Ask the controller for a scan request]'
 }
 
 _anzen
