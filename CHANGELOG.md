@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Ten more lessons: container without a memory limit, no-new-privileges,
+  host network, outdated image, vulnerable package in an image, world-writable
+  file, unexpected SUID/SGID program, service on every network address,
+  missing HTTP security headers and systemd service that runs as root.
+
+### Fixed
+- The file scan no longer walks the image layers of containerd
+  (`/var/lib/containerd`, also the k3s one). With Docker's containerd image
+  store, every SUID program and world-writable file inside an image was a
+  finding on the host.
+
 ## [0.32.0] - 2026-11-23
 
 ### Added

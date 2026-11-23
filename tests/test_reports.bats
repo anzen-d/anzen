@@ -293,7 +293,8 @@ print(len(rows))' "$REPORT_OUT"
     # A lesson whose check was renamed or removed must fail here, not rot
     local sections msgs sre mre title dead=""
     sections=$(grep -rhoE '^[[:space:]]*section "[^"]+"' "$ANZEN_DIR"/lib/checks | sed -e 's/^[[:space:]]*section "//' -e 's/"$//')
-    msgs=$(grep -rhE '(fail|warn) "|expl = "' "$ANZEN_DIR"/lib/checks)
+    # CVE messages are built in awk: their severity words are in the split() list
+    msgs=$(grep -rhE '(fail|warn) "|expl = "|split\("CRITICAL HIGH' "$ANZEN_DIR"/lib/checks)
     while IFS=$'\t' read -r sre mre title _; do
         case "$sre" in ''|'#'*) continue ;; esac
         grep -qiE "^($sre)$" <<< "$sections" || dead="$dead [section: $title]"
