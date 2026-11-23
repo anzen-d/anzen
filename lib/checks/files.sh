@@ -6,7 +6,7 @@
 _KNOWN_SUID="ping$|ping6$|sudo$|sudoedit$|mount$|umount$|su$|passwd$|chsh$|chfn$|newgrp$|gpasswd$|pkexec$|Xorg$|ksu$|ssh-keysign$|crontab$|at$|wall$|write$|netstat$|traceroute$|traceroute6$|unix_chkpwd$|pam_timestamp_check$|pt_chown$|screen$|lockfile$"
 _SYSTEM_PATHS="^/(bin|sbin|usr/bin|usr/sbin|usr/lib|usr/lib64|usr/libexec|usr/lib/openssh|usr/lib/ssh|usr/local/bin|snap|opt/homebrew)/"
 # Exclude SUID bits inside container image layers (overlay/volumes — not live filesystem)
-_CONTAINER_PATHS="containers/storage/overlay|/var/lib/docker/overlay|/var/lib/lxc"
+_CONTAINER_PATHS="containers/storage/overlay|/var/lib/docker/overlay|/var/lib/lxc|/var/lib/containerd/|/k3s/agent/containerd/"
 
 run_files_check() {
     section "File Permissions"
@@ -48,6 +48,8 @@ run_files_check() {
     local excludes=(
         "/proc/*" "/sys/*" "/dev/*" "/run/*" "/tmp/*" "/var/tmp/*"
         "/var/lib/docker/*" "/var/lib/lxc/*"
+        # Image layers of containerd: Docker's containerd image store, k3s
+        "/var/lib/containerd/*" "/var/lib/rancher/k3s/agent/containerd/*"
         # App data dirs that legitimately use world-writable cache files
         "*/Plex Media Server/Plug-in Support/Data/*"
         "*/plex/*/cache/*"
