@@ -52,6 +52,7 @@ sudo ./anzen.sh --html
 | `--schedule=FREQ` | Install cron job (`daily`\|`weekly`\|`monthly`) |
 | `--history=DIR` | Save this run to `DIR/<host>/` (overrides `HISTORY_DIR`) |
 | `--dashboard=FILE` | Build the static dashboard from the history dir and exit |
+| `--explain=ID` | Explain one finding of the last run: fix, why it matters, what the fix can break, how to check it ([lessons](reports.md#lessons)) |
 | `--enrol=URL` | Host: enrol as a [push agent](fleet.md#push-agents) of the controller at `URL` |
 | `--receiver` | Controller: take report uploads from push agents |
 | `--agent-list` | Controller: pending and approved push agents with their codes |

@@ -157,6 +157,9 @@ generate_dashboard() {
         tags+="\"$h\":[\"${t//,/\",\"}\"]"
     done
     tags+="}"
+    # Lessons of this install (lib/lessons.sh): the page matches them to the findings
+    local lessons='[]'
+    type _lessons_js >/dev/null 2>&1 && lessons=$(_lessons_js)
 
     cat > "$out" <<'HTML'
 <!DOCTYPE html>
@@ -224,6 +227,14 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
 .bar { height: 6px; border-radius: 3px; background: var(--border); min-width: 60px; }
 .bar > span { display: block; height: 100%; border-radius: 3px; }
 @media (max-width: 600px) { .barcol { display: none; } }
+details.lesson { margin-top: .35rem; font-size: .85rem; }
+details.lesson > summary { cursor: pointer; color: var(--info); }
+.lesson p, .next p { margin: .5rem 0; max-width: 46rem; }
+.step { display: block; font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.next pre, .lesson code { font-family: var(--mono); font-size: .8rem; background: var(--bg); border-radius: 6px;
+  white-space: pre-wrap; word-break: break-word; }
+.next pre { margin: .25rem 0 0; padding: .5rem .6rem; max-width: 46rem; }
+.lesson code { padding: .1rem .3rem; }
 </style>
 </head>
 <body>
@@ -239,7 +250,7 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: now
 </main>
 <script>
 HTML
-    printf 'const RUNS = %s;\nconst TAGS = %s;\n' "$runs" "$tags" >> "$out"
+    printf 'const RUNS = %s;\nconst TAGS = %s;\nconst LESSONS = %s;\n' "$runs" "$tags" "$lessons" >> "$out"
     cat >> "$out" <<'HTML'
 const STALE_DAYS = 8, EXPIRY_DAYS = 30;
 const $ = s => document.querySelector(s);
@@ -337,6 +348,24 @@ function histOf(h, id) {
   seen.forEach(s => { if (s.has(id) && was === "gone") back++; if (s.has(id)) was = true; else if (was) was = "gone"; });
   return {since: runs[i].date, first: i === 0, back};
 }
+// Lessons (lib/data/lessons.tsv), matched as in the HTML report: the section
+// regex covers the whole section name, the message regex any part, first wins
+const LES = LESSONS.flatMap(l => {
+  try { return [{s: new RegExp("^(" + l[0] + ")$", "i"), m: new RegExp(l[1], "i"), title: l[2], why: l[3], risk: l[4], verify: l[5]}]; }
+  catch (e) { return []; }
+});
+const lessonOf = f => LES.find(l => l.s.test(f.section) && l.m.test(f.message));
+const lessonParts = l => `<p><span class="step">Why it matters</span>${esc(l.why)}</p>
+  <p><span class="step">Before you change it</span>${esc(l.risk)}</p>
+  <p><span class="step">Check that it worked</span><code>${esc(l.verify)}</code></p>`;
+// One finding to start with: FAIL before WARN, one with a lesson first, then the weakest section
+function nextFix(run) {
+  const sec = Object.fromEntries(run.sections.map(s => [s.name, s.score]));
+  return (run.findings || []).filter(f => f.level === "FAIL" || f.level === "WARN")
+    .map(f => ({f, l: lessonOf(f)}))
+    .sort((a, b) => (a.f.level === b.f.level ? 0 : a.f.level === "FAIL" ? -1 : 1) || !!b.l - !!a.l
+      || (sec[a.f.section] ?? 100) - (sec[b.f.section] ?? 100))[0];
+}
 const sinceText = (h, x) => (x.first && byHost[h].length > 1 ? "≤ " : "") + fmt(x.since);
 
 // Fleet-wide: each FAIL/WARN of the latest runs with every host that has it
@@ -380,7 +409,15 @@ function renderDetail() {
   const issues = (last.findings || []).filter(f => f.level === "FAIL" || f.level === "WARN");
   const hist = id => histOf(current, id);
   const prevSec = Object.fromEntries((prev?.sections || []).map(s => [s.name, s.score]));
-  $("#detail").innerHTML = `
+  const nx = nextFix(last);
+  $("#detail").innerHTML = (nx ? `
+    <section><h2>${esc(current)} — next fix</h2><div class="panel next">
+      <div><span class="lvl ${esc(nx.f.level)}">${esc(nx.f.level)}</span> <b>${esc(stripAccept(nx.f.message))}</b></div>
+      <div class="id">${esc(nx.f.section)} · ${esc(nx.f.id)} · since ${esc(sinceText(current, hist(nx.f.id)))}</div>
+      ${nx.l ? `<p><b>${esc(nx.l.title)}</b></p>${lessonParts(nx.l)}` : '<p class="empty">No lesson for this finding yet.</p>'}
+      ${nx.f.remedy ? `<p><span class="step">Fix (run it on the host yourself)</span></p><pre>${esc(nx.f.remedy)}</pre>` : ""}
+      ${nx.l ? `<p class="id">On the host: anzen --explain=${esc(nx.f.id)}</p>` : ""}
+    </div></section>` : "") + `
     <h2>${esc(current)} — score trend</h2><div class="panel" id="trend"></div>
     <section><h2>Sections</h2><div class="panel"><table>
       <thead><tr><th>Section</th><th class="num">Score</th><th class="barcol"></th><th class="num">Δ</th><th class="num">FAIL</th><th class="num">WARN</th></tr></thead>
@@ -406,11 +443,11 @@ function renderDetail() {
       .filter(f => (!l || f.level === l) && (!q || `${f.message} ${f.section} ${f.id}`.toLowerCase().includes(q)))
       .sort((a, b) => (a.level === b.level ? 0 : a.level === "FAIL" ? -1 : 1))
       .map(f => {
-        const h = hist(f.id);
+        const h = hist(f.id), les = lessonOf(f);
         const since = esc(sinceText(current, h));
         const flap = h.back >= 2 ? `<div class="id" title="Fixed and back ${h.back} times">flapping ×${h.back}</div>` : "";
         return `<tr><td class="lvl ${esc(f.level)}">${esc(f.level)}</td><td>${esc(f.section)}</td>
-        <td class="msg">${esc(f.message)}<div class="id">${esc(f.id)}</div></td><td>${since}${flap}</td></tr>`;
+        <td class="msg">${esc(f.message)}<div class="id">${esc(f.id)}</div>${les ? `<details class="lesson"><summary>Why it matters: ${esc(les.title)}</summary>${lessonParts(les)}</details>` : ""}</td><td>${since}${flap}</td></tr>`;
       }).join("")
       || '<tr><td colspan="4" class="empty">No matching findings.</td></tr>';
   };

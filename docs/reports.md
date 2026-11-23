@@ -183,6 +183,20 @@ command. Under the finding, **Why it matters** opens three short parts:
 The text of a lesson is in the page once. When more findings share a topic
 (ten containers that run as root), the later ones link to it.
 
+The same lessons are in two more places:
+
+- **Dashboard** — each host opens with a **Next fix** card: one finding to
+  start with, its lesson and its fix command. A FAIL comes before a WARN, a
+  finding with a lesson before one without, then the section with the lowest
+  score. Every finding in the table below it opens its lesson too. The
+  dashboard uses the lessons of the anzen that builds it, so reports from
+  fleet hosts and push agents get them as well. It only shows the command:
+  you run it on the host yourself.
+- **Terminal** — `anzen --explain=ID` prints one finding of the last run
+  with its fix, its control references and its lesson. It reads the newest
+  JSON report: this host's history (`HISTORY_DIR`), else `reports/` from a
+  `--json` run. The ID is in the txt and HTML reports and in the dashboard.
+
 Lessons are plain text in `lib/data/lessons.tsv`, one line per topic:
 
 ```

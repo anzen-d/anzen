@@ -82,6 +82,23 @@ assert all(f['level'] != 'OK' for f in d[-1]['findings'])
     [ "$status" -eq 0 ]
 }
 
+@test "generate_dashboard() embeds the lessons for the next-fix card" {
+    # shellcheck disable=SC1091
+    source "$ANZEN_DIR/lib/controls.sh"; source "$ANZEN_DIR/lib/lessons.sh"
+    section "SSH Configuration"; fail "PermitRootLogin: yes — direct root SSH login allowed"
+    history_save "$HIST" >/dev/null
+    generate_dashboard "$HIST" "$HIST/index.html"
+    run python3 -c "
+import re, json
+s = open('$HIST/index.html').read()
+assert s.count('</script>') == 1
+d = json.loads(re.search(r'const LESSONS = (.*?);\n', s, re.S).group(1))
+assert any(l[2] == 'Root login over SSH' and re.search(l[1], 'permitrootlogin: yes') for l in d), d
+assert 'function nextFix' in s
+"
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
 @test "generate_dashboard() passes os through and embeds checked HOST_TAGS" {
     section "SSH"; fail "x"
     OS_PRETTY="Debian GNU/Linux 12" history_save "$HIST" >/dev/null
@@ -93,7 +110,7 @@ import re, json
 s = open('$HIST/index.html').read()
 assert s.count('</script>') == 1
 d = json.loads(re.search(r'const RUNS = (.*?);\nconst TAGS', s, re.S).group(1))
-t = json.loads(re.search(r'const TAGS = (.*?);\nconst STALE', s, re.S).group(1))
+t = json.loads(re.search(r'const TAGS = (.*?);\nconst LESSONS', s, re.S).group(1))
 assert d[0]['os'] == 'Debian GNU/Linux 12', d[0]
 assert t == {'$(hostname -s)': ['prod', 'web'], 'lab-1': ['lab']}, t
 "

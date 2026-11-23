@@ -6,7 +6,7 @@
 
 set -uo pipefail
 
-ANZEN_VERSION="0.31.0"
+ANZEN_VERSION="0.32.0"
 ANZEN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPORT_DIR="$ANZEN_DIR/reports"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -36,6 +36,7 @@ PENTEST_RESOLVE_IP=""
 PENTEST_REMOTE_HOST=""
 HISTORY_ARG=""
 DASHBOARD_ONLY=""
+EXPLAIN=""
 DEBUG=false
 OFFLINE=false
 # Push agent (lib/agent.sh): enrol | list | approve | revoke | receiver | op
@@ -70,6 +71,7 @@ for arg in "$@"; do
         --schedule=*)    SCHEDULE="${arg#*=}" ;;
         --history=*)     HISTORY_ARG="${arg#*=}" ;;
         --dashboard=*)   DASHBOARD_ONLY="${arg#*=}" ;;
+        --explain=*)     EXPLAIN="${arg#*=}" ;;
         --enrol=*|--enroll=*) AGENT_MODE=enrol;  AGENT_ARG="${arg#*=}" ;;
         --receiver)        AGENT_MODE=receiver ;;
         --agent-list)      AGENT_MODE=list ;;
@@ -133,6 +135,8 @@ Advanced:
 History & dashboard:
   --history=DIR        Save this run to DIR/<host>/ (default: HISTORY_DIR in anzen.conf)
   --dashboard=FILE     Build a static HTML dashboard from the history dir and exit
+  --explain=ID         Explain one finding of the last run: fix, why it matters,
+                       what the fix can break, how to check it (IDs are in the reports)
   --version, -v        Print version and exit
 
 Push agent (hosts upload their own report; the controller never logs in):
@@ -254,7 +258,7 @@ source "$ANZEN_DIR/lib/config.sh"
 
 # ── Privilege check ───────────────────────────────────────────────────────────
 # (not for the receiver's internal calls: their stdout is the HTTP answer)
-if [ "$AGENT_MODE" != op ] && [ "$EUID" -ne 0 ] && ! sudo -n true 2>/dev/null; then
+if [ "$AGENT_MODE" != op ] && [ -z "$EXPLAIN" ] && [ "$EUID" -ne 0 ] && ! sudo -n true 2>/dev/null; then
     echo "[WARN] Not running as root and no passwordless sudo — some checks may be incomplete."
 fi
 
@@ -299,6 +303,23 @@ if [ -n "$DASHBOARD_ONLY" ]; then
     generate_dashboard "$HISTORY_DIR" "$DASHBOARD_ONLY" || exit 1
     echo "Dashboard: $DASHBOARD_ONLY"
     exit 0
+fi
+
+# ── Explain mode (reads the last JSON report, runs no checks) ─────────────────
+if [ -n "$EXPLAIN" ]; then
+    # Newest first: this host's history, then reports/ (--json runs)
+    mapfile -t _explain_files < <(
+        { [ -n "${HISTORY_DIR:-}" ] && history_latest "$HISTORY_DIR"
+          ls -1t "$REPORT_DIR"/anzen_*.json 2>/dev/null | head -5; } | awk 'NF')
+    if [ "${#_explain_files[@]}" -eq 0 ]; then
+        echo "ERROR: --explain reads the last JSON report: run 'anzen --json' first (or set HISTORY_DIR)" >&2
+        exit 1
+    fi
+    for _f in "${_explain_files[@]}"; do
+        lesson_explain "$EXPLAIN" "$_f" && exit 0
+    done
+    echo "ERROR: no finding '$EXPLAIN' in the last report (${_explain_files[0]}). The txt and HTML reports and the dashboard show the IDs" >&2
+    exit 1
 fi
 
 # ── Push agent modes (run no checks) ──────────────────────────────────────────

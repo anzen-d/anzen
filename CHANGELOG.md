@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-11-23
+
+### Added
+- Dashboard: each host opens with a **Next fix** card (one finding to start
+  with, its lesson and its fix command), and every finding in the table opens
+  its lesson. The lessons come from the anzen that builds the dashboard, so
+  reports from fleet hosts and push agents get them too.
+- `--explain=ID` prints one finding of the last run in the terminal: fix,
+  control references, why it matters, what the fix can break and how to
+  check it.
+
 ## [0.31.0] - 2026-11-19
 
 ### Added

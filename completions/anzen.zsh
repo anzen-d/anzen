@@ -43,6 +43,7 @@ _anzen() {
         '--remote-pentest=[Run pentest_external from remote host]:host:_hosts' \
         '--history=[Save run to history dir]:dir:_files -/' \
         '--dashboard=[Build static dashboard from history and exit]:file:_files' \
+        '--explain=[Explain one finding of the last run]:finding ID:' \
         '(-p --parallel)'{-p,--parallel}'[Run modules in parallel]' \
         '--baseline[Save current run as baseline]' \
         '--diff[Compare to saved baseline]' \

@@ -42,7 +42,7 @@ _anzen_complete() {
                 --version -v --help -h
                 --output= --config= --check= --remote= --schedule=
                 --sarif --csv --strict --wan --target= --resolve-to= --remote-pentest=
-                --history= --dashboard=
+                --history= --dashboard= --explain=
                 --enrol= --receiver --agent-list --agent-approve= --agent-revoke=
                 --agent-rename= --agent-scan= --agent-poll"
 

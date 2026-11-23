@@ -343,3 +343,37 @@ print(len(rows))' "$REPORT_OUT"
     [ "$status" -eq 0 ]
     ! grep -q '<details class="lesson"' "$REPORT_OUT"
 }
+
+@test "lessons: lesson_explain prints the finding, its fix and its lesson" {
+    section "SSH Configuration"
+    fail 'PermitRootLogin: yes — "root" login allowed (C:\x)'; remedy "sed -i 's/yes/no/' /etc/ssh/sshd_config"
+    warn "SSH on default port 22"
+    generate_json_report "$REPORT_OUT"
+    id=$(awk -F'\t' '$1 == "FAIL" { print $4 }' "$FINDINGS_FILE")
+    run lesson_explain "$id" "$REPORT_OUT"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'PermitRootLogin: yes — "root" login allowed (C:\x)'* ]]
+    [[ "$output" == *"sed -i 's/yes/no/' /etc/ssh/sshd_config"* ]]
+    [[ "$output" == *"Root login over SSH"* && "$output" == *"Check that it worked"* && "$output" == *"Ref: NIST"* ]]
+    # No lesson for this one, still the finding itself
+    id=$(awk -F'\t' '$1 == "WARN" { print $4 }' "$FINDINGS_FILE")
+    run lesson_explain "$id" "$REPORT_OUT"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"No lesson for this finding yet."* ]]
+    run lesson_explain "no-such-id" "$REPORT_OUT"
+    [ "$status" -eq 1 ]
+    [ -z "$output" ]
+}
+
+@test "lessons: _lessons_js is valid JSON and cannot end the script block" {
+    printf 'Demo|X\t"q"\\\\.\tT</script><script>alert(1)\twhy\trisk\techo "x"\n# c\nshort\tline\n' > "$BATS_TEST_TMPDIR/l.tsv"
+    ANZEN_LESSONS_FILE="$BATS_TEST_TMPDIR/l.tsv" _lessons_js > "$REPORT_OUT"
+    ! grep -q '</script>' "$REPORT_OUT"
+    run python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert len(d) == 1 and len(d[0]) == 6, d
+assert d[0][1] == "\"q\"\\\\." and d[0][2] == "T</script><script>alert(1)" and d[0][5] == "echo \"x\"", d' "$REPORT_OUT"
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    [ "$(ANZEN_LESSONS_FILE=/nonexistent _lessons_js)" = "[]" ]
+}
