@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-11-23
+
 ### Added
 - Ten more lessons: container without a memory limit, no-new-privileges,
   host network, outdated image, vulnerable package in an image, world-writable
